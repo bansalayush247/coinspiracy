@@ -1,0 +1,55 @@
+[Unit]
+Description=Byzantine Council game server
+Documentation=file:///opt/byzantine-council/current/docs/deploy.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bcouncil
+Group=bcouncil
+WorkingDirectory=/opt/byzantine-council/current/apps/server
+# root:root 0600; systemd reads it before dropping privileges.
+EnvironmentFile=/etc/byzantine-council/server.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=2
+# The server drains rooms on SIGTERM and caps the drain at 10 s.
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+# No privileges, no writable filesystem, no devices.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+UMask=0077
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @mount @debug @cpu-emulation @obsolete @raw-io @reboot @swap @module
+# MemoryDenyWriteExecute stays off: V8's JIT needs writable executable memory.
+
+# Resource caps.
+MemoryMax=1G
+TasksMax=256
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

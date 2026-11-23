@@ -1,0 +1,16 @@
+[Unit]
+Description=Byzantine Council database backup
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+ExecStart=/opt/byzantine-council/current/deploy/scripts/backup.sh
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/backups/byzantine-council
+UMask=0077
