@@ -1,0 +1,58 @@
+{
+  "name": "@byzantine-council/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./state": {
+      "source": "./src/state.ts",
+      "types": "./dist/state.d.ts",
+      "import": "./dist/state.js"
+    },
+    "./economy": {
+      "source": "./src/economy/index.ts",
+      "types": "./dist/economy/index.d.ts",
+      "import": "./dist/economy/index.js"
+    },
+    "./hub": {
+      "source": "./src/hub/index.ts",
+      "types": "./dist/hub/index.d.ts",
+      "import": "./dist/hub/index.js"
+    },
+    "./pathfinding": {
+      "source": "./src/pathfinding.ts",
+      "types": "./dist/pathfinding.d.ts",
+      "import": "./dist/pathfinding.js"
+    },
+    "./seasons": {
+      "source": "./src/seasons.ts",
+      "types": "./dist/seasons.d.ts",
+      "import": "./dist/seasons.js"
+    },
+    "./progression": {
+      "source": "./src/progression/index.ts",
+      "types": "./dist/progression/index.d.ts",
+      "import": "./dist/progression/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@colyseus/schema": "^5.0.50",
+    "zod": "^4.6.7"
+  }
+}
