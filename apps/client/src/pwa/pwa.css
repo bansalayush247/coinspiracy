@@ -1,0 +1,43 @@
+/* "New version ready" notice: bottom centre, clear of the safe area, matching the glass HUD. */
+.pwa-update {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 40;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  padding: 10px 12px;
+  border: 1px solid var(--edge, rgba(255, 224, 190, 0.16));
+  border-radius: var(--radius, 14px);
+  background: var(--glass-strong, rgba(34, 22, 48, 0.92));
+  color: var(--text, #fff1de);
+  font: 14px/1.4 var(--font, system-ui, sans-serif);
+  box-shadow: 0 10px 30px rgba(20, 10, 30, 0.35);
+}
+
+.pwa-update-text {
+  flex: 1 1 14em;
+  min-height: 1.4em;
+  margin: 0;
+}
+
+.pwa-update button {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.pwa-update .pwa-update-reload {
+  border-color: transparent;
+  background: var(--cta, #ff8a5c);
+  color: var(--cta-ink, #2a1206);
+}
+
+.pwa-update button:focus-visible {
+  outline: 2px solid var(--gold, #ffd27a);
+  outline-offset: 2px;
+}

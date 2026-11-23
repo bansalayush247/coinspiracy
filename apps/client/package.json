@@ -1,0 +1,24 @@
+{
+  "name": "@byzantine-council/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@byzantine-council/shared": "^0.1.0",
+    "@colyseus/schema": "^5.0.50",
+    "@colyseus/sdk": "^0.18.10",
+    "phaser": "^4.2.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "happy-dom": "^21.0.4",
+    "vite": "^8.3.8"
+  }
+}

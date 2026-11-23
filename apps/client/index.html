@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Byzantine Council</title>
+    <meta name="description" content="A multiplayer social-deduction game about federated ecash. Guardians sign proposals together, and a few of them are secretly Byzantine." />
+    <meta name="theme-color" content="#2a1a33" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="game"></div>
+      <div id="light" aria-hidden="true"></div>
+      <div id="ui">
+        <p id="nature-note" class="nature-note" role="status"></p>
+        <div id="achievements" class="achievements" aria-live="polite"></div>
+        <div id="coach" class="panel coach" role="status" hidden>
+          <p id="coach-text"></p>
+          <button id="coach-ok" type="button" class="cta">Got it</button>
+        </div>
+        <div class="corner-toggles">
+          <button id="streamer" type="button" class="corner-toggle" aria-pressed="false">Streamer mode: Off</button>
+          <button id="quality" type="button" class="corner-toggle">Graphics: High</button>
+          <button id="sound" type="button" class="corner-toggle" aria-label="Sound: on">Sound on</button>
+        </div>
+        <section id="menu" class="panel menu" aria-labelledby="menu-title" hidden>
+          <header class="brand">
+            <p class="eyebrow">A game about federated ecash</p>
+            <h1 id="menu-title">Byzantine Council</h1>
+            <p class="tagline">Guardians keep the mint honest. A few of them are lying.</p>
+          </header>
+          <form id="menu-form" novalidate autocomplete="off">
+            <label for="nickname">Nickname</label>
+            <input id="nickname" name="nickname" maxlength="16" required spellcheck="false" autocapitalize="off" placeholder="Satoshi" />
+            <div class="actions">
+              <button type="submit" class="cta" data-action="quick">Quick match</button>
+              <button type="submit" data-action="create">Create private room</button>
+            </div>
+            <div class="divider"><span>or join friends</span></div>
+            <label for="room-code">Room code</label>
+            <div class="join-row">
+              <input id="room-code" name="code" maxlength="8" placeholder="K7Q-X9M" autocapitalize="characters" spellcheck="false" />
+              <button type="submit" data-action="join">Join</button>
+            </div>
+            <p id="menu-error" class="error" role="alert"></p>
+            <p id="menu-status" class="status" aria-live="polite"></p>
+          </form>
+          <button id="open-academy" type="button" class="academy-open">Play solo: the Academy</button>
+          <button id="open-progress" type="button" class="progress-chip" hidden></button>
+          <button id="open-wardrobe" type="button" class="wardrobe-open" hidden>Wardrobe</button>
+          <aside id="season" class="season" aria-labelledby="season-title" hidden>
+            <p id="season-title" class="season-title"></p>
+            <p id="season-headline" class="season-headline"></p>
+            <p id="season-blurb" class="season-blurb"></p>
+          </aside>
+          <section id="world" class="world" aria-labelledby="world-title" hidden>
+            <h2 id="world-title" class="eyebrow">The archipelago</h2>
+            <div id="world-map" class="world-map"></div>
+            <div id="world-card" class="world-card" aria-live="polite"></div>
+          </section>
+          <p class="fine">Play money only. No sign-up and no personal data.</p>
+        </section>
+
+        <section id="beach-hud" class="beach-hud" aria-label="Beach Town" hidden>
+          <div class="panel beach-bar">
+            <div><span class="eyebrow">Beach Town</span><b id="beach-wallet" class="beach-wallet"></b></div>
+            <p id="beach-job" class="beach-job"></p>
+            <button id="beach-wardrobe" type="button">Wardrobe</button>
+            <button id="beach-leave" type="button">Back to the map</button>
+          </div>
+          <div id="beach-emotes" class="panel beach-emotes" role="group" aria-label="Emotes"></div>
+          <div id="beach-prompt" class="panel beach-prompt" hidden>
+            <span id="beach-prompt-text"></span>
+            <div class="beach-prompt-actions">
+              <button id="beach-shop" type="button" class="cta">Browse (E)</button>
+              <button id="beach-job-action" type="button"></button>
+            </div>
+          </div>
+        </section>
+        <section id="shop" class="panel modal shop" role="dialog" aria-modal="true" aria-labelledby="shop-title" tabindex="-1" hidden>
+          <h2 id="shop-title"></h2>
+          <p id="shop-sells" class="hint"></p>
+          <div id="shop-items" class="shop-items"></div>
+          <div id="shop-pay" class="shop-pay" hidden>
+            <p id="shop-pay-title" class="shop-pay-title"></p>
+            <p class="hint">Pick notes from your wallet that cover the price. You cannot hand over a note you do not need; the mint reissues your change.</p>
+            <div id="shop-notes" class="shop-notes"></div>
+            <p id="shop-pay-status" class="shop-pay-status" aria-live="polite"></p>
+            <div class="shop-pay-actions">
+              <button id="shop-pay-back" type="button">Back</button>
+              <button id="shop-pay-go" type="button" class="cta">Pay</button>
+            </div>
+          </div>
+          <button id="shop-close" type="button">Close</button>
+        </section>
+        <section id="wardrobe" class="panel modal wardrobe" role="dialog" aria-modal="true" aria-labelledby="wardrobe-title" tabindex="-1" hidden>
+          <h2 id="wardrobe-title">Wardrobe</h2>
+          <p class="hint">What you wear shows on your guardian in every match.</p>
+          <div id="wardrobe-body" class="wardrobe-body"></div>
+          <button id="wardrobe-close" type="button" class="cta">Done</button>
+        </section>
+        <section id="story" class="panel modal story" role="dialog" aria-modal="true" aria-labelledby="story-title" tabindex="-1" hidden>
+          <div id="story-art" class="story-art"></div>
+          <h2 id="story-title" class="story-title"></h2>
+          <p id="story-text" class="story-text" aria-live="polite"></p>
+          <div class="story-nav">
+            <button id="story-back" type="button">Back</button>
+            <span id="story-page" class="story-page"></span>
+            <button id="story-next" type="button" class="cta">Next page</button>
+          </div>
+          <button id="story-close" type="button" class="story-close" aria-label="Close the book">×</button>
+        </section>
+        <section id="academy" class="panel modal academy" role="dialog" aria-modal="true" aria-labelledby="academy-title" tabindex="-1" hidden>
+          <header class="progress-head">
+            <div>
+              <p class="eyebrow">Play solo</p>
+              <h2 id="academy-title">The Academy</h2>
+            </div>
+            <button id="academy-close" type="button">Close</button>
+          </header>
+          <div id="academy-body" class="academy-body"></div>
+          <p id="academy-status" class="task-status" aria-live="polite"></p>
+        </section>
+
+        <section id="progress" class="panel modal progress" role="dialog" aria-modal="true" aria-labelledby="progress-title" tabindex="-1" hidden>
+          <header class="progress-head">
+            <div>
+              <p class="eyebrow">Your progress</p>
+              <h2 id="progress-title"></h2>
+            </div>
+            <button id="progress-close" type="button">Close</button>
+          </header>
+          <div class="progress-tabs" role="tablist" aria-label="Progress">
+            <button type="button" role="tab" data-tab="rank" aria-selected="true">Rank Road</button>
+            <button type="button" role="tab" data-tab="seals" aria-selected="false">Seals</button>
+            <button type="button" role="tab" data-tab="quests" aria-selected="false">Quests</button>
+            <button type="button" role="tab" data-tab="epoch" aria-selected="false">Epoch Road</button>
+          </div>
+          <div id="progress-body" class="progress-body" role="tabpanel"></div>
+        </section>
+
+        <!-- Before the HUD, so HUD panels paint over the touch stick zone. -->
+        <div id="stick" aria-hidden="true" hidden>
+          <div class="stick-base"><div id="stick-knob" class="stick-knob"></div></div>
+        </div>
+
+        <section id="hud" aria-label="Room" hidden>
+          <div class="panel room-card">
+            <div class="room-meta">
+              <span id="room-kind" class="eyebrow">Room</span>
+              <b id="room-code-text" class="code">······</b>
+            </div>
+            <button id="copy-invite" type="button">Copy invite link</button>
+            <input id="invite-field" class="invite-field" readonly aria-label="Invite link" hidden />
+          </div>
+          <div class="hud-right">
+            <div class="panel chain" id="chain" hidden><span class="chain-label">Block</span> <b id="chain-height"></b></div>
+            <div class="panel conn" id="conn" data-state="connected" role="status">
+              <span class="dot" aria-hidden="true"></span><span id="conn-text">Connected</span>
+            </div>
+            <button id="leave" type="button" class="leave">Leave room</button>
+          </div>
+          <aside class="panel roster" aria-labelledby="roster-title">
+            <h2 id="roster-title">Guardians <span id="roster-count">0/9</span></h2>
+            <ul id="roster"></ul>
+            <p id="lobby-hint" class="hint"></p>
+            <button id="add-bot" type="button" class="add-bot" hidden>Add a practice bot</button>
+            <button id="start-match" type="button" class="cta start" hidden>Start match</button>
+          </aside>
+          <div id="consensus" class="panel consensus" hidden>
+            <div class="consensus-label"><span>Consensus</span><b id="consensus-value">0%</b></div>
+            <div id="consensus-bar" class="bar" role="progressbar" aria-label="Consensus" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="consensus-fill" class="fill"></div></div>
+            <div id="clock" class="clock" hidden><span id="act-name"></span><b id="blocks-left"></b></div>
+          </div>
+          <div id="partition-banner" class="panel partition-banner" role="status" hidden>
+            <div class="partition-label"><b>Network partition</b><span id="partition-time"></span></div>
+            <p id="partition-text"></p>
+            <div class="bar"><div id="repair-fill" class="fill"></div></div>
+          </div>
+          <aside id="match-panel" class="panel match-panel" aria-labelledby="tasks-title" hidden>
+            <div id="role-badge" class="role-badge"></div>
+            <h2 id="tasks-title">Tasks</h2>
+            <ul id="task-list"></ul>
+            <p id="task-note" class="hint"></p>
+            <p id="out-note" class="out-note" hidden>Your key was rotated out. You can watch how the match ends.</p>
+            <p id="frozen-note" class="out-note frozen-note" role="status" hidden></p>
+            <div id="forge-box" class="forge-box" hidden>
+              <p class="eyebrow">Sabotage</p>
+              <button id="forge" type="button" class="forge">Forge a withdrawal</button>
+              <p id="forge-hint" class="hint"></p>
+              <button id="cut" type="button" class="forge">Cut the network</button>
+              <button id="freeze" type="button" class="forge" hidden></button>
+            </div>
+          </aside>
+          <aside id="proposals" class="panel proposals" aria-labelledby="proposals-title" hidden>
+            <div class="proposals-head">
+              <h2 id="proposals-title">Withdrawals</h2>
+              <div id="liveness" class="liveness"></div>
+            </div>
+            <p id="proposals-empty" class="hint">No withdrawals yet. Users will ask soon: sign the real ones, refuse the forged ones.</p>
+            <ul id="proposal-list"></ul>
+          </aside>
+          <p class="keys-hint">Move with WASD or the arrow keys · E to use a station · scroll to zoom</p>
+        </section>
+
+        <button id="interact" type="button" class="cta interact" aria-keyshortcuts="E" hidden></button>
+        <button id="call-council" type="button" class="cta interact council-call" hidden>Call a council</button>
+
+        <section id="task" class="panel modal task" role="dialog" aria-modal="true" aria-labelledby="task-title" tabindex="-1" hidden>
+          <header>
+            <p id="task-station" class="eyebrow"></p>
+            <h2 id="task-title"></h2>
+            <p id="task-concept" class="concept"></p>
+          </header>
+          <p id="task-fake" class="fake" hidden>You’re Byzantine: this task is fake and adds no consensus. Finish it anyway, so you look busy.</p>
+          <div id="task-body" class="task-body"></div>
+          <footer>
+            <p id="task-status" class="task-status" aria-live="polite"></p>
+            <button id="task-close" type="button">Close</button>
+          </footer>
+        </section>
+
+        <section id="role-card" class="panel modal role-card" role="dialog" aria-labelledby="role-title" hidden>
+          <p class="eyebrow">Your secret role</p>
+          <h2 id="role-title"></h2>
+          <p id="role-text"></p>
+          <p id="role-team" class="team"></p>
+          <button id="role-ok" type="button" class="cta">Got it</button>
+        </section>
+
+        <section id="council" class="panel modal council" role="dialog" aria-labelledby="council-title" tabindex="-1" hidden>
+          <header class="council-head">
+            <div>
+              <p id="council-kind" class="eyebrow">Council</p>
+              <h2 id="council-title"></h2>
+            </div>
+            <b id="council-timer" class="council-timer" aria-label="Seconds left"></b>
+          </header>
+          <p id="council-lead" class="concept"></p>
+          <ul id="council-members" class="council-members"></ul>
+          <button id="council-skip" type="button" class="council-skip">Skip vote</button>
+          <p id="council-outcome" class="council-outcome" role="status" hidden></p>
+          <div class="chat">
+            <ol id="chat-log" class="chat-log" aria-live="polite" aria-label="Council chat"></ol>
+            <div id="chat-compose" class="chat-compose"></div>
+          </div>
+        </section>
+
+        <section id="result" class="panel modal result" role="dialog" aria-labelledby="result-title" tabindex="-1" hidden>
+          <p class="eyebrow">Match over</p>
+          <h2 id="result-title"></h2>
+          <p id="result-verdict" class="verdict"></p>
+          <p id="result-reason"></p>
+          <a id="result-learn" class="result-learn" target="_blank" rel="noopener noreferrer" hidden>Learn the idea behind this result</a>
+          <ul id="result-roles"></ul>
+          <section id="rewards" class="rewards" aria-labelledby="rewards-title" hidden>
+            <h3 id="rewards-title">Your rewards</h3>
+            <div id="rewards-body"></div>
+          </section>
+          <button id="result-share" type="button" class="share-result">Share result</button>
+          <p class="hint">Back to the lobby in a few seconds.</p>
+        </section>
+
+        <div id="toasts" aria-live="polite"></div>
+        <div id="fatal" role="alert" hidden></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
