@@ -1,0 +1,20 @@
+---
+import { playUrl } from 'virtual:site-config';
+import { SITE_NAME } from '../lib/site.js';
+
+const path = Astro.url.pathname;
+const inCodex = path.startsWith('/codex/');
+---
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/" aria-current={path === '/' ? 'page' : undefined}>
+      <img src="/favicon.svg" alt="" width="28" height="28" />
+      <span>{SITE_NAME}</span>
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a class="hide-sm" href="/#how-to-play">How to play</a>
+      <a href="/codex/" aria-current={inCodex ? 'page' : undefined}>Codex</a>
+      <a class="button" href={playUrl}>Play</a>
+    </nav>
+  </div>
+</header>

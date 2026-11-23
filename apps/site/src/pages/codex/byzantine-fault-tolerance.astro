@@ -1,0 +1,50 @@
+---
+import Cite from '../../components/Cite.astro';
+import Article from '../../layouts/Article.astro';
+import { codexPage } from '../../data/pages.js';
+
+const page = codexPage('byzantine-fault-tolerance');
+---
+<Article slug={page.slug}>
+  <p>
+    A federation is a few computers that must behave like one. If one of them crashes, the others can carry on without it. The
+    harder case is a member that keeps running but sends wrong data, or tells different peers different stories. That is a
+    <strong>Byzantine fault</strong>, and a system that keeps working through it is <strong>Byzantine fault tolerant</strong>.
+  </p>
+
+  <h2>The generals and the traitors</h2>
+  <p>
+    The name comes from a 1982 paper by Lamport, Shostak and Pease.<Cite page={page} s="lsp" /> Several generals surround a city
+    and must agree to attack or retreat, but they can only talk through messengers, and some generals are traitors who send
+    conflicting orders. The paper shows that with ordinary messages, the loyal generals can always agree only if more than two
+    thirds of the generals are loyal: tolerating <em>m</em> traitors takes at least 3<em>m</em> + 1 generals.
+  </p>
+
+  <h2>From a thought experiment to real systems</h2>
+  <p>
+    In 1999 Castro and Liskov showed that a replicated service can tolerate <em>f</em> faulty replicas out of 3<em>f</em> + 1
+    and still run fast enough for real use.<Cite page={page} s="pbft" /> Their protocol promises two things: <strong>safety</strong>,
+    meaning every honest replica executes the same requests in the same order, and <strong>liveness</strong>, meaning requests
+    eventually complete.
+  </p>
+  <p>
+    Fedimint guardians do the same job. They run a consensus protocol to agree on one ordered list of transactions, then each
+    guardian applies that list to its own copy of the state, so they all end up in the same place.<Cite page={page} s="fmArchitecture" />
+    The consensus layer is AlephBFT, an asynchronous Byzantine fault tolerant protocol.<Cite page={page} s="aleph" />
+  </p>
+
+  <h2>When there are too many traitors</h2>
+  <p>
+    The guarantees hold only while at most <em>f</em> members are faulty. Past that point the federation may stop making progress,
+    and a large enough group acting together could approve something the honest guardians never would. How big <em>f</em> can
+    be for a given federation is the subject of <a href="/codex/one-third-rule/">the one-third rule</a>.
+  </p>
+
+  <h2>How the game models it</h2>
+  <ul>
+    <li>Byzantine guardians look exactly like honest ones. Only the server knows the roles until the match ends.</li>
+    <li>They forge withdrawals and try to collect enough signatures for them, the way a faulty member pushes a bad transaction.</li>
+    <li>Honest guardians work from evidence: private audits, task results, who was where. Then they decide in a council whether to rotate a suspect’s key out.</li>
+    <li>Rotating out an honest guardian by mistake shrinks the federation and brings the Byzantines closer to a third.</li>
+  </ul>
+</Article>

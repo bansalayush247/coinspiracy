@@ -1,0 +1,36 @@
+---
+import Cite from '../../components/Cite.astro';
+import Article from '../../layouts/Article.astro';
+import { codexPage } from '../../data/pages.js';
+
+const page = codexPage('lightning-gateways');
+---
+<Article slug={page.slug}>
+  <p>
+    Ecash only works inside the federation that issued it. To pay anyone else, Fedimint users go through a <strong>gateway</strong>:
+    a Lightning node that accepts ecash and pays a Lightning invoice for it, or receives a Lightning payment and hands over ecash.
+    Users never open channels themselves.<Cite page={page} s="fmGateway" /><Cite page={page} s="fmHowItWorks" />
+  </p>
+
+  <h2>Paying an invoice</h2>
+  <ol>
+    <li>The user locks ecash in a contract that pays the gateway only if it reveals the invoice’s secret, called the preimage.</li>
+    <li>The gateway pays the invoice over Lightning. The recipient reveals the preimage to collect the payment.</li>
+    <li>The gateway shows the preimage to the federation and claims the locked ecash, plus its fee.</li>
+    <li>If the gateway never pays, the contract times out and the user takes the ecash back.</li>
+  </ol>
+
+  <h2>Why routes need liquidity</h2>
+  <p>
+    A Lightning payment hops through a chain of channels. Each channel has a fixed capacity split between its two ends, and a hop can
+    only forward the payment if the sending side holds enough of that capacity.<Cite page={page} s="lnbook" /> Senders know each
+    channel’s total capacity, but not how it is split, so they try a likely route and try another if a hop fails. Large payments are
+    harder to route than small ones, which is why wallets can split a payment into parts.
+  </p>
+
+  <h2>How the game models it</h2>
+  <p>
+    The Gateway Dock shows a small network with the balance on each side of every channel. You pick a path where every hop can carry
+    the amount. A path through a channel that is drained on your side fails, just as it would on Lightning.
+  </p>
+</Article>

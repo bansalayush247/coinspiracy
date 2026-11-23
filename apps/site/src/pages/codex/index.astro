@@ -1,0 +1,42 @@
+---
+import Base from '../../layouts/Base.astro';
+import { CODEX, CODEX_INDEX } from '../../data/pages.js';
+import { breadcrumbList, collectionPage } from '../../lib/jsonld.js';
+import { SITE_NAME, absoluteUrl } from '../../lib/site.js';
+
+const site = Astro.site;
+if (site === undefined) throw new Error('site is not configured');
+const url = absoluteUrl(site, '/codex/');
+const jsonLd = [
+  collectionPage(url, 'The Codex', CODEX_INDEX.description, CODEX.map((p) => ({ name: p.h1, url: absoluteUrl(site, `/codex/${p.slug}/`) }))),
+  breadcrumbList([
+    { name: SITE_NAME, url: absoluteUrl(site, '/') },
+    { name: 'Codex', url },
+  ]),
+];
+---
+<Base title={CODEX_INDEX.title} description={CODEX_INDEX.description} og="codex" jsonLd={jsonLd}>
+  <div class="article-head">
+    <div class="wrap">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <ol>
+          <li><a href="/">Home</a></li>
+          <li aria-current="page">Codex</li>
+        </ol>
+      </nav>
+      <h1>The Codex</h1>
+      <p class="lede">{CODEX_INDEX.description}</p>
+    </div>
+  </div>
+  <section class="section" aria-label="Codex pages">
+    <div class="wrap grid three">
+      {CODEX.map((page) => (
+        <a class="card codex-card" href={`/codex/${page.slug}/`}>
+          <span class="tag">{page.about[0]}</span>
+          <h2>{page.h1}</h2>
+          <p>{page.description}</p>
+        </a>
+      ))}
+    </div>
+  </section>
+</Base>

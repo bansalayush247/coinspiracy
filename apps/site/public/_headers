@@ -1,0 +1,19 @@
+# Security and cache headers for static hosts that read _headers (Netlify, Cloudflare Pages).
+# nginx does not read this file: deploy/ must send the same headers (see docs/lanes/site.md).
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Cross-Origin-Opener-Policy: same-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000
+
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/og/*
+  Cache-Control: public, max-age=86400
+
+/screens/*
+  Cache-Control: public, max-age=86400

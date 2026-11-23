@@ -1,0 +1,13 @@
+---
+// A numbered citation that links to the page's source list.
+import { citationNumber, type CodexPage } from '../data/pages.js';
+import { SOURCES, type SourceKey } from '../data/sources.js';
+
+interface Props {
+  readonly page: CodexPage;
+  readonly s: SourceKey;
+}
+const { page, s } = Astro.props;
+const n = citationNumber(page, s);
+---
+<sup><a href={`#source-${SOURCES[s].id}`} aria-label={`Source ${String(n)}: ${SOURCES[s].title}`}>[{n}]</a></sup>

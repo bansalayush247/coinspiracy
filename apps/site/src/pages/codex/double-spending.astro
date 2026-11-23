@@ -1,0 +1,38 @@
+---
+import Cite from '../../components/Cite.astro';
+import Article from '../../layouts/Article.astro';
+import { codexPage } from '../../data/pages.js';
+
+const page = codexPage('double-spending');
+---
+<Article slug={page.slug}>
+  <p>
+    A digital note is just data, and data can be copied. If nothing stopped it, you could pay two people with the same note. The Bitcoin
+    whitepaper calls this the <strong>double-spending problem</strong> and solves it with a public chain of transactions that everyone
+    checks.<Cite page={page} s="whitepaper" /> Chaum’s ecash solves it differently: the mint remembers every note that has been spent.<Cite page={page} s="chaum" />
+  </p>
+
+  <h2>What guardians check</h2>
+  <p>When a note is spent, every guardian runs the same checks before accepting it:<Cite page={page} s="fmMintInput" /></p>
+  <ol>
+    <li>The signature is valid for the note’s denomination under the federation’s key. A forged or mismatched seal fails here.</li>
+    <li>The note’s serial is not already in the spent-note ledger.<Cite page={page} s="fmSpentIndex" /></li>
+    <li>If both pass, the serial is added to the ledger, so the next attempt fails.</li>
+  </ol>
+  <p>
+    Guardians agree on the order of transactions before they process any of them. If two payments use the same note at the same
+    moment, one is always first, and the second finds the serial already spent.
+  </p>
+
+  <h2>Receiving notes safely</h2>
+  <p>
+    A note someone sends you might be a copy they already spent. So a wallet that receives notes swaps them with the federation for fresh
+    ones straight away. If the swap succeeds, the notes were good, and nobody else holds a copy of the new ones.
+  </p>
+
+  <h2>Privacy of the ledger</h2>
+  <p>
+    The spent-note ledger holds serials the mint saw for the first time at spending. Because notes were signed blind, a serial in the
+    ledger cannot be traced back to the deposit that created it.
+  </p>
+</Article>

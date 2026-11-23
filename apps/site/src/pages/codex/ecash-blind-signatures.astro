@@ -1,0 +1,38 @@
+---
+import Cite from '../../components/Cite.astro';
+import Article from '../../layouts/Article.astro';
+import { codexPage } from '../../data/pages.js';
+
+const page = codexPage('ecash-blind-signatures');
+---
+<Article slug={page.slug}>
+  <p>
+    In 1982 David Chaum described a way for a bank to sign a payment note without seeing it.<Cite page={page} s="chaum" /> He compared it
+    to an envelope lined with carbon paper: you seal a slip inside, the signer signs the outside, and the signature comes through onto
+    the slip. You open the envelope and hold a signed slip the signer has never seen.
+  </p>
+
+  <h2>The five steps</h2>
+  <ol>
+    <li>Your wallet picks a random serial number for a new note.</li>
+    <li>It <strong>blinds</strong> the serial by mixing in a secret random factor.</li>
+    <li>The mint signs the blinded value with the key for that note’s denomination and takes the deposit in exchange.</li>
+    <li>Your wallet <strong>unblinds</strong> the result and is left with a valid signature on the original serial.</li>
+    <li>When you spend the note, the mint sees the serial for the first time. It can check the signature, but it cannot match the note to the signing in step 3.</li>
+  </ol>
+
+  <h2>Splitting the mint across guardians</h2>
+  <p>
+    A single mint key would be a single point of failure. Fedimint uses <strong>threshold blind signatures</strong>: each guardian holds
+    a share of the key and returns a signature share, and the wallet combines enough shares into one signature that checks against the
+    federation’s public key.<Cite page={page} s="fmTbs" /> Fewer guardians than the threshold cannot issue notes on their own, and one
+    guardian being offline does not stop issuance.
+  </p>
+
+  <h2>What ecash is like to hold</h2>
+  <ul>
+    <li>It is a bearer token. Whoever holds the note can spend it, so a lost backup means lost notes.</li>
+    <li>Payments inside the federation are private from the guardians, though amounts and timing can still give clues.<Cite page={page} s="fmTrust" /></li>
+    <li>Notes are only as good as the federation that signed them.<Cite page={page} s="fmHowItWorks" /></li>
+  </ul>
+</Article>

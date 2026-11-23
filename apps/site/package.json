@@ -1,0 +1,26 @@
+{
+  "name": "@byzantine-council/site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "ASTRO_TELEMETRY_DISABLED=1 astro dev",
+    "build": "ASTRO_TELEMETRY_DISABLED=1 astro build",
+    "preview": "ASTRO_TELEMETRY_DISABLED=1 astro preview --port 3931 --host 127.0.0.1",
+    "typecheck": "ASTRO_TELEMETRY_DISABLED=1 astro check --minimumSeverity warning",
+    "test": "vitest run",
+    "og": "tsx --conditions=source scripts/render-og.ts",
+    "screens": "tsx scripts/render-screens.ts",
+    "check:dist": "tsx --conditions=source scripts/check-dist.ts",
+    "check:browser": "tsx scripts/browser-check.ts",
+    "verify": "npm run build && npm run check:dist && npm run check:browser"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "3.7.6",
+    "astro": "7.4.13"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "@byzantine-council/shared": "^0.1.0"
+  }
+}

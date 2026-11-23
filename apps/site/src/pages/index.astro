@@ -1,0 +1,179 @@
+---
+import { playUrl } from 'virtual:site-config';
+import Base from '../layouts/Base.astro';
+import { CODEX, HOME } from '../data/pages.js';
+import { SCREENS, screenPath } from '../data/screens.js';
+import { faqPage, videoGame, website, type QA } from '../lib/jsonld.js';
+import { MAX_PLAYERS, MIN_PLAYERS, SITE_NAME, absolutePlayUrl, absoluteUrl, ogImagePath } from '../lib/site.js';
+
+const site = Astro.site;
+if (site === undefined) throw new Error('site is not configured');
+const home = absoluteUrl(site, '/');
+const publisher = { name: SITE_NAME, url: home, logo: absoluteUrl(site, '/apple-touch-icon.png') };
+
+const stations = [
+  { name: 'Deposit Gate', screen: SCREENS.deposit, text: 'Split a deposit into notes, blind them and collect the guardians’ signatures.', slug: 'ecash-blind-signatures' },
+  { name: 'Ledger Archive', screen: SCREENS.ledger, text: 'Check a batch of notes and reject forged seals and serials that were already spent.', slug: 'double-spending' },
+  { name: 'Gateway Dock', screen: SCREENS.route, text: 'Route a Lightning payment along channels that have enough balance to carry it.', slug: 'lightning-gateways' },
+  { name: 'Watchtower', screen: SCREENS.watchtower, text: 'Seven guardians report the block height and two are wrong. Find the one the federation agrees on.', slug: 'block-height-consensus' },
+] as const;
+
+const faq: QA[] = [
+  { q: 'Is it free?', a: 'Yes. The game is free to play in any modern browser, with nothing to buy.' },
+  { q: 'Does it use real bitcoin or ecash?', a: 'No. Everything in the game uses play sats, which are points. They cannot be bought, sold or withdrawn.' },
+  { q: 'How many players do I need?', a: `A match takes ${String(MIN_PLAYERS)} to ${String(MAX_PLAYERS)} players. Quick match puts you with others, or you can make a private room and share its code with friends. The Academy is a solo practice mode.` },
+  { q: 'Do I need an account?', a: 'No. Your progress is kept with a guest profile in your browser. There is no email, no sign-up and no tracking.' },
+  { q: 'Is it suitable for children?', a: 'Yes. Nobody gets hurt: suspects are voted off the council and their key is rotated out. Public games use quick-chat phrases instead of free text.' },
+  { q: 'Is this made by Fedimint?', a: 'No. Byzantine Council is an independent, original game that teaches how federated ecash works. It is not affiliated with the Fedimint project.' },
+];
+
+const jsonLd = [
+  website(home, SITE_NAME, HOME.description),
+  videoGame({
+    url: home,
+    playUrl: absolutePlayUrl(site, playUrl),
+    name: SITE_NAME,
+    description: HOME.description,
+    image: absoluteUrl(site, ogImagePath('home')),
+    minPlayers: MIN_PLAYERS,
+    maxPlayers: MAX_PLAYERS,
+    publisher,
+  }),
+  faqPage(home, faq),
+];
+---
+<Base title={HOME.title} description={HOME.description} og="home" jsonLd={jsonLd}>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow">Free · {MIN_PLAYERS} to {MAX_PLAYERS} players · in your browser</span>
+        <h1 id="hero-title">Guard the mint. Find the Byzantines.</h1>
+        <p class="lede">
+          {SITE_NAME} is a social-deduction game about federated ecash. You and your friends are guardians of the Mint Citadel.
+          One or two of you are secretly Byzantine, and they want a forged withdrawal signed.
+        </p>
+        <div class="hero-actions">
+          <a class="button" href={playUrl}>Play free</a>
+          <a class="button ghost" href="#how-to-play">How to play</a>
+        </div>
+        <p class="hero-note">No download and no account. Play money only.</p>
+      </div>
+      <img class="hero-shot" src={screenPath(SCREENS.match)} alt={SCREENS.match.alt} width={SCREENS.match.width} height={SCREENS.match.height} fetchpriority="high" />
+    </div>
+  </section>
+
+  <section class="section" id="how-to-play" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">How a match plays</span>
+        <h2 id="how-title">Twelve minutes, one federation, a few liars</h2>
+      </div>
+      <ol class="steps grid four">
+        <li class="card"><h3>Get your role</h3><p>Most players are honest guardians. One or two are Byzantine, and only they know it.</p></li>
+        <li class="card"><h3>Run the stations</h3><p>Finish tasks around the citadel. Each one fills the Consensus bar and teaches a real idea.</p></li>
+        <li class="card"><h3>Sign or refuse</h3><p>Withdrawals appear and need enough signatures. Audit them before you sign: some are forged.</p></li>
+        <li class="card"><h3>Call the council</h3><p>Discuss with quick chat, then vote to rotate a suspect’s key out. Choose carefully.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="stations-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Four stations</span>
+        <h2 id="stations-title">Every task is a real idea in disguise</h2>
+      </div>
+      <div class="grid two">
+        {stations.map((s) => (
+          <article class="card station">
+            <img src={screenPath(s.screen)} alt={s.screen.alt} width={s.screen.width} height={s.screen.height} loading="lazy" decoding="async" />
+            <div class="body">
+              <h3>{s.name}</h3>
+              <p>{s.text}</p>
+              <a class="more" href={`/codex/${s.slug}/`}>The idea behind it</a>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="win-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">How to win</span>
+        <h2 id="win-title">Two sides, one threshold</h2>
+        <p class="lede">The signing threshold and the one-third rule come straight from how real federations stay safe. <a href="/codex/one-third-rule/">Why a third?</a></p>
+      </div>
+      <div class="grid two">
+        <div class="card side honest">
+          <h3>Honest guardians win if</h3>
+          <ul>
+            <li>the Consensus bar fills up before the block clock runs out, or</li>
+            <li>every Byzantine guardian is rotated out.</li>
+          </ul>
+        </div>
+        <div class="card side byz">
+          <h3>Byzantine guardians win if</h3>
+          <ul>
+            <li>a forged withdrawal reaches the signing threshold, or</li>
+            <li>they make up a third of the guardians still seated, or</li>
+            <li>too many withdrawals fail and the federation loses liveness, or</li>
+            <li>the block clock runs out first.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="between-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Between matches</span>
+        <h2 id="between-title">Rank up and open new islands</h2>
+      </div>
+      <div class="grid three">
+        <div class="card"><h3>Academy</h3><p>Five solo levels that teach each station, scored with up to three stars.</p></div>
+        <div class="card"><h3>Seal Book</h3><p>Fifty-eight seals for things like refusing a forgery, repairing a partition or running parcels in Beach Town.</p></div>
+        <div class="card"><h3>Island map</h3><p>Mint Island is open from the start. Rank up or earn Academy stars to open the rest.</p></div>
+        <div class="card"><h3>Beach Town</h3><p>A shared seaside hub. Pay at the stalls with the ecash notes in your wallet, wear what you buy, and run parcels for play sats.</p></div>
+        <div class="card"><h3>The Chronicle</h3><p>An illustrated story told island by island: a sunken mint, a forger who signs with a hollow seal, and the many keepers who stop them.</p></div>
+        <div class="card"><h3>A living sky</h3><p>Wind, birds, rain and rainbows, light that turns to dusk as a match closes, and short notes on the real science behind each one.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="codex-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">The Codex</span>
+        <h2 id="codex-title">Learn what the game is teaching</h2>
+        <p class="lede">Short lessons with sources, each tied to something you do in a match.</p>
+      </div>
+      <div class="grid three">
+        {CODEX.map((page) => (
+          <a class="card codex-card" href={`/codex/${page.slug}/`}>
+            <h3>{page.h1}</h3>
+            <p>{page.description}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="faq-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="faq-title">Questions</h2>
+      </div>
+      <div class="faq">
+        {faq.map((item) => (
+          <details>
+            <summary>{item.q}</summary>
+            <p>{item.a}</p>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+</Base>

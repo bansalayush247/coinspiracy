@@ -1,0 +1,52 @@
+---
+import Cite from '../../components/Cite.astro';
+import Article from '../../layouts/Article.astro';
+import { codexPage } from '../../data/pages.js';
+import { agreedHeight } from '../../lib/federation.js';
+
+const page = codexPage('block-height-consensus');
+const honest = [925104, 925105, 925105, 925106, 925106];
+const examples = [
+  { label: 'One guardian reports far too high', votes: [...honest, 925106, 999999] },
+  { label: 'Two guardians report far too low', votes: [...honest, 0, 12] },
+].map((e) => ({ ...e, sorted: [...e.votes].sort((a, b) => a - b), agreed: agreedHeight(e.votes) }));
+---
+<Article slug={page.slug}>
+  <p>
+    A block’s <strong>height</strong> is the number of blocks between it and the first block of the chain.<Cite page={page} s="btcGlossary" />
+    Bitcoin aims for one block every ten minutes and adjusts mining difficulty every 2,016 blocks, about two weeks.<Cite page={page} s="btcSpacing" />
+  </p>
+
+  <h2>Why a federation needs one number</h2>
+  <p>
+    The federation’s wallet watches the chain for deposits and spends.<Cite page={page} s="fmWalletDoc" /> Every guardian must act on
+    the same height, or they would disagree about which deposits count. But each guardian reads its own Bitcoin node, which may lag a
+    block behind, or be wrong.
+  </p>
+
+  <h2>Votes and the median</h2>
+  <p>
+    Each guardian submits the height its node reports as a vote. The federation sorts the votes and takes the middle one.<Cite page={page} s="fmBlockVotes" />
+    While fewer than a third of guardians are faulty, the middle vote always lies between heights reported by honest guardians, however
+    extreme the faulty votes are.
+  </p>
+  {examples.map((e) => (
+    <figure>
+      <p class="formula">{e.sorted.map((v) => v.toLocaleString('en')).join(' · ')}<br />agreed height: {e.agreed.toLocaleString('en')}</p>
+      <figcaption>{e.label}. Seven sorted votes; the fourth is the result.</figcaption>
+    </figure>
+  ))}
+
+  <h2>Waiting for finality</h2>
+  <p>
+    The newest blocks can be replaced if miners switch to a longer competing chain. So the wallet only acts on blocks a set number below
+    the agreed height, which makes it very unlikely that a counted deposit later disappears.<Cite page={page} s="fmFinality" />
+  </p>
+
+  <h2>How the game models it</h2>
+  <p>
+    At the Watchtower seven guardians report a height and some of them are wrong. You find the height the federation would agree on. The
+    block number in the match HUD follows the real Bitcoin chain: the game server reads it from a block explorer, or estimates it from
+    the ten-minute block spacing when it cannot reach one.
+  </p>
+</Article>

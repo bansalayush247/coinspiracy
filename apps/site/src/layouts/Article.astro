@@ -1,0 +1,93 @@
+---
+// A Codex page: heading, body, the game tie-in, FAQ, related pages and sources.
+import { playUrl } from 'virtual:site-config';
+import { codexPage, pageSources } from '../data/pages.js';
+import { article, breadcrumbList, faqPage } from '../lib/jsonld.js';
+import { SITE_NAME, absoluteUrl, formatDate, ogImagePath } from '../lib/site.js';
+import Base from './Base.astro';
+
+interface Props {
+  readonly slug: string;
+}
+const page = codexPage(Astro.props.slug);
+const site = Astro.site;
+if (site === undefined) throw new Error('site is not configured');
+const url = absoluteUrl(site, `/codex/${page.slug}/`);
+const codexUrl = absoluteUrl(site, '/codex/');
+const sources = pageSources(page);
+const related = page.related.map((slug) => codexPage(slug));
+const publisher = { name: SITE_NAME, url: absoluteUrl(site, '/'), logo: absoluteUrl(site, '/apple-touch-icon.png') };
+const jsonLd = [
+  article({
+    url,
+    headline: page.h1,
+    description: page.description,
+    image: absoluteUrl(site, ogImagePath(page.slug)),
+    published: page.published,
+    modified: page.modified,
+    section: 'Codex',
+    isPartOf: codexUrl,
+    publisher,
+    citations: sources.map((s) => ({ name: s.title, url: s.url })),
+    about: page.about,
+  }),
+  breadcrumbList([
+    { name: SITE_NAME, url: absoluteUrl(site, '/') },
+    { name: 'Codex', url: codexUrl },
+    { name: page.h1, url },
+  ]),
+  faqPage(url, page.faq),
+];
+---
+<Base title={page.title} description={page.description} og={page.slug} kind="article" jsonLd={jsonLd}>
+  <div class="article-head">
+    <div class="wrap">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <ol>
+          <li><a href="/">Home</a></li>
+          <li><a href="/codex/">Codex</a></li>
+          <li aria-current="page">{page.h1}</li>
+        </ol>
+      </nav>
+      <h1>{page.h1}</h1>
+      <p class="lede">{page.description}</p>
+      <p class="meta">Updated <time datetime={page.modified}>{formatDate(page.modified)}</time> · {sources.length} sources</p>
+    </div>
+  </div>
+  <div class="wrap article">
+    <article class="prose">
+      <slot />
+      <section class="faq" aria-labelledby="faq">
+        <h2 id="faq">Questions</h2>
+        {page.faq.map((item) => (
+          <details>
+            <summary>{item.q}</summary>
+            <p>{item.a}</p>
+          </details>
+        ))}
+      </section>
+      <section class="sources" aria-labelledby="sources">
+        <h2 id="sources">Sources</h2>
+        <ol>
+          {sources.map((s) => (
+            <li id={`source-${s.id}`}>
+              <a href={s.url} rel="noopener noreferrer">{s.title}</a>. {s.publisher}.
+            </li>
+          ))}
+        </ol>
+      </section>
+    </article>
+    <aside class="aside" aria-label="In the game and related pages">
+      <div class="in-game">
+        <span class="eyebrow">In the game</span>
+        <p>{page.inGame}</p>
+        <a class="button" href={playUrl}>Try it in a match</a>
+      </div>
+      <div class="card related">
+        <h2 class="eyebrow">Read next</h2>
+        {related.map((r) => <a href={`/codex/${r.slug}/`}>{r.h1}</a>)}
+        <a href="/codex/">All Codex pages</a>
+      </div>
+    </aside>
+  </div>
+</Base>

@@ -1,0 +1,43 @@
+---
+import Cite from '../../components/Cite.astro';
+import Article from '../../layouts/Article.astro';
+import { codexPage } from '../../data/pages.js';
+
+const page = codexPage('federations-and-guardians');
+---
+<Article slug={page.slug}>
+  <p>
+    A Fedimint federation is a small group of <strong>guardians</strong> who run a mint together. Users deposit bitcoin and get
+    ecash notes of the same value. They can send those notes to each other, redeem them for bitcoin, or use them to pay Lightning
+    invoices.<Cite page={page} s="fmHowItWorks" />
+  </p>
+
+  <h2>What guardians do</h2>
+  <ul>
+    <li>Each guardian runs a server. The servers agree on every transaction through consensus before any of them acts on it.<Cite page={page} s="fmArchitecture" /></li>
+    <li>Together they hold the deposited bitcoin, and a threshold of them must sign to move it.</li>
+    <li>They issue ecash with blind signatures, so they never learn which note belongs to whom.</li>
+    <li>The federation keeps working while at most ⌊(n − 1)/3⌋ guardians are offline or misbehaving. Four guardians tolerate one.<Cite page={page} s="fmFederations" /></li>
+  </ul>
+
+  <h2>Who becomes a guardian</h2>
+  <p>
+    Guardians are usually people or organisations their users already know: a family, a club, a village co-operative. The founders
+    choose them, then run a setup ceremony in which the guardians generate the federation’s keys together, so no one guardian ever
+    holds a whole key.<Cite page={page} s="fmFounding" /><Cite page={page} s="fmGuardians" />
+  </p>
+
+  <h2>What you trust them with</h2>
+  <p>
+    A federation is a custodian. If enough guardians colluded, they could take the bitcoin they hold. What they cannot do is see your
+    balance or link your payments, because the notes they sign are blinded.<Cite page={page} s="fmTrust" /> Spreading custody over
+    several guardians means no single person can lose or steal the funds, but you still choose whom to trust.
+  </p>
+
+  <h2>How the game models it</h2>
+  <p>
+    Every player is a guardian of the Mint Citadel. Honest guardians finish tasks that mirror real guardian work, sign the withdrawals
+    they can verify and refuse the rest. The match teaches the same lesson as a real federation: it is only as safe as the share of
+    guardians who stay honest.
+  </p>
+</Article>

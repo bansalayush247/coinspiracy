@@ -1,0 +1,17 @@
+---
+import { playUrl } from 'virtual:site-config';
+import { CODEX } from '../data/pages.js';
+import { SITE_NAME } from '../lib/site.js';
+---
+<footer class="site-footer">
+  <div class="wrap">
+    <nav aria-label="Codex">
+      {CODEX.map((page) => <a href={`/codex/${page.slug}/`}>{page.h1}</a>)}
+    </nav>
+    <p>
+      {SITE_NAME} is an original game. It is not made by or affiliated with the Fedimint project. Play money only: no real
+      bitcoin or ecash is used. No accounts, no ads, no tracking.
+    </p>
+    <p><a href={playUrl}>Play in your browser</a> · <a href="/codex/">Codex</a> · <a href="/sitemap-index.xml">Sitemap</a></p>
+  </div>
+</footer>

@@ -1,0 +1,43 @@
+---
+import Cite from '../../components/Cite.astro';
+import Article from '../../layouts/Article.astro';
+import { codexPage } from '../../data/pages.js';
+import { powerOfTwoNotes } from '../../lib/federation.js';
+
+const page = codexPage('power-of-two-notes');
+const examples = [13, 45, 100, 1000].map((amount) => ({ amount, notes: powerOfTwoNotes(amount), binary: amount.toString(2) }));
+---
+<Article slug={page.slug}>
+  <p>
+    Every ecash note has a fixed value. Fedimint’s mint uses powers of two: 1, 2, 4, 8 and so on, in millisatoshis, up to a configured
+    maximum.<Cite page={page} s="fmTiered" /><Cite page={page} s="fmDenominations" /> Each size has its own signing key, which is how a
+    note proves its value without the mint having seen it.<Cite page={page} s="fmTbs" />
+  </p>
+
+  <h2>Any amount, few notes</h2>
+  <p>
+    Every whole number is a sum of distinct powers of two, and that sum is just the number written in binary. Each 1 digit is a note.
+    An amount below 2<sup>k</sup> never needs more than <em>k</em> notes.
+  </p>
+  <figure>
+    <div class="table-wrap">
+      <table>
+        <caption>Amounts split into power-of-two notes</caption>
+        <thead><tr><th scope="col">Amount</th><th scope="col">Binary</th><th scope="col">Notes</th><th scope="col">Count</th></tr></thead>
+        <tbody>
+          {examples.map((e) => <tr><th scope="row">{e.amount.toLocaleString('en')}</th><td><code>{e.binary}</code></td><td>{e.notes.join(' + ')}</td><td>{e.notes.length}</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+  </figure>
+  <p>
+    Real wallets usually keep a few notes of each size, so they can pay most amounts straight away. When they need change, they trade
+    notes with the federation for new ones, and each new note is blinded again.
+  </p>
+
+  <h2>Why standard sizes help privacy</h2>
+  <p>
+    If anyone could ask for a note worth 4,173.5 sats, that note would be easy to spot when it was spent. With a short list of standard
+    sizes, a note of 64 looks like every other note of 64, so a spent note blends in with all the others of its size.
+  </p>
+</Article>

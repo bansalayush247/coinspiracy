@@ -1,0 +1,40 @@
+---
+import Cite from '../../components/Cite.astro';
+import Article from '../../layouts/Article.astro';
+import { codexPage } from '../../data/pages.js';
+
+const page = codexPage('circular-economies');
+---
+<Article slug={page.slug}>
+  <p>
+    In a <strong>circular economy</strong>, people are paid in bitcoin, spend it at local shops, and those shops pay their own staff and
+    suppliers in bitcoin. The money circulates in the community instead of being converted back to dollars at every step.<Cite page={page} s="beachPaper" />
+  </p>
+
+  <h2>Bitcoin Beach</h2>
+  <p>
+    The best-known attempt began in 2019 in El Zonte, a small surf town on the Pacific coast of El Salvador. Funded by an anonymous
+    donation, the Bitcoin Beach project paid for community work in bitcoin and helped local businesses accept it.<Cite page={page} s="beach" /><Cite page={page} s="beachWork" />
+    Lightning wallets made the small, everyday payments of a town practical.
+  </p>
+
+  <h2>From a town to a country</h2>
+  <p>
+    In September 2021 El Salvador made bitcoin legal tender nationwide. The International Monetary Fund warned about the risks and urged
+    the government to narrow the law.<Cite page={page} s="imf2021" /> In 2025, as part of a new IMF arrangement, accepting bitcoin
+    became voluntary for businesses.<Cite page={page} s="imf2025" />
+  </p>
+
+  <h2>What it has to do with federations</h2>
+  <p>
+    A town that pays in bitcoin needs wallets that are simple, cheap and private. Community custody, where trusted local guardians run a
+    mint, is one way to offer that. It is also why Byzantine Council is set in an island town: the federation you guard is meant to serve
+    the people around it.
+  </p>
+
+  <h2>In the game</h2>
+  <p>
+    Beach Town, a hub island coming in a later update, will have shops and courier jobs paid in play sats. Play sats are points: they
+    cannot be bought, sold or withdrawn.
+  </p>
+</Article>
