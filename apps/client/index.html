@@ -19,11 +19,29 @@
           <p id="coach-text"></p>
           <button id="coach-ok" type="button" class="cta">Got it</button>
         </div>
-        <div class="corner-toggles">
-          <button id="streamer" type="button" class="corner-toggle" aria-pressed="false">Streamer mode: Off</button>
-          <button id="quality" type="button" class="corner-toggle">Graphics: High</button>
-          <button id="sound" type="button" class="corner-toggle" aria-label="Sound: on">Sound on</button>
-        </div>
+        <details class="corner-settings">
+          <summary aria-label="Settings">⚙ Settings</summary>
+          <div class="corner-toggles">
+            <button id="streamer" type="button" class="corner-toggle" aria-pressed="false">Streamer mode: Off</button>
+            <button id="quality" type="button" class="corner-toggle">Graphics: High</button>
+            <label class="music-picker">
+              <span>Music</span>
+              <select id="music">
+                <option value="dynamic">Adaptive</option>
+                <option value="menu">Mint Citadel</option>
+                <option value="calm">Calm Consensus</option>
+                <option value="proposals">Signing Tension</option>
+                <option value="final">Final Blocks</option>
+                <option value="council">Council Chamber</option>
+                <option value="beach">Beach Town</option>
+                <option value="academy">Academy</option>
+                <option value="story">Storybook</option>
+                <option value="off">Off</option>
+              </select>
+            </label>
+            <button id="sound" type="button" class="corner-toggle" aria-label="Sound: on">Sound on</button>
+          </div>
+        </details>
         <section id="menu" class="panel menu" aria-labelledby="menu-title" hidden>
           <header class="brand">
             <p class="eyebrow">A game about federated ecash</p>
@@ -46,20 +64,54 @@
             <p id="menu-error" class="error" role="alert"></p>
             <p id="menu-status" class="status" aria-live="polite"></p>
           </form>
-          <button id="open-academy" type="button" class="academy-open">Play solo: the Academy</button>
           <button id="open-progress" type="button" class="progress-chip" hidden></button>
-          <button id="open-wardrobe" type="button" class="wardrobe-open" hidden>Wardrobe</button>
+          <div class="menu-tiles">
+            <button id="open-academy" type="button" class="academy-open">Academy<small>Play solo</small></button>
+            <button id="open-world" type="button" class="world-open" hidden>Explore<small>Island map</small></button>
+            <button id="open-wardrobe" type="button" class="wardrobe-open" hidden>Wardrobe<small>Your look</small></button>
+          </div>
           <aside id="season" class="season" aria-labelledby="season-title" hidden>
             <p id="season-title" class="season-title"></p>
             <p id="season-headline" class="season-headline"></p>
             <p id="season-blurb" class="season-blurb"></p>
           </aside>
-          <section id="world" class="world" aria-labelledby="world-title" hidden>
-            <h2 id="world-title" class="eyebrow">The archipelago</h2>
+          <p class="fine">Play money only. No sign-up and no personal data.</p>
+        </section>
+
+        <section id="world" class="panel modal world" role="dialog" aria-modal="true" aria-labelledby="world-title" tabindex="-1" hidden>
+          <header class="progress-head">
+            <div>
+              <p class="eyebrow">Your journey</p>
+              <h2 id="world-title">The archipelago</h2>
+            </div>
+            <button id="world-close" type="button">Close</button>
+          </header>
+          <div class="world-progress">
+            <div><b id="world-progress-text">Loading islands…</b><span id="world-progress-left"></span></div>
+            <div id="world-progress-bar" class="bar" role="progressbar" aria-label="Islands open" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0"><div id="world-progress-fill" class="fill"></div></div>
+          </div>
+          <div class="world-layout">
             <div id="world-map" class="world-map"></div>
             <div id="world-card" class="world-card" aria-live="polite"></div>
-          </section>
-          <p class="fine">Play money only. No sign-up and no personal data.</p>
+          </div>
+        </section>
+
+        <section id="island-hud" class="panel island-hud" aria-labelledby="island-hud-title" hidden>
+          <div>
+            <p class="eyebrow">Island explorer</p>
+            <h2 id="island-hud-title"></h2>
+            <p id="island-hud-concept"></p>
+          </div>
+          <button id="island-back" type="button">Back to map</button>
+          <div class="island-objective">
+            <b id="island-objective"></b>
+            <span id="island-objective-progress"></span>
+          </div>
+          <p id="island-status" class="island-status" role="status"></p>
+          <div class="island-actions">
+            <span class="island-controls">Walk with WASD or arrows · interact with E</span>
+            <button id="island-action" type="button" class="cta" disabled>Interact (E)</button>
+          </div>
         </section>
 
         <section id="beach-hud" class="beach-hud" aria-label="Beach Town" hidden>
@@ -165,6 +217,15 @@
             <h2 id="roster-title">Guardians <span id="roster-count">0/9</span></h2>
             <ul id="roster"></ul>
             <p id="lobby-hint" class="hint"></p>
+            <div id="arena-pick" class="arena-pick" hidden>
+              <span class="arena-label">Map</span>
+              <div class="arena-choices" role="group" aria-label="Map">
+                <button type="button" data-arena="citadel" aria-pressed="true">Mint Citadel</button>
+                <button type="button" data-arena="reef" aria-pressed="false">Lightning Reef</button>
+                <button type="button" data-arena="peaks" aria-pressed="false">Watchtower Peaks</button>
+              </div>
+              <p id="arena-note" class="hint"></p>
+            </div>
             <button id="add-bot" type="button" class="add-bot" hidden>Add a practice bot</button>
             <button id="start-match" type="button" class="cta start" hidden>Start match</button>
           </aside>

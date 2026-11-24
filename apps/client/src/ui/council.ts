@@ -2,7 +2,8 @@
 // Choices stay hidden until the result; the server decides the outcome.
 import { ROOMS, SIMPLE_PHRASES, type ChatMessage, type RoomId } from '@byzantine-council/shared';
 import { cssColor, seatColors } from '../game/palette.js';
-import { ROOM_NAMES, SIMPLE_TEXT } from './chatText.js';
+import { SIMPLE_TEXT } from './chatText.js';
+import { placeName } from './places.js';
 import { el, h } from './dom.js';
 import { button } from './tasks/types.js';
 
@@ -66,11 +67,16 @@ export class CouncilPanel {
   onVote: (target: string) => void = () => undefined;
   onChat: (chat: ChatMessage) => void = () => undefined;
 
+  // Place options follow the arena being played.
+  relabelPlaces(): void {
+    this.#room.replaceChildren(...ROOMS.map((r) => option(r, placeName(r))));
+  }
+
   constructor() {
     this.#skip.addEventListener('click', () => {
       this.onVote('skip');
     });
-    for (const r of ROOMS) this.#room.append(option(r, ROOM_NAMES[r]));
+    this.relabelPlaces();
     this.#buildCompose();
   }
 

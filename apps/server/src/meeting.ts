@@ -1,5 +1,6 @@
 // Council meetings for one match: calling, voting, tallying and quick-chat limits. Server-only.
 import {
+  COUNCIL_SEAL,
   atCouncilSeal,
   castVote,
   msToTicks,
@@ -46,7 +47,11 @@ export class MeetingDesk {
   #running: Running | null = null;
   #number = 0;
 
-  constructor(timing: CouncilTiming, now: number) {
+  // Where a council may be called from, which moves with the arena.
+  readonly #seal: Vec2;
+
+  constructor(timing: CouncilTiming, now: number, seal: Vec2 = COUNCIL_SEAL) {
+    this.#seal = seal;
     this.#timing = timing;
     this.#readyAt = now + timing.openingMs;
   }
@@ -81,7 +86,7 @@ export class MeetingDesk {
 
   call(id: string, pos: Vec2, guardians: readonly Guardian[], nowMs: number, nowTick: number): { ok: true } | CouncilFailure {
     if (this.#running !== null) return { ok: false, reason: 'notYet' };
-    if (!atCouncilSeal(pos)) return { ok: false, reason: 'notHere' };
+    if (!atCouncilSeal(pos, this.#seal)) return { ok: false, reason: 'notHere' };
     if ((this.#calls.get(id) ?? 0) >= this.#timing.perPlayer) return { ok: false, reason: 'usedUp' };
     if (nowMs < this.#readyAt) return wait(this.#readyAt, nowMs);
     const opened = openCouncil(id, guardians, nowTick, msToTicks(this.#timing.votingMs));

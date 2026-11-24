@@ -9,6 +9,7 @@ import {
   type TaskResult,
 } from '@byzantine-council/shared';
 import { el, h } from '../dom.js';
+import { stationName } from '../places.js';
 import { TASK_COPY } from './copy.js';
 import { depositGame } from './deposit.js';
 import { ledgerGame } from './ledger.js';
@@ -95,7 +96,7 @@ export class TaskPanel {
     this.#reset();
     const copy = TASK_COPY[kind];
     this.#kind = kind;
-    this.#station.textContent = copy.station;
+    this.#station.textContent = stationName(kind);
     this.#title.textContent = copy.title;
     this.#concept.textContent = copy.concept;
     this.#fake.hidden = !fake;

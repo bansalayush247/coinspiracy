@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { REWARD_IDS } from '../../src/economy/catalog.js';
 import {
   ACADEMY_LEVELS,
+  academyLevelOpen,
   AwardSchema,
   COUNTER_IDS,
   DAY_MS,
@@ -186,9 +187,9 @@ describe('match XP', () => {
 });
 
 describe('the Seal Book', () => {
-  it('has 58 seals with unique ids and parents in the same tab', () => {
-    expect(SEALS).toHaveLength(58);
-    expect(new Set(SEALS.map((s) => s.id)).size).toBe(58);
+  it('has 73 seals with unique ids and parents in the same tab', () => {
+    expect(SEALS).toHaveLength(73);
+    expect(new Set(SEALS.map((s) => s.id)).size).toBe(73);
     for (const s of SEALS) {
       if (s.parent !== null) expect(SEALS.find((p) => p.id === s.parent)?.tab).toBe(s.tab);
       expect(s.counters.length).toBeGreaterThan(0);
@@ -339,10 +340,19 @@ describe('the Academy', () => {
     expect(applyAcademyResult(p, 99, 3, T0, HEIGHT).award.eligible).toBe(false);
   });
 
-  it('opens each level once the one before it is cleared', () => {
-    const view = toProgressView(applyAcademyResult(newProgress(T0), 1, 1, T0, HEIGHT).progress, T0);
-    expect(view.academy.map((a) => a.open)).toEqual([true, true, ...Array<boolean>(ACADEMY_LEVELS.length - 2).fill(false)]);
+  it('opens each island’s levels with the island, then one after another', () => {
+    const fresh = toProgressView(newProgress(T0), T0);
+    expect(fresh.academy.filter((a) => a.open).map((a) => a.level)).toEqual([1]);
+    // The first clear and its seal lift the guest to Rank 2, which opens Signing Isle as well.
+    const p = applyAcademyResult(newProgress(T0), 1, 1, T0, HEIGHT).progress;
+    expect(rankFor(p.xp).rank).toBe(2);
+    const view = toProgressView(p, T0);
+    expect(view.academy.filter((a) => a.open).map((a) => a.level)).toEqual([1, 2, 8]);
     expect(view.academy).toHaveLength(ACADEMY_LEVELS.length);
+    // A cleared level stays open even if its island would not be.
+    expect(academyLevelOpen(12, 0, ACADEMY_LEVELS.map((l) => (l.level === 12 ? 1 : 0)))).toBe(true);
+    expect(academyLevelOpen(13, 0, ACADEMY_LEVELS.map((l) => (l.level === 12 ? 1 : 0)))).toBe(true);
+    expect(academyLevelOpen(99, 1e9, [])).toBe(false);
   });
 });
 
@@ -404,5 +414,29 @@ describe('the archipelago', () => {
     expect(islandOpen(signing, signing.rank, 0)).toBe(true);
     expect(islandOpen(signing, 1, signing.stars)).toBe(true);
     expect(new Set(ISLANDS.map((i) => i.id)).size).toBe(ISLANDS.length);
+  });
+});
+
+describe('Lightning Reef', () => {
+  it('counts reef matches and reef routes, and the first reef match earns Reef Walker and its goggles', () => {
+    const p0 = newProgress(T0);
+    const reef = applyMatch(p0, match({ arena: 'reef' }), player({ tasks: { deposit: 1, ledger: 1, route: 2, watchtower: 1 } }));
+    expect(reef.progress.counters.reefMatches).toBe(1);
+    expect(reef.progress.counters.reefRoutes).toBe(2);
+    expect(reef.award.seals).toContain('reef1');
+    expect(reef.award.seals).toContain('channel1');
+    expect(reef.award.items).toContain('reefWalker');
+    // The Citadel never moves the reef counters.
+    const citadel = applyMatch(p0, match(), player());
+    expect(citadel.progress.counters.reefMatches ?? 0).toBe(0);
+    expect(citadel.progress.counters.reefRoutes ?? 0).toBe(0);
+  });
+
+  it('keeps every reef seal in the reef tab, with a title at the top of each chain', () => {
+    const reef = SEALS.filter((s) => s.tab === 'reef');
+    expect(reef.map((s) => s.id)).toStrictEqual(['reef1', 'reef2', 'reef3', 'channel1', 'channel2', 'channel3']);
+    expect(reef.find((s) => s.id === 'reef3')?.title).toBe('reefWarden');
+    expect(reef.find((s) => s.id === 'channel3')?.title).toBe('channelMaster');
+    expect(reef.find((s) => s.id === 'channel2')?.item).toBe('channelHopper');
   });
 });

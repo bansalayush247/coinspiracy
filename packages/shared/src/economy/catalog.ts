@@ -57,6 +57,13 @@ export const REWARD_IDS = Object.freeze([
   'epochCoral',
   'epochLime',
   'epochFrost',
+  // Lightning Reef seals.
+  'reefWalker',
+  'channelHopper',
+  // Island Academy and arena seals.
+  'signingScholar',
+  'councilScholar',
+  'mountaineer',
 ] as const);
 export type RewardId = (typeof REWARD_IDS)[number];
 
@@ -149,6 +156,11 @@ const ITEM_SPECS = [
   { id: 'hat:epoch-coral', name: 'Coral Epoch Cap', reward: 'epochCoral', colors: ['#FF7A6B', '#B84E4A'] },
   { id: 'hat:epoch-lime', name: 'Lime Epoch Cap', reward: 'epochLime', colors: ['#B8E45C', '#6E9A2E'] },
   { id: 'hat:epoch-frost', name: 'Frost Epoch Cap', reward: 'epochFrost', colors: ['#BFE8FF', '#6FA8CF'] },
+  { id: 'shades:pearl', name: 'Pearl Diver Goggles', reward: 'reefWalker', colors: ['#E9E2F2', '#7FD8C0'] },
+  { id: 'board:reef', name: 'Reef Board', reward: 'channelHopper', colors: ['#3FA7B5', '#FF8A9A'] },
+  { id: 'outfit:signet', name: 'Signet Robe', reward: 'signingScholar', colors: ['#B8353F', '#7A1F2A', '#F4E3C4'] },
+  { id: 'shades:verdict', name: 'Verdict Shades', reward: 'councilScholar', colors: ['#5FD3B0', '#FFF4DC'] },
+  { id: 'outfit:alpine', name: 'Alpine Robe', reward: 'mountaineer', colors: ['#7FB2D9', '#3E6A8F', '#F4F8FF'] },
 ] as const satisfies readonly ItemSpec[];
 
 export type ItemId = (typeof ITEM_SPECS)[number]['id'];
@@ -215,6 +227,11 @@ export const REWARDS: readonly RewardInfo[] = deepFreeze([
   { id: 'epochCoral', hint: 'Finish the Epoch Road in a coral epoch.' },
   { id: 'epochLime', hint: 'Finish the Epoch Road in a lime epoch.' },
   { id: 'epochFrost', hint: 'Finish the Epoch Road in a frost epoch.' },
+  { id: 'reefWalker', hint: 'Finish a match on Lightning Reef.' },
+  { id: 'channelHopper', hint: 'Route 10 payments through the Gateway Harbour on Lightning Reef.' },
+  { id: 'signingScholar', hint: 'Clear both Signing Isle Academy levels.' },
+  { id: 'councilScholar', hint: 'Clear both Council Isle Academy levels.' },
+  { id: 'mountaineer', hint: 'Finish a match on Watchtower Peaks.' },
 ]);
 
 export const CATALOG: readonly CatalogItem[] = Object.freeze(ITEM_SPECS.map((spec) => buildItem(spec)));

@@ -27,10 +27,15 @@ import {
   ProposalPayloadSchema,
   SERVER_MESSAGES,
   SERVER_TICK_HZ,
-  SPAWN_POINTS,
+  SetArenaPayloadSchema,
   TICK_SECONDS,
   TaskAnswerPayloadSchema,
+  ARENAS,
+  ARENA_IDS,
+  arenaById,
   cryptoRandom,
+  movementMap,
+  nearestStandable,
   FINAL_SPAWN_FACTOR,
   actAt,
   blocksLeft,
@@ -38,6 +43,9 @@ import {
   stepMovement,
   threshold,
   uniqueNickname,
+  type Arena,
+  type ArenaId,
+  type ArenaRefused,
   type Audit,
   type BotsRefused,
   type ChatLine,
@@ -59,7 +67,7 @@ import {
   type Vec2,
   type Winner,
 } from '@byzantine-council/shared';
-import { SEASON_EVENTS, type Award, type MatchFacts, type SeasonEvent } from '@byzantine-council/shared/progression';
+import { SEASON_EVENTS, islandOpenFor, type Award, type MatchFacts, type SeasonEvent } from '@byzantine-council/shared/progression';
 import { seasonAt } from '@byzantine-council/shared/seasons';
 import { CitadelState, PlayerState, ProposalState, RecapEntry, VIEW_TAGS } from '@byzantine-council/shared/state';
 import type { CeremonyFailure } from './ceremony.js';
@@ -113,6 +121,8 @@ interface PlayerSim {
   // Kept here as well as on the client, so a dropped player's view still gets role reveals.
   readonly view: StateView;
   readonly profileId: string | null;
+  // Arenas this guest's profile has opened (checked server-side from their progress).
+  opened: ReadonlySet<ArenaId>;
 }
 
 // Typed server-to-client payloads.
@@ -129,6 +139,7 @@ interface ServerPayloads {
   [SERVER_MESSAGES.SABOTAGE_READY]: SabotageReady;
   [SERVER_MESSAGES.MATCH_REWARDS]: Award;
   [SERVER_MESSAGES.BOTS_REFUSED]: BotsRefused;
+  [SERVER_MESSAGES.ARENA_REFUSED]: ArenaRefused;
 }
 
 // Bots seated per host network in this process, so one network cannot take every bot (one room's worth at most).
@@ -178,6 +189,8 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
   // For rewards: this match's random id, when it began, who joined it, and who was removed for idling.
   #matchId = '';
   #matchStartedAt = 0;
+  // The arena the current match started on, for its rewards.
+  #matchArena: ArenaId = 'citadel';
   #dealt = 0;
   #dealtHumans = 0;
   readonly #idled = new Set<string>();
@@ -233,6 +246,9 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     }),
     removeBot: validate(RemoveBotPayloadSchema, (client: CitadelClient, payload: { targetId: string }) => {
       void this.#removeBot(client, payload.targetId);
+    }),
+    setArena: validate(SetArenaPayloadSchema, (client: CitadelClient, payload: { arena: ArenaId }) => {
+      this.#setArena(client, payload.arena);
     }),
   };
 
@@ -292,7 +308,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
   override onJoin(client: CitadelClient): void {
     const auth = client.auth;
     const seat = this.#freeSeat();
-    const spawn = seat === null ? undefined : SPAWN_POINTS[seat];
+    const spawn = seat === null ? undefined : this.#arena().spawns[seat];
     if (auth === undefined || seat === null || spawn === undefined) {
       throw new ServerError(ErrorCode.APPLICATION_ERROR, 'This room is full.');
     }
@@ -305,7 +321,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     view.add(player, VIEW_TAGS.OWNER);
     client.view = view;
     client.userData = { kicked: false };
-    this.#sims.set(client.sessionId, { inputs: new InputQueue(), ipKey: auth.ipKey, lastActiveMs: Date.now(), holdingSlot: false, view, profileId: auth.profileId });
+    this.#sims.set(client.sessionId, { inputs: new InputQueue(), ipKey: auth.ipKey, lastActiveMs: Date.now(), holdingSlot: false, view, profileId: auth.profileId, opened: new Set<ArenaId>() });
     if (this.state.hostId === '' && !auth.bot) this.state.hostId = client.sessionId;
     if (auth.profileId !== null) void this.#wearLook(client.sessionId, auth.profileId);
     // Bots dress up from the shop shelves, so practice lobbies look lived in.
@@ -382,6 +398,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     this.state.players.delete(client.sessionId);
     this.#sims.delete(client.sessionId);
     this.#syncBotCount();
+    this.#syncArenaAccess();
     this.#lobbyChatAt.delete(client.sessionId);
     client.view?.dispose();
     if (this.state.hostId === client.sessionId) this.state.hostId = this.#nextHost();
@@ -432,14 +449,26 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
   // One fixed tick: apply queued moves, then send a single patch.
   protected step(): void {
     const now = performance.now();
+    const arena = this.#arena();
+    // On Watchtower Peaks a partition takes the bridges between the ranges down.
+    const ground = movementMap(arena, this.state.partition > 0);
     for (const [sessionId, sim] of this.#sims) {
       const player = this.state.players.get(sessionId);
       if (player === undefined || player.status !== 'active') continue;
+      if (ground !== arena.map) {
+        // Anyone on a bridge as it comes down steps back onto the nearest ledge.
+        const safe = nearestStandable(ground, { x: player.x, y: player.y });
+        if (safe.x !== player.x || safe.y !== player.y) {
+          player.x = safe.x;
+          player.y = safe.y;
+          sim.inputs.reset();
+        }
+      }
       // Councils and rotated-out keys hold still; inputs are still acknowledged so prediction settles.
       const frozen = player.out || player.frozen > 0 || this.#desk?.active === true;
       sim.inputs.drain(now, (input) => {
         if (frozen) return;
-        const next = stepMovement({ x: player.x, y: player.y }, { x: input.dx, y: input.dy }, TICK_SECONDS);
+        const next = stepMovement({ x: player.x, y: player.y }, { x: input.dx, y: input.dy }, TICK_SECONDS, ground);
         this.#match?.noteMove(sessionId, Math.hypot(next.x - player.x, next.y - player.y));
         if (next.x !== player.x) player.x = next.x;
         if (next.y !== player.y) player.y = next.y;
@@ -476,6 +505,13 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
       player.hat = look.hat !== null && isCosmeticId(look.hat) ? look.hat : '';
       player.shades = look.shades !== null && isCosmeticId(look.shades) ? look.shades : '';
       player.outfit = isCosmeticId(look.outfit) ? look.outfit : '';
+      const sim = this.#sims.get(sessionId);
+      if (sim !== undefined) {
+        const opened = new Set<ArenaId>();
+        for (const arena of ARENA_IDS) if (islandOpenFor(ARENAS[arena].island, data.progress.xp, data.progress.academy)) opened.add(arena);
+        sim.opened = opened;
+        this.#syncArenaAccess();
+      }
     } catch (error) {
       log.warn('look not loaded', { roomId: this.roomId, error: error instanceof Error ? error.name : 'unknown' });
     }
@@ -535,6 +571,54 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     return null;
   }
 
+  #arena(): Arena {
+    return arenaById(this.state.arena);
+  }
+
+  // An island arena is open to the room while anyone in it has opened the island; if they leave
+  // before the match starts, the lobby goes back to the Citadel.
+  #syncArenaAccess(): void {
+    const opened = new Set<ArenaId>(['citadel']);
+    for (const sim of this.#sims.values()) for (const a of sim.opened) opened.add(a);
+    this.state.reefOpen = opened.has('reef');
+    this.state.peaksOpen = opened.has('peaks');
+    if (!opened.has(this.#arena().id) && this.state.phase === 'lobby' && this.#match === null) this.#moveTo('citadel');
+  }
+
+  #arenaOpen(arena: ArenaId): boolean {
+    return arena === 'citadel' || (arena === 'reef' && this.state.reefOpen) || (arena === 'peaks' && this.state.peaksOpen);
+  }
+
+  // The host of a private lobby picks the arena; quick-match rooms always play the Citadel.
+  #setArena(client: CitadelClient, arena: ArenaId): void {
+    const refusal: ArenaRefused['reason'] | null =
+      this.#active(client) === null || client.auth?.bot === true || client.sessionId !== this.state.hostId
+        ? 'notHost'
+        : !this.state.isPrivate
+          ? 'notPrivate'
+          : this.state.phase !== 'lobby' || this.#match !== null
+            ? 'notLobby'
+            : !this.#arenaOpen(arena)
+              ? 'locked'
+              : null;
+    if (refusal !== null) this.#sendTo(client.sessionId, SERVER_MESSAGES.ARENA_REFUSED, { reason: refusal });
+    else if (arena !== this.state.arena) this.#moveTo(arena);
+  }
+
+  // Everyone in the lobby walks over to the new arena's square, each to their own seat's spot.
+  #moveTo(arena: ArenaId): void {
+    this.state.arena = arena;
+    const spawns = arenaById(arena).spawns;
+    for (const [id, p] of this.state.players) {
+      const spawn = spawns[p.seat];
+      if (spawn === undefined) continue;
+      p.x = spawn.x;
+      p.y = spawn.y;
+      this.#sims.get(id)?.inputs.reset();
+    }
+    log.info('arena changed', { roomId: this.roomId, arena });
+  }
+
   // The host starts a match once 5-9 guardians are present and connected.
   #startMatch(client: CitadelClient): void {
     if (this.#active(client) === null || this.state.phase !== 'lobby' || this.#match !== null) return;
@@ -544,13 +628,15 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     if (players.some(([, p]) => p.status !== 'active')) return;
 
     const policy = roomPolicy();
-    const match = new Match(players.map(([id]) => id), policy.taskTiming, policy.ceremonyTiming, taskClock(), cryptoRandom, policy.sabotageTiming);
+    const arena = this.#arena();
+    const match = new Match(players.map(([id]) => id), policy.taskTiming, policy.ceremonyTiming, taskClock(), cryptoRandom, policy.sabotageTiming, arena);
     this.#match = match;
-    this.#desk = new MeetingDesk(policy.councilTiming, taskClock());
+    this.#desk = new MeetingDesk(policy.councilTiming, taskClock(), arena.seal);
     this.#clockStart = taskClock();
     this.#pausedMs = 0;
     this.#matchId = randomBytes(9).toString('base64url');
     this.#matchStartedAt = Date.now();
+    this.#matchArena = arena.id;
     this.#dealt = players.length;
     this.#dealtHumans = players.filter(([, p]) => !p.bot).length;
     this.#idled.clear();
@@ -563,7 +649,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
       player.frozen = 0;
       player.tasks = match.assigned(id);
       player.tasksDone = 0;
-      const spawn = SPAWN_POINTS[player.seat];
+      const spawn = arena.spawns[player.seat];
       if (spawn !== undefined) {
         player.x = spawn.x;
         player.y = spawn.y;
@@ -594,7 +680,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     this.#matchLock = true;
     void this.lock();
     this.#sendReadiness(match);
-    log.info('match started', { roomId: this.roomId, players: players.length });
+    log.info('match started', { roomId: this.roomId, players: players.length, arena: arena.id });
   }
 
   #openTask(client: CitadelClient, payload: OpenTaskPayload): void {
@@ -747,7 +833,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     for (const [id, p] of this.state.players) {
       const proposalId = match.ceremony.cancelAudit(id);
       if (proposalId !== null) this.#sendTo(id, SERVER_MESSAGES.AUDIT, { status: 'cancelled', proposalId });
-      const spawn = SPAWN_POINTS[p.seat];
+      const spawn = this.#arena().spawns[p.seat];
       if (spawn !== undefined && !p.out) {
         p.x = spawn.x;
         p.y = spawn.y;
@@ -1043,6 +1129,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
       reason: winner.reason,
       blockHeight: this.state.blockHeight,
       events,
+      arena: this.#matchArena,
     };
     const payees: Payee[] = [];
     for (const [id] of this.state.players) {

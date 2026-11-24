@@ -1,7 +1,7 @@
 // Zod schemas for stored progress and everything progression sends over the wire. Strict and bounded.
 import { z } from 'zod';
 import { RewardIdSchema } from '../economy/catalog.js';
-import { TaskAnswerSchema, TaskChallengeSchema } from '../minigames.js';
+import { DrillAnswerSchema, DrillChallengeSchema } from '../drills.js';
 import { TaskIdSchema } from '../schemas.js';
 import { ACADEMY_LEVELS, ACADEMY_MAX_STARS } from './academy.js';
 import { XP_REASONS } from './award.js';
@@ -113,8 +113,8 @@ export const ACADEMY_ROOM = 'academy';
 export const ACADEMY_MESSAGES = Object.freeze({ DRILL: 'drill', RESULT: 'drillResult', DONE: 'levelDone', REFUSED: 'academyRefused' } as const);
 export const AcademyJoinSchema = z.strictObject({}).optional();
 export const AcademyStartSchema = z.strictObject({ level: z.number().int().min(1).max(99) });
-export const AcademyAnswerSchema = z.strictObject({ id: TaskIdSchema, answer: TaskAnswerSchema });
-export const AcademyDrillSchema = z.strictObject({ id: TaskIdSchema, level: z.number().int().min(1).max(99), index: Int(20), total: z.number().int().min(1).max(20), challenge: TaskChallengeSchema });
+export const AcademyAnswerSchema = z.strictObject({ id: TaskIdSchema, answer: DrillAnswerSchema });
+export const AcademyDrillSchema = z.strictObject({ id: TaskIdSchema, level: z.number().int().min(1).max(99), index: Int(20), total: z.number().int().min(1).max(20), challenge: DrillChallengeSchema });
 export const AcademyResultSchema = z.strictObject({ id: TaskIdSchema, ok: z.boolean(), retryInMs: Int(60_000).optional() });
 export const AcademyDoneSchema = z.strictObject({
   level: z.number().int().min(1).max(99),

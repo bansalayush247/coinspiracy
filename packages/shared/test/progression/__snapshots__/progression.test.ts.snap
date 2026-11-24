@@ -30,6 +30,12 @@ exports[`stored data > pins every stored id 1`] = `
   "academyClears",
   "academyStars",
   "courierDeliveries",
+  "reefMatches",
+  "reefRoutes",
+  "peaksMatches",
+  "clearsSigning",
+  "clearsCouncil",
+  "clearsPeaks",
 ]
 `;
 
@@ -93,6 +99,21 @@ exports[`stored data > pins every stored id 2`] = `
   "courier2",
   "courier3",
   "topOfClass",
+  "reef1",
+  "reef2",
+  "reef3",
+  "channel1",
+  "channel2",
+  "channel3",
+  "signingScholar",
+  "cosigner1",
+  "cosigner2",
+  "cosigner3",
+  "councilScholar",
+  "peaksScholar",
+  "peaks1",
+  "peaks2",
+  "peaks3",
 ]
 `;
 
@@ -142,5 +163,9 @@ exports[`stored data > pins every stored id 4`] = `
   "halvingWitness",
   "scholar",
   "harbourRunner",
+  "reefWarden",
+  "channelMaster",
+  "peakWarden",
+  "pillarOfTheMint",
 ]
 `;

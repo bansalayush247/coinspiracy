@@ -1,5 +1,5 @@
 // What a player sees of their own progression; built on the server, validated on the client.
-import { ACADEMY_LEVELS } from './academy.js';
+import { ACADEMY_LEVELS, academyLevelOpen } from './academy.js';
 import { epochReward, EPOCH_TIERS, EPOCH_TIER_XP, epochHat } from './epoch.js';
 import { MAX_QUESTS, questById } from './quests.js';
 import { nextUnlock, rankFor, RANK_UP_SATS } from './rank.js';
@@ -50,8 +50,8 @@ export function toProgressView(p: Progress, nowMs: number) {
     academy: ACADEMY_LEVELS.map((l, i) => ({
       level: l.level,
       stars: p.academy[i] ?? 0,
-      // A level opens once the one before it is cleared.
-      open: i === 0 || (p.academy[i - 1] ?? 0) > 0,
+      // Opens with its island, then once the island's level before it is cleared.
+      open: academyLevelOpen(l.level, p.xp, p.academy),
     })),
   };
 }

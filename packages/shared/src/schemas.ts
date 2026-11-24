@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MAX_INPUT_SEQ, MAX_MESSAGE_BYTES, ROOMS, SIMPLE_PHRASES } from './constants.js';
+import { ArenaIdSchema } from './arena.js';
 import { TaskAnswerSchema, TaskChallengeSchema } from './minigames.js';
 import { err, ok, type Result } from './result.js';
 import { TASK_KINDS } from './tasks.js';
@@ -40,6 +41,8 @@ export const CastVotePayloadSchema = z.strictObject({
 export const QuickChatPayloadSchema = z.strictObject({ chat: ChatSchema });
 export const FreezePayloadSchema = z.strictObject({ targetId: PlayerIdSchema });
 export const RemoveBotPayloadSchema = z.strictObject({ targetId: PlayerIdSchema });
+// The host of a private lobby picks where the match is played.
+export const SetArenaPayloadSchema = z.strictObject({ arena: ArenaIdSchema });
 export const TaskKindSchema = z.enum(TASK_KINDS);
 // Server-issued per challenge, so an answer can only ever apply to the challenge it was for.
 export const TaskIdSchema = z.string().regex(/^[A-Za-z0-9_-]{8,24}$/);
@@ -64,6 +67,7 @@ export const CLIENT_MESSAGE_PAYLOADS = {
   freeze: FreezePayloadSchema,
   addBot: NoPayloadSchema,
   removeBot: RemoveBotPayloadSchema,
+  setArena: SetArenaPayloadSchema,
 } as const;
 export type ClientMessageType = keyof typeof CLIENT_MESSAGE_PAYLOADS;
 export type MovePayload = z.infer<typeof MovePayloadSchema>;
@@ -89,6 +93,7 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   FreezePayloadSchema.extend({ type: z.literal('freeze') }),
   EmptyPayloadSchema.extend({ type: z.literal('addBot') }),
   RemoveBotPayloadSchema.extend({ type: z.literal('removeBot') }),
+  SetArenaPayloadSchema.extend({ type: z.literal('setArena') }),
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -146,6 +151,11 @@ export type SabotageReady = z.infer<typeof SabotageReadySchema>;
 // To the host when a practice bot could not be added or removed.
 export const BOT_REFUSALS = ['disabled', 'notHost', 'notLobby', 'roomFull', 'busy', 'limit', 'failed', 'notABot'] as const;
 export const BotsRefusedSchema = z.strictObject({ reason: z.enum(BOT_REFUSALS) });
+// To the host when the arena could not change: only a private lobby's host may pick, and only an
+// arena someone in the room has opened.
+export const ARENA_REFUSALS = ['notHost', 'notLobby', 'notPrivate', 'locked'] as const;
+export const ArenaRefusedSchema = z.strictObject({ reason: z.enum(ARENA_REFUSALS) });
+export type ArenaRefused = z.infer<typeof ArenaRefusedSchema>;
 export type BotsRefused = z.infer<typeof BotsRefusedSchema>;
 export type ChatLine = z.infer<typeof ChatLineSchema>;
 export type CouncilRefused = z.infer<typeof CouncilRefusedSchema>;

@@ -1,7 +1,7 @@
 // The Academy, client side: pick a level, read what it teaches, solve its drills, earn stars.
 // The server runs the drills and decides the stars; this only shows them.
-import { TASK_TIMING, type TaskAnswer, type TaskKind } from '@byzantine-council/shared';
-import { ACADEMY_LEVELS, ACADEMY_MAX_STARS, ACADEMY_MESSAGES, AcademyDoneSchema, AcademyDrillSchema, AcademyRefusedSchema, AcademyResultSchema, type AcademyDone, type AcademyDrill } from '@byzantine-council/shared/progression';
+import { ISLAND_DRILL_MIN_MS, TASK_TIMING, isTaskKind, type DrillAnswer, type DrillKind } from '@byzantine-council/shared';
+import { ACADEMY_LEVELS, ACADEMY_MAX_STARS, ACADEMY_MESSAGES, AcademyDoneSchema, AcademyDrillSchema, AcademyRefusedSchema, AcademyResultSchema, ISLANDS, type AcademyDone, type AcademyDrill } from '@byzantine-council/shared/progression';
 import type { Room } from '@colyseus/sdk';
 import { audio } from '../audio/engine.js';
 import { el, h } from '../ui/dom.js';
@@ -10,6 +10,7 @@ import { ledgerGame } from '../ui/tasks/ledger.js';
 import { routeGame } from '../ui/tasks/route.js';
 import { button, type MinigameHost } from '../ui/tasks/types.js';
 import { watchtowerGame } from '../ui/tasks/watchtower.js';
+import { ISLAND_DRILL_TITLES, councilGame, partitionGame, quorumGame, thresholdGame, type DrillHost } from '../ui/tasks/islandDrills.js';
 import { TASK_COPY } from '../ui/tasks/copy.js';
 import type { ProfileSummary } from './api.js';
 
@@ -18,7 +19,7 @@ const SEND_MARGIN_MS = 150;
 
 const REFUSED: Readonly<Record<string, string>> = {
   unknownLevel: 'That level does not exist.',
-  locked: 'Clear the level before this one first.',
+  locked: 'Open this island first, then clear its levels in order.',
   busy: 'One moment…',
   timedOut: 'That level took too long. Start it again when you are ready.',
 };
@@ -37,7 +38,7 @@ export class AcademyPanel {
   readonly #status = el('academy-status', HTMLParagraphElement);
   #room: Room | null = null;
   #profile: ProfileSummary | null = null;
-  #drill: { id: string; kind: TaskKind; openedAt: number } | null = null;
+  #drill: { id: string; kind: DrillKind; openedAt: number } | null = null;
   #timer = 0;
   // Opens a solo room on the server; the caller owns the session.
   connect: () => Promise<Room> = () => Promise.reject(new Error('not connected'));
@@ -81,15 +82,25 @@ export class AcademyPanel {
   #levels(): void {
     this.#setStatus('');
     const progress = this.#profile?.progress.academy;
-    const list = h('ol', 'academy-levels');
-    for (const level of ACADEMY_LEVELS) {
+    // One heading and list per island, in the order the islands open on the world map.
+    const groups: HTMLElement[] = [];
+    const ordered = ISLANDS.flatMap((isle) => ACADEMY_LEVELS.filter((l) => l.island === isle.id).map((l) => ({ level: l, isle: isle.name })));
+    let list: HTMLElement | null = null;
+    let island = '';
+    for (const { level, isle } of ordered) {
+      if (level.island !== island || list === null) {
+        island = level.island;
+        list = h('ol', 'academy-levels');
+        groups.push(h('h4', 'academy-island', isle), list);
+      }
       const mine = progress?.find((a) => a.level === level.level);
       // Without a profile nothing is saved, so every level is open.
       const open = mine?.open ?? true;
       const li = h('li', open ? 'level' : 'level locked');
       // The medallion takes the colour of the level's station; mixed levels are violet.
       const kinds = new Set(level.drills);
-      li.dataset['kind'] = kinds.size === 1 ? (level.drills[0] ?? 'mixed') : 'mixed';
+      const only = level.drills[0];
+      li.dataset['kind'] = kinds.size === 1 && only !== undefined && isTaskKind(only) ? only : 'mixed';
       const medal = h('span', 'medal', String(level.level));
       medal.setAttribute('aria-hidden', 'true');
       const pick = button(open ? 'Play' : 'Locked', open ? 'cta' : '');
@@ -101,8 +112,11 @@ export class AcademyPanel {
       li.append(medal, h('b', '', `${String(level.level)}. ${level.name}`), h('span', 'teaches', level.teaches), h('span', 'stars', stars(mine?.stars ?? 0)), pick);
       list.append(li);
     }
-    const lead = this.#profile === null ? 'Learn each station on your own, then bring it to a real match. Progress is not saved without a guest profile.' : 'Learn each station on your own, then bring it to a real match. Each level opens once the one before it is cleared.';
-    this.#body.replaceChildren(h('p', 'concept', lead), list);
+    const lead =
+      this.#profile === null
+        ? 'Learn each island’s idea on your own, then bring it to a real match. Progress is not saved without a guest profile.'
+        : 'Learn each island’s idea on your own, then bring it to a real match. An island’s levels open with the island, one after another.';
+    this.#body.replaceChildren(h('p', 'concept', lead), ...groups);
   }
 
   #intro(n: number): void {
@@ -164,26 +178,32 @@ export class AcademyPanel {
     window.clearTimeout(this.#timer);
     const kind = d.challenge.kind;
     this.#drill = { id: d.id, kind, openedAt: performance.now() };
-    const host: MinigameHost = {
-      submit: (answer: TaskAnswer) => {
+    const host: MinigameHost & DrillHost = {
+      submit: (answer: DrillAnswer) => {
         this.#submit(d.id, answer);
       },
     };
     const game = h('div', 'task-body academy-game');
     const header = h('div', 'academy-drill');
-    header.append(h('b', '', TASK_COPY[kind].title), h('span', 'hint', `Drill ${String(d.index + 1)} of ${String(d.total)}`));
+    header.append(h('b', '', isTaskKind(kind) ? TASK_COPY[kind].title : ISLAND_DRILL_TITLES[kind]), h('span', 'hint', `Drill ${String(d.index + 1)} of ${String(d.total)}`));
     this.#body.replaceChildren(header, game);
-    if (d.challenge.kind === 'deposit') depositGame(game, d.challenge, host);
-    else if (d.challenge.kind === 'ledger') ledgerGame(game, d.challenge, host);
-    else if (d.challenge.kind === 'route') routeGame(game, d.challenge, host);
-    else watchtowerGame(game, d.challenge, host);
+    const c = d.challenge;
+    if (c.kind === 'deposit') depositGame(game, c, host);
+    else if (c.kind === 'ledger') ledgerGame(game, c, host);
+    else if (c.kind === 'route') routeGame(game, c, host);
+    else if (c.kind === 'watchtower') watchtowerGame(game, c, host);
+    else if (c.kind === 'threshold') thresholdGame(game, c, host);
+    else if (c.kind === 'quorum') quorumGame(game, c, host);
+    else if (c.kind === 'council') councilGame(game, c, host);
+    else partitionGame(game, c, host);
   }
 
-  #submit(id: string, answer: TaskAnswer): void {
+  #submit(id: string, answer: DrillAnswer): void {
     const drill = this.#drill;
     if (drill?.id !== id) return;
     this.#setStatus('Checking…');
-    const wait = Math.max(0, TASK_TIMING.minSolveMs[drill.kind] + SEND_MARGIN_MS - (performance.now() - drill.openedAt));
+    const minMs = isTaskKind(drill.kind) ? TASK_TIMING.minSolveMs[drill.kind] : ISLAND_DRILL_MIN_MS[drill.kind];
+    const wait = Math.max(0, minMs + SEND_MARGIN_MS - (performance.now() - drill.openedAt));
     this.#timer = window.setTimeout(() => {
       if (this.#drill?.id === id) this.#room?.send('answer', { id, answer });
     }, wait);
@@ -192,7 +212,8 @@ export class AcademyPanel {
   #done(d: AcademyDone): void {
     this.#drill = null;
     const level = ACADEMY_LEVELS.find((l) => l.level === d.level);
-    const nextLevel = ACADEMY_LEVELS.find((l) => l.level === d.level + 1);
+    // The next level on the same island; the island's last level offers none.
+    const nextLevel = ACADEMY_LEVELS.find((l) => l.island === level?.island && l.level > d.level);
     const parts: HTMLElement[] = [
       h('h3', '', `${level?.name ?? 'Level'} cleared`),
       h('p', 'academy-stars', stars(d.stars)),

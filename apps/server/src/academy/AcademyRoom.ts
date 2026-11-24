@@ -2,7 +2,7 @@
 // every answer with the same timing rules as match tasks; stars and rewards are decided here.
 import { randomBytes } from 'node:crypto';
 import { ErrorCode, Room, ServerError, validate, type AuthContext, type Client } from '@colyseus/core';
-import { CLOSE_CODES, NoPayloadSchema, checkAnswer, cryptoRandom, generateChallenge, type TaskAnswer, type TaskChallenge, type TaskKind } from '@byzantine-council/shared';
+import { CLOSE_CODES, NoPayloadSchema, checkDrill, cryptoRandom, generateDrill, isTaskKind, type DrillAnswer, type DrillChallenge, type DrillKind } from '@byzantine-council/shared';
 import {
   ACADEMY_DRILL_EXPIRE_MS,
   ACADEMY_LEVEL_LIMIT_MS,
@@ -12,6 +12,7 @@ import {
   AcademyJoinSchema,
   AcademyStartSchema,
   academyLevel,
+  academyLevelOpen,
   starsFor,
   type AcademyDone,
   type AcademyDrill,
@@ -36,11 +37,11 @@ type AcademyClient = Client<{ auth: Auth }>;
 interface Run {
   readonly id: string;
   readonly level: number;
-  readonly drills: readonly TaskKind[];
+  readonly drills: readonly DrillKind[];
   readonly startedAt: number;
   index: number;
   mistakes: number;
-  drill: { readonly id: string; readonly kind: TaskKind; readonly challenge: TaskChallenge; readonly openedAt: number } | null;
+  drill: { readonly id: string; readonly kind: DrillKind; readonly challenge: DrillChallenge; readonly openedAt: number } | null;
   // No answers are taken until this time after a wrong one.
   lockedUntil: number;
 }
@@ -69,7 +70,7 @@ export class AcademyRoom extends Room<{ client: AcademyClient }> {
     start: validate(AcademyStartSchema, (client: AcademyClient, payload: { level: number }) => {
       void this.#start(client, payload.level);
     }),
-    answer: validate(AcademyAnswerSchema, (client: AcademyClient, payload: { id: string; answer: TaskAnswer }) => {
+    answer: validate(AcademyAnswerSchema, (client: AcademyClient, payload: { id: string; answer: DrillAnswer }) => {
       void this.#answer(client, payload.id, payload.answer);
     }),
     quit: validate(NoPayloadSchema, () => {
@@ -116,14 +117,14 @@ export class AcademyRoom extends Room<{ client: AcademyClient }> {
       this.#refuse(client, 'unknownLevel');
       return;
     }
-    // With a profile, each level opens once the one before it is cleared.
+    // With a profile, a level opens with its island, then once the island's level before it is cleared.
     const { profiles } = roomPolicy();
     const profileId = client.auth?.profileId ?? null;
     if (profiles !== null && profileId !== null && level > 1) {
       this.#busy = true;
       try {
         const data = await loadProfile(profiles.store, profileId, Date.now());
-        if ((data.progress.academy[level - 2] ?? 0) === 0) {
+        if (!academyLevelOpen(level, data.progress.xp, data.progress.academy)) {
           this.#refuse(client, 'locked');
           return;
         }
@@ -141,12 +142,12 @@ export class AcademyRoom extends Room<{ client: AcademyClient }> {
     if (run === null) return;
     const kind = run.drills[run.index];
     if (kind === undefined) return;
-    const challenge = generateChallenge(kind, cryptoRandom, { tipHeight: roomPolicy().chain.current().height });
+    const challenge = generateDrill(kind, cryptoRandom, { tipHeight: roomPolicy().chain.current().height });
     run.drill = { id: randomBytes(9).toString('base64url'), kind, challenge, openedAt: clock() };
     client.send(ACADEMY_MESSAGES.DRILL, { id: run.drill.id, level: run.level, index: run.index, total: run.drills.length, challenge } satisfies AcademyDrill);
   }
 
-  async #answer(client: AcademyClient, id: string, answer: TaskAnswer): Promise<void> {
+  async #answer(client: AcademyClient, id: string, answer: DrillAnswer): Promise<void> {
     const run = this.#run;
     const drill = run?.drill ?? null;
     if (run === null || drill === null || drill.id !== id || answer.kind !== drill.kind) return;
@@ -157,8 +158,10 @@ export class AcademyRoom extends Room<{ client: AcademyClient }> {
       return;
     }
     // Too fast for a person, or still locked out after a mistake: ignored, like match tasks.
-    if (now < drill.openedAt + roomPolicy().taskTiming.minSolveMs[drill.kind] || now < run.lockedUntil) return;
-    if (now > drill.openedAt + ACADEMY_DRILL_EXPIRE_MS || !checkAnswer(drill.challenge, answer)) {
+    const policy = roomPolicy();
+    const minMs = isTaskKind(drill.kind) ? policy.taskTiming.minSolveMs[drill.kind] : policy.islandDrillMinMs[drill.kind];
+    if (now < drill.openedAt + minMs || now < run.lockedUntil) return;
+    if (now > drill.openedAt + ACADEMY_DRILL_EXPIRE_MS || !checkDrill(drill.challenge, answer)) {
       run.mistakes += 1;
       run.lockedUntil = now + ACADEMY_RETRY_MS;
       run.drill = null;

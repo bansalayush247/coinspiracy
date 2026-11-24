@@ -39,4 +39,6 @@ export const SERVER_MESSAGES = Object.freeze({
   MATCH_REWARDS: 'matchRewards',
   // To the host: a practice bot could not be added or removed.
   BOTS_REFUSED: 'botsRefused',
+  // To the host: the arena could not be changed.
+  ARENA_REFUSED: 'arenaRefused',
 } as const);

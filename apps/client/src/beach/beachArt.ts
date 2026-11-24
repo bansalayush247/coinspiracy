@@ -22,10 +22,10 @@ interface Pt {
   readonly x: number;
   readonly y: number;
 }
-function P(x: number, y: number, z = 0): Pt {
+export function P(x: number, y: number, z = 0): Pt {
   return { x: (x - y) * (TILE_W / 2), y: (x + y) * (TILE_H / 2) - z * ART_SCALE };
 }
-function fan(g: G, color: number, pts: readonly Pt[], alpha = 1): void {
+export function fan(g: G, color: number, pts: readonly Pt[], alpha = 1): void {
   const [a] = pts;
   if (a === undefined) return;
   g.fillStyle(color, alpha);
@@ -35,14 +35,23 @@ function fan(g: G, color: number, pts: readonly Pt[], alpha = 1): void {
     if (b !== undefined && c !== undefined) g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y);
   }
 }
-function prism(g: G, x0: number, y0: number, x1: number, y1: number, z0: number, h: number, col: number, top?: number): void {
+export function prism(g: G, x0: number, y0: number, x1: number, y1: number, z0: number, h: number, col: number, top?: number): void {
   const z1 = z0 + h;
   fan(g, lit(col, 0.05), [P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1)]);
   fan(g, shade(col), [P(x1, y1, z0), P(x1, y0, z0), P(x1, y0, z1), P(x1, y1, z1)]);
   fan(g, top ?? lit(col, 0.3), [P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1)]);
 }
 
-export function paintBeach(scene: Phaser.Scene, map: CitadelMap = BEACH_MAP): { key: string; x: number; y: number; scale: number } {
+// How the painter shades a map: water depth per tile (0 shallow, 1 deep) and shadow-casting heights.
+export interface ShoreStyle {
+  readonly deep: (c: number, r: number) => number;
+  // Sample depth on a 4 x 4 grid inside each water tile (deep takes fractional positions), so it shades smoothly.
+  readonly smooth?: boolean;
+  readonly heights: Readonly<Record<string, number>>;
+  readonly key: string;
+}
+
+export function paintBeach(scene: Phaser.Scene, map: CitadelMap = BEACH_MAP, style: ShoreStyle = BEACH_STYLE): { key: string; x: number; y: number; scale: number } {
   const bounds = mapScreenBounds(map.width, map.height);
   const w = bounds.width;
   const h = bounds.height + PAD_TOP + PAD_BOTTOM;
@@ -57,11 +66,11 @@ export function paintBeach(scene: Phaser.Scene, map: CitadelMap = BEACH_MAP): { 
   ctx.setTransform(scale, 0, 0, scale, ox * scale, PAD_TOP * scale);
   paintCliffs(ctx, map, at);
   ctx.setTransform((TILE_W / 2) * scale, (TILE_H / 2) * scale, (-TILE_W / 2) * scale, (TILE_H / 2) * scale, ox * scale, PAD_TOP * scale);
-  paintSandAndSea(ctx, map, at);
-  paintBeachShadows(ctx, map, at);
-  if (scene.textures.exists(BEACH_GROUND)) scene.textures.remove(BEACH_GROUND);
-  scene.textures.addCanvas(BEACH_GROUND, canvas);
-  return { key: BEACH_GROUND, x: bounds.x, y: -PAD_TOP, scale };
+  paintSandAndSea(ctx, map, at, style.deep, style.smooth === true);
+  paintBeachShadows(ctx, map, at, style.heights);
+  if (scene.textures.exists(style.key)) scene.textures.remove(style.key);
+  scene.textures.addCanvas(style.key, canvas);
+  return { key: style.key, x: bounds.x, y: -PAD_TOP, scale };
 }
 
 function nearWater(at: (c: number, r: number) => string, c: number, r: number): number {
@@ -70,7 +79,7 @@ function nearWater(at: (c: number, r: number) => string, c: number, r: number): 
   return best;
 }
 
-function paintSandAndSea(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) => string): void {
+function paintSandAndSea(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) => string, deep: (c: number, r: number) => number, smooth: boolean): void {
   for (let r = 0; r < map.height; r++) {
     for (let c = 0; c < map.width; c++) {
       const t = at(c, r);
@@ -78,12 +87,22 @@ function paintSandAndSea(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) =
       const rand = rng(c * 811 + r * 977);
       if (t === '~') {
         // Shallow turquoise over the sand near the shore, deep blue further out.
-        const d = Math.min(1, Math.max(0, (r - 16) / 6));
-        const g = ctx.createLinearGradient(c, r, c, r + 1);
-        g.addColorStop(0, hex(mix(0x7fdad2, 0x2f86b5, d)));
-        g.addColorStop(1, hex(mix(0x7fdad2, 0x2f86b5, Math.min(1, d + 0.16))));
-        ctx.fillStyle = g;
-        ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
+        const clamp = (v: number): number => Math.min(1, Math.max(0, v));
+        if (smooth) {
+          for (let j = 0; j < 4; j++) {
+            for (let i = 0; i < 4; i++) {
+              ctx.fillStyle = hex(mix(0x7fdad2, 0x2f86b5, clamp(deep(c + (i + 0.5) / 4, r + (j + 0.5) / 4))));
+              ctx.fillRect(c + i / 4 - 0.01, r + j / 4 - 0.01, 0.27, 0.27);
+            }
+          }
+        } else {
+          const d = clamp(deep(c, r));
+          const g = ctx.createLinearGradient(c, r, c, r + 1);
+          g.addColorStop(0, hex(mix(0x7fdad2, 0x2f86b5, d)));
+          g.addColorStop(1, hex(mix(0x7fdad2, 0x2f86b5, Math.min(1, d + 0.16))));
+          ctx.fillStyle = g;
+          ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
+        }
         ctx.strokeStyle = 'rgba(235,255,255,0.35)';
         ctx.lineWidth = 0.02;
         for (let i = 0; i < 3; i++) {
@@ -142,15 +161,16 @@ function paintSandAndSea(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) =
   }
 }
 
-const HEIGHTS: Readonly<Record<string, number>> = { H: 96, T: 130, U: 70, R: 26 };
+// Beach Town's sea deepens toward the south edge of the island.
+const BEACH_STYLE: ShoreStyle = { deep: (_c, r) => (r - 16) / 6, heights: { H: 96, T: 130, U: 70, R: 26 }, key: BEACH_GROUND };
 
-function paintBeachShadows(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) => string): void {
+function paintBeachShadows(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) => string, heights: Readonly<Record<string, number>>): void {
   ctx.save();
   ctx.fillStyle = 'rgba(70,45,90,0.16)';
   for (let r = 0; r < map.height; r++) {
     for (let c = 0; c < map.width; c++) {
       const t = at(c, r);
-      const h = HEIGHTS[t];
+      const h = heights[t];
       if (h === undefined) continue;
       const len = (h / 64) * 0.7;
       ctx.beginPath();
@@ -249,31 +269,33 @@ export function createBeachProps(scene: Phaser.Scene, layer: Phaser.GameObjects.
 }
 
 // A bamboo hut on stilts with a thatched hip roof and an open door facing the porch.
-function drawHut(g: G, c: number, r: number): void {
+// size is the footprint in tiles (2 for a home hut); everything scales with it.
+export function drawHut(g: G, c: number, r: number, size = 2): void {
+  const k = size / 2;
   const bamboo = 0xd9a86a;
   // Stilts, then the deck.
-  for (const [x, y] of [[0.2, 0.2], [1.8, 0.2], [0.2, 1.8], [1.8, 1.8]] as const) prism(g, c + x - 0.05, r + y - 0.05, c + x + 0.05, r + y + 0.05, 0, 14, 0x7a4e3e);
-  prism(g, c + 0.05, r + 0.05, c + 1.95, r + 1.95, 14, 6, 0xb8784e, 0xd69a68);
+  for (const [x, y] of [[0.2, 0.2], [1.8, 0.2], [0.2, 1.8], [1.8, 1.8]] as const) prism(g, c + x * k - 0.05, r + y * k - 0.05, c + x * k + 0.05, r + y * k + 0.05, 0, 14 * k, 0x7a4e3e);
+  prism(g, c + 0.05 * k, r + 0.05 * k, c + 1.95 * k, r + 1.95 * k, 14 * k, 6 * k, 0xb8784e, 0xd69a68);
   // Walls, with bamboo seams on the two visible faces.
-  prism(g, c + 0.25, r + 0.25, c + 1.75, r + 1.6, 20, 62, bamboo);
+  prism(g, c + 0.25 * k, r + 0.25 * k, c + 1.75 * k, r + 1.6 * k, 20 * k, 62 * k, bamboo);
   g.lineStyle(1 * ART_SCALE, shade(bamboo, 0.3), 0.7);
   for (let i = 1; i < 8; i++) {
-    const a = P(c + 0.25 + (i * 1.5) / 8, r + 1.6, 20);
-    const b = P(c + 0.25 + (i * 1.5) / 8, r + 1.6, 82);
+    const a = P(c + 0.25 * k + (i * 1.5 * k) / 8, r + 1.6 * k, 20 * k);
+    const b = P(c + 0.25 * k + (i * 1.5 * k) / 8, r + 1.6 * k, 82 * k);
     g.lineBetween(a.x, a.y, b.x, b.y);
-    const e = P(c + 1.75, r + 0.25 + (i * 1.35) / 8, 20);
-    const f = P(c + 1.75, r + 0.25 + (i * 1.35) / 8, 82);
+    const e = P(c + 1.75 * k, r + 0.25 * k + (i * 1.35 * k) / 8, 20 * k);
+    const f = P(c + 1.75 * k, r + 0.25 * k + (i * 1.35 * k) / 8, 82 * k);
     g.lineBetween(e.x, e.y, f.x, f.y);
   }
   // The doorway and a window that glows warm.
-  fan(g, 0x4a2e2a, [P(c + 0.8, r + 1.61, 20), P(c + 1.2, r + 1.61, 20), P(c + 1.2, r + 1.61, 64), P(c + 0.8, r + 1.61, 64)]);
-  fan(g, 0xffd27a, [P(c + 1.76, r + 0.6, 44), P(c + 1.76, r + 1.1, 44), P(c + 1.76, r + 1.1, 66), P(c + 1.76, r + 0.6, 66)]);
+  fan(g, 0x4a2e2a, [P(c + 0.8 * k, r + 1.61 * k, 20 * k), P(c + 1.2 * k, r + 1.61 * k, 20 * k), P(c + 1.2 * k, r + 1.61 * k, 64 * k), P(c + 0.8 * k, r + 1.61 * k, 64 * k)]);
+  fan(g, 0xffd27a, [P(c + 1.76 * k, r + 0.6 * k, 44 * k), P(c + 1.76 * k, r + 1.1 * k, 44 * k), P(c + 1.76 * k, r + 1.1 * k, 66 * k), P(c + 1.76 * k, r + 0.6 * k, 66 * k)]);
   // Thatch: four faces to the apex, back ones first, with straw streaks.
-  const apex = P(c + 1, r + 0.92, 132);
-  const e00 = P(c + 0.05, r + 0.05, 80);
-  const e10 = P(c + 1.95, r + 0.05, 80);
-  const e11 = P(c + 1.95, r + 1.85, 80);
-  const e01 = P(c + 0.05, r + 1.85, 80);
+  const apex = P(c + 1 * k, r + 0.92 * k, 132 * k);
+  const e00 = P(c + 0.05 * k, r + 0.05 * k, 80 * k);
+  const e10 = P(c + 1.95 * k, r + 0.05 * k, 80 * k);
+  const e11 = P(c + 1.95 * k, r + 1.85 * k, 80 * k);
+  const e01 = P(c + 0.05 * k, r + 1.85 * k, 80 * k);
   const straw = 0xc9a25a;
   fan(g, shade(straw, 0.25), [e00, e10, apex]);
   fan(g, shade(straw, 0.15), [e01, e00, apex]);
@@ -305,7 +327,7 @@ export function drawHutDecor(g: G, owned: readonly string[]): void {
 }
 
 // A tiki torch: a bamboo pole with a woven cup and a flame.
-function drawTorch(g: G, c: number, r: number): void {
+export function drawTorch(g: G, c: number, r: number): void {
   const foot = P(c + 0.5, r + 0.5);
   const top = P(c + 0.5, r + 0.5, 60);
   g.lineStyle(3 * ART_SCALE, 0x9a6a3e, 1);
@@ -378,7 +400,7 @@ function drawBoothFront(g: G, c: number, r: number, color: number, shop: ShopId)
   }
 }
 
-function drawPalm(g: G, seed: number): void {
+export function drawPalm(g: G, seed: number): void {
   const s = ART_SCALE;
   const rand = (k: number): number => {
     const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453;

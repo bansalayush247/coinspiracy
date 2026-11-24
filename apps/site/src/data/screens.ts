@@ -9,8 +9,6 @@ export interface Screen {
   readonly height: number;
 }
 
-export const SCREEN_WIDTH = 960;
-
 export const SCREENS = {
   match: { name: 'match', from: 'match-hud.png', alt: 'A guardian in the Mint Citadel with the task list, Consensus bar, block height and a withdrawal waiting for signatures', width: 960, height: 600 },
   deposit: { name: 'deposit', from: 'task-deposit.png', alt: 'The Deposit Gate task: splitting a deposit into power-of-two notes before blinding them', width: 960, height: 600 },

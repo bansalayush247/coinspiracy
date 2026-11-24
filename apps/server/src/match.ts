@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import {
   ALL_TASKS,
+  CITADEL,
   CEREMONY_TIMING,
   SABOTAGE_TIMING,
   CONSENSUS_GOAL,
@@ -16,7 +17,9 @@ import {
   generateChallenge,
   hasTask,
   inStationRange,
+  STATION_RANGE,
   taskBit,
+  type Arena,
   type Guardian,
   type CeremonyTiming,
   type Proposal,
@@ -104,6 +107,8 @@ export class Match {
   #finished = false;
   readonly ceremony: Ceremony;
   readonly sabotage: Sabotage;
+  // Where the match is played: station positions and the gateway's routing difficulty.
+  readonly #arena: Arena;
   readonly #tally = new Map<string, Tally>();
 
   constructor(
@@ -113,11 +118,13 @@ export class Match {
     now = 0,
     rng: RandomSource = cryptoRandom,
     sabotageTiming: SabotageTiming = SABOTAGE_TIMING,
+    arena: Arena = CITADEL,
   ) {
     this.#timing = timing;
     this.#rng = rng;
-    this.ceremony = new Ceremony(playerIds, ceremonyTiming, rng, now);
-    this.sabotage = new Sabotage(sabotageTiming, now);
+    this.#arena = arena;
+    this.ceremony = new Ceremony(playerIds, ceremonyTiming, rng, now, arena);
+    this.sabotage = new Sabotage(sabotageTiming, now, arena.relays);
     let honestTotal = 0;
     for (const [id, role] of assignRoles(playerIds, rng)) {
       this.#seats.set(id, { role, assigned: ALL_TASKS, done: 0, open: null, retryAt: 0, nextOpenAt: 0, out: false });
@@ -159,8 +166,8 @@ export class Match {
     if (seat.open !== null) return { ok: false, reason: 'busy' };
     const waitUntil = Math.max(seat.retryAt, seat.nextOpenAt);
     if (now < waitUntil) return { ok: false, reason: 'retryLater', retryInMs: retryHint(waitUntil - now) };
-    if (!inStationRange(pos, kind)) return { ok: false, reason: 'outOfRange' };
-    const challenge = generateChallenge(kind, this.#rng, { tipHeight });
+    if (!inStationRange(pos, kind, STATION_RANGE, this.#arena.stations)) return { ok: false, reason: 'outOfRange' };
+    const challenge = generateChallenge(kind, this.#rng, { tipHeight, hardRoutes: this.#arena.hardRoutes });
     seat.open = { id: newTaskId(), kind, challenge, openedAt: now };
     seat.nextOpenAt = now + this.#timing.openCooldownMs;
     return { ok: true, id: seat.open.id, challenge };
@@ -176,7 +183,7 @@ export class Match {
     if (now < open.openedAt + this.#timing.minSolveMs[open.kind]) return { ok: false, reason: 'ignored' };
     seat.open = null;
     if (now >= open.openedAt + this.#timing.expireMs) return { ok: false, reason: 'expired' };
-    if (!inStationRange(pos, open.kind)) return { ok: false, reason: 'moved' };
+    if (!inStationRange(pos, open.kind, STATION_RANGE, this.#arena.stations)) return { ok: false, reason: 'moved' };
     if (!checkAnswer(open.challenge, answer)) {
       seat.retryAt = now + this.#timing.retryMs;
       return { ok: false, reason: 'wrong', retryInMs: retryHint(this.#timing.retryMs) };
@@ -203,7 +210,7 @@ export class Match {
       if (open === null) continue;
       const pos = positionOf(id);
       const reason: CloseReason | null =
-        now >= open.openedAt + this.#timing.expireMs ? 'expired' : pos === undefined || !inStationRange(pos, open.kind) ? 'moved' : null;
+        now >= open.openedAt + this.#timing.expireMs ? 'expired' : pos === undefined || !inStationRange(pos, open.kind, STATION_RANGE, this.#arena.stations) ? 'moved' : null;
       if (reason !== null) {
         seat.open = null;
         closed.push({ id, reason });

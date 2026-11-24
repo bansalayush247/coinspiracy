@@ -3,7 +3,7 @@ import './zod-jitless.js';
 import './style.css';
 import Phaser from 'phaser';
 import { Callbacks } from '@colyseus/sdk';
-import { BotsRefusedSchema, SERVER_MESSAGES, type BotsRefused } from '@byzantine-council/shared';
+import { ArenaRefusedSchema, BotsRefusedSchema, SERVER_MESSAGES, arenaById, type ArenaRefused, type BotsRefused } from '@byzantine-council/shared';
 import type { CouncilState, PlayerState, ProposalState } from '@byzantine-council/shared/state';
 import { CitadelScene, SCENE_KEY } from './game/CitadelScene.js';
 import { REG_DPR, hiDpiScaleConfig, installHiDpi } from './game/hidpi.js';
@@ -19,12 +19,13 @@ import { SeasonBanner } from './profile/season.js';
 import { StoryBook } from './story/storyBook.js';
 import { BEACH_SCENE_KEY, BeachScene } from './beach/BeachScene.js';
 import { BeachController } from './beach/beachController.js';
+import { ISLAND_SCENE_KEY, IslandScene, type PreviewIslandId } from './explore/IslandScene.js';
 import { Wardrobe } from './profile/wardrobe.js';
 import { registerServiceWorker } from './pwa/register.js';
 import { resolveServerEndpoint } from './serverUrl.js';
 import { el, h } from './ui/dom.js';
 import { NATURE_NOTES, type NatureNote } from './game/atmosphere.js';
-import { audio } from './audio/engine.js';
+import { audio, isMusicChoice, type MusicChoice } from './audio/engine.js';
 import { quality, saveQuality } from './game/quality.js';
 import { MatchView } from './matchView.js';
 import { Hud, type LobbyInfo, type RosterEntry } from './ui/hud.js';
@@ -64,7 +65,7 @@ function startGame(parent: HTMLElement): Promise<CitadelScene> {
       input: { keyboard: false, mouse: false, touch: false, gamepad: false },
       loader: { imageLoadType: 'HTMLImageElement' },
       scale: setup.scale,
-      scene: [CitadelScene, BeachScene],
+      scene: [CitadelScene, BeachScene, IslandScene],
       callbacks: {
         preBoot: (game) => {
           game.registry.set(REG_DPR, setup.dpr);
@@ -91,6 +92,25 @@ const BOT_REFUSAL_TEXT: Readonly<Record<BotsRefused['reason'], string>> = {
   failed: 'The bot couldn’t join. Try again.',
   notABot: 'That guardian isn’t a bot.',
 };
+
+const ARENA_REFUSAL_TEXT: Readonly<Record<ArenaRefused['reason'], string>> = {
+  notHost: 'Only the host picks the map.',
+  notLobby: 'The map can only change between matches.',
+  notPrivate: 'Quick-match rooms always play the Mint Citadel.',
+  locked: 'Nobody in this room has opened that island yet.',
+};
+
+const ISLAND_PREVIEWS: Readonly<Record<PreviewIslandId, { name: string; concept: string; mood: 'menu' | 'calm' | 'proposals' | 'council' | 'final' }>> = {
+  mint: { name: 'Mint Island', concept: 'Ecash notes and blind signatures', mood: 'menu' },
+  signing: { name: 'Signing Isle', concept: 'Threshold signatures', mood: 'proposals' },
+  council: { name: 'Council Isle', concept: 'The one-third rule', mood: 'council' },
+  watchtower: { name: 'Watchtower Peaks', concept: 'Network partitions', mood: 'final' },
+  reef: { name: 'Lightning Reef', concept: 'Lightning payments', mood: 'calm' },
+};
+
+function isPreviewIsland(id: string): id is PreviewIslandId {
+  return Object.hasOwn(ISLAND_PREVIEWS, id);
+}
 
 class Controller {
   readonly #menu = new Menu();
@@ -188,8 +208,9 @@ class Controller {
       audio.play('rankUp');
       this.#hud.toast(`A new chapter of the Chronicle has opened: ${chapter.title}. Read it from the island map.`);
     };
-    this.#world.onVisit = () => {
-      void this.#visitBeach();
+    this.#world.onVisit = (islandId) => {
+      if (islandId === 'beach') void this.#visitBeach();
+      else if (isPreviewIsland(islandId)) this.#visitIsland(islandId);
     };
     this.#wardrobe.onClosed = () => {
       this.#beach?.holdStill(false);
@@ -206,6 +227,19 @@ class Controller {
     };
     el('open-wardrobe', HTMLButtonElement).addEventListener('click', () => {
       this.#wardrobe.open();
+    });
+    el('island-back', HTMLButtonElement).addEventListener('click', () => {
+      this.#leaveIsland();
+    });
+    const interactIsland = (): void => {
+      const preview = this.scene.scene.get(ISLAND_SCENE_KEY);
+      if (preview instanceof IslandScene && preview.scene.isActive()) preview.interact();
+    };
+    el('island-action', HTMLButtonElement).addEventListener('click', interactIsland);
+    window.addEventListener('keydown', (e) => {
+      if (e.code !== 'KeyE' || e.repeat || el('island-hud', HTMLElement).hidden) return;
+      e.preventDefault();
+      interactIsland();
     });
     this.#profileReady = this.profiles.session().then((p) => {
       if (p !== null) this.#setProfile(p);
@@ -277,6 +311,9 @@ class Controller {
     this.#hud.onRemoveBot = (targetId) => {
       this.#room?.send('removeBot', { targetId });
     };
+    this.#hud.onArena = (arena) => {
+      this.#room?.send('setArena', { arena });
+    };
     el('game', HTMLDivElement).addEventListener(
       'wheel',
       (e) => {
@@ -292,6 +329,49 @@ class Controller {
     this.#menu.show();
     const token = tokenStore.load();
     if (token !== null) void this.#resume(token);
+  }
+
+  #visitIsland(islandId: PreviewIslandId): void {
+    if (this.#busy || this.#room !== null || this.#beach?.active === true) return;
+    const island = ISLAND_PREVIEWS[islandId];
+    this.#world.close();
+    this.#menu.hide();
+    document.documentElement.dataset['phase'] = 'exploring';
+    this.#input.enabled = true;
+    el('island-hud-title', HTMLElement).textContent = island.name;
+    el('island-hud-concept', HTMLElement).textContent = island.concept;
+    el('island-hud', HTMLElement).hidden = false;
+    const preview = this.scene.scene.get(ISLAND_SCENE_KEY);
+    if (!(preview instanceof IslandScene)) return;
+    const action = el('island-action', HTMLButtonElement);
+    preview.onProgress = (progress) => {
+      el('island-objective', HTMLElement).textContent = progress.objective;
+      el('island-objective-progress', HTMLElement).textContent = `${String(progress.progress)}/${String(progress.total)}`;
+      el('island-status', HTMLElement).textContent = progress.prompt;
+      action.disabled = !progress.canInteract;
+      action.textContent = progress.complete ? 'Complete' : 'Interact (E)';
+    };
+    preview.onActivated = (complete) => {
+      audio.play(complete ? 'rankUp' : 'sign');
+    };
+    preview.events.once(Phaser.Scenes.Events.CREATE, () => {
+      preview.attach(this.#input);
+    });
+    this.scene.scene.launch(ISLAND_SCENE_KEY, { island: islandId });
+    this.scene.scene.sleep();
+    audio.setMood(island.mood);
+  }
+
+  #leaveIsland(): void {
+    const preview = this.scene.scene.get(ISLAND_SCENE_KEY);
+    if (preview.scene.isActive()) preview.scene.stop();
+    this.scene.scene.wake();
+    this.#input.enabled = false;
+    el('island-hud', HTMLElement).hidden = true;
+    this.#menu.show();
+    this.#world.open();
+    document.documentElement.dataset['phase'] = 'menu';
+    audio.setMood('menu');
   }
 
   #beachScene(): BeachScene | null {
@@ -407,17 +487,14 @@ class Controller {
     this.#hud.show();
     this.#hud.setConnection('connected');
     this.#input.enabled = true;
-    this.scene.attach(room.sessionId, this.#input, {
-      get canSend() {
-        return room.connection.isOpen;
-      },
-      send: (input) => {
-        room.send('move', input);
-      },
-    });
+    this.#attachScene(room);
 
     this.#match.attach(room);
     this.#botsAvailable = true;
+    room.onMessage(SERVER_MESSAGES.ARENA_REFUSED, (payload: unknown) => {
+      const parsed = ArenaRefusedSchema.safeParse(payload);
+      if (parsed.success) this.#hud.toast(ARENA_REFUSAL_TEXT[parsed.data.reason]);
+    });
     room.onMessage(SERVER_MESSAGES.BOTS_REFUSED, (payload: unknown) => {
       const parsed = BotsRefusedSchema.safeParse(payload);
       if (!parsed.success) return;
@@ -448,9 +525,13 @@ class Controller {
       refresh();
       if (id !== room.sessionId) this.#hud.toast(`${player.name} left`);
     });
-    for (const field of ['hostId', 'phase', 'consensus', 'byzantines', 'winner', 'winReason', 'blockHeight', 'chainLive', 'signaturesNeeded', 'livenessStrikes', 'partition', 'repair', 'relays', 'outages', 'act', 'blocksLeft'] as const) {
+    for (const field of ['hostId', 'phase', 'consensus', 'byzantines', 'winner', 'winReason', 'blockHeight', 'chainLive', 'signaturesNeeded', 'livenessStrikes', 'partition', 'repair', 'relays', 'outages', 'act', 'blocksLeft', 'reefOpen', 'peaksOpen', 'isPrivate'] as const) {
       callbacks.listen(field, refresh);
     }
+    callbacks.listen('arena', () => {
+      this.#syncArena(room);
+      refresh();
+    });
     callbacks.onAdd('proposals', (proposal: ProposalState) => {
       for (const field of ['status', 'secondsLeft', 'verdict'] as const) callbacks.listen(proposal, field, refresh);
       callbacks.onAdd(proposal, 'signers', refresh);
@@ -515,13 +596,50 @@ class Controller {
       amHost: room.state.hostId === room.sessionId,
       hostName: room.state.players.get(room.state.hostId)?.name ?? 'the host',
       botsAvailable: this.#botsAvailable,
+      isPrivate: room.state.isPrivate,
+      arena: arenaById(room.state.arena).id,
+      reefOpen: room.state.reefOpen,
+      peaksOpen: room.state.peaksOpen,
     };
+  }
+
+  // Hands the scene this room's players and input.
+  #attachScene(room: GameRoom): void {
+    this.scene.attach(room.sessionId, this.#input, {
+      get canSend() {
+        return room.connection.isOpen;
+      },
+      send: (input) => {
+        room.send('move', input);
+      },
+    });
+  }
+
+  // A room on another arena redraws the scene, then puts everyone back into it.
+  #syncArena(room: GameRoom): void {
+    const arena = arenaById(room.state.arena).id;
+    if (this.scene.arenaId === arena) return;
+    this.scene.events.once(Phaser.Scenes.Events.CREATE, () => {
+      this.scene.setSeason(this.#seasonColors);
+      if (this.#room !== room) return;
+      this.#attachScene(room);
+      for (const [id, p] of room.state.players) this.scene.addPlayer(id, p);
+      this.#match.refresh();
+    });
+    this.scene.useArena(arena);
   }
 
   #exit(code: number): void {
     window.clearInterval(this.#pingTimer);
     this.#match.detach();
     this.scene.detach();
+    // The menu's backdrop is always the Citadel.
+    if (this.scene.arenaId !== 'citadel') {
+      this.scene.events.once(Phaser.Scenes.Events.CREATE, () => {
+        this.scene.setSeason(this.#seasonColors);
+      });
+      this.scene.useArena('citadel');
+    }
     this.#input.enabled = false;
     this.#hud.hide();
     this.#room = null;
@@ -582,20 +700,44 @@ class Controller {
   }
 }
 
-// Sound starts on the first tap or key press, as browsers require; one button cycles all, music off, muted.
+const MUSIC_LABELS: Readonly<Record<MusicChoice, string>> = {
+  dynamic: 'Adaptive',
+  menu: 'Mint Citadel',
+  calm: 'Calm Consensus',
+  proposals: 'Signing Tension',
+  final: 'Final Blocks',
+  council: 'Council Chamber',
+  beach: 'Beach Town',
+  academy: 'Academy',
+  story: 'Storybook',
+};
+
+// Sound starts on the first tap or key press, as browsers require. Players can keep the
+// scene-aware score or pin one of its themes; the button still offers a quick mute cycle.
 function setupSound(): void {
   const button = el('sound', HTMLButtonElement);
+  const music = el('music', HTMLSelectElement);
   const render = (): void => {
     const s = audio.settings;
     const label = s.muted ? 'Sound off' : s.music === 0 ? 'Music off' : 'Sound on';
     button.textContent = label;
     button.setAttribute('aria-label', `${label}. Change sound`);
+    music.value = s.music === 0 ? 'off' : s.musicChoice;
+    const choice = s.music === 0 ? 'Off' : MUSIC_LABELS[s.musicChoice];
+    music.setAttribute('aria-label', `Music: ${choice}`);
   };
   button.addEventListener('click', () => {
     const s = audio.settings;
     if (s.muted) audio.update({ muted: false, music: 0.55 });
     else if (s.music > 0) audio.update({ music: 0 });
     else audio.update({ muted: true });
+  });
+  music.addEventListener('change', () => {
+    if (music.value === 'off') audio.update({ music: 0 });
+    else if (isMusicChoice(music.value)) {
+      audio.update({ musicChoice: music.value, music: audio.settings.music || 0.55, muted: false });
+    }
+    audio.play('click');
   });
   audio.onChange(render);
   render();

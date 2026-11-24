@@ -1,9 +1,9 @@
 // Signing ceremonies: withdrawal proposals, forging, audits and the liveness rule.
 import { SERVER_TICK_HZ } from './movement.js';
-import { roomAt, type Vec2 } from './map.js';
+import { ROOM_REGIONS, roomAt, type RoomRegions, type Vec2 } from './map.js';
 import type { Proposal } from './proposals.js';
 import type { RandomSource } from './roles.js';
-import { inStationRange } from './tasks.js';
+import { STATION_RANGE, TASK_STATIONS, inStationRange, type TaskStations } from './tasks.js';
 
 export interface CeremonyTiming {
   // Calm opening before the first withdrawal appears.
@@ -56,13 +56,13 @@ export function secondsLeft(expiresAtTick: number, nowTick: number): number {
 }
 
 // Forgeries are filed from the Signing Hall, where others may see who stands there.
-export function inSigningHall(pos: Vec2): boolean {
-  return roomAt(pos) === 'signingHall';
+export function inSigningHall(pos: Vec2, regions: RoomRegions = ROOM_REGIONS): boolean {
+  return roomAt(pos, regions) === 'signingHall';
 }
 
 // Audits happen at the Ledger Archive station, where the note records are.
-export function atAuditDesk(pos: Vec2): boolean {
-  return inStationRange(pos, 'ledger');
+export function atAuditDesk(pos: Vec2, stations: TaskStations = TASK_STATIONS): boolean {
+  return inStationRange(pos, 'ledger', STATION_RANGE, stations);
 }
 
 // A legitimate withdrawal that did not go through costs the federation liveness.

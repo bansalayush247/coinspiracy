@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLIENT_MESSAGE_PAYLOADS, RELAYS, TASK_TIMING } from '@byzantine-council/shared';
+import { CITADEL, CLIENT_MESSAGE_PAYLOADS, ISLAND_SCALE, PEAKS, RELAYS, TASK_TIMING } from '@byzantine-council/shared';
 import { BYZANTINE_SOCIAL, HONEST_SOCIAL, byzantineStrategy, honestStrategy, type BotView, type ProposalSeen } from '../../src/bots/strategy.js';
 import { HUMANLIKE_PROFILE } from '../../src/bots/profile.js';
 import { seededRandom } from '../../src/bots/random.js';
@@ -25,6 +25,7 @@ function view(over: Partial<BotView> = {}): BotView {
     partitionAt: Infinity,
     freezeAt: Infinity,
     canCallCouncil: false,
+    arena: CITADEL,
     ...over,
   };
 }
@@ -65,6 +66,16 @@ describe('honest bots', () => {
     expect(relayVisits.length).toBeGreaterThan(50);
     // Relay 0 is already held, so every bot that goes heads for relay 1.
     for (const p of relayVisits) if (p.kind === 'visit') expect(p.to).toEqual(RELAYS[1]);
+  });
+
+  it('on Watchtower Peaks, only head for the relay on their own side of the cut', () => {
+    const s = honestStrategy(HUMANLIKE_PROFILE, TASK_TIMING);
+    // On the Gateway Ridge (east range), with both relays free and the bridges down.
+    const east = { x: 26.5 * ISLAND_SCALE, y: 20.5 * ISLAND_SCALE };
+    const plans = Array.from({ length: 100 }, (_, seed) => s.next(view({ arena: PEAKS, position: east, partition: 30, relays: 0, selfId: `bot-${String(seed)}xxxx` }), seededRandom(seed)));
+    const relayVisits = plans.filter((p) => p.kind === 'visit' && p.lingerMs === 20_000);
+    expect(relayVisits.length).toBeGreaterThan(50);
+    for (const p of relayVisits) if (p.kind === 'visit') expect(p.to).toEqual(PEAKS.relays[1]);
   });
 });
 

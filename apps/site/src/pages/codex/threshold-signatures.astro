@@ -1,0 +1,55 @@
+---
+import Cite from '../../components/Cite.astro';
+import Article from '../../layouts/Article.astro';
+import { codexPage } from '../../data/pages.js';
+import { federationRows } from '../../lib/federation.js';
+
+const page = codexPage('threshold-signatures');
+const federations = federationRows(4, 10);
+---
+<Article slug={page.slug}>
+  <p>
+    A federation has to sign as one: issue ecash notes, approve a withdrawal, agree on the chain. But no single guardian should be
+    able to do that alone. A threshold signature solves both. The signing key is split into shares, one per guardian, and any
+    <em>t</em> of the <em>n</em> shares together produce a signature that checks out against the federation’s single public key.
+    Fedimint signs its ecash notes this way, with threshold blind signatures.<Cite page={page} s="fmTbs" />
+  </p>
+
+  <h2>How many signatures?</h2>
+  <p>
+    The threshold comes from how many faulty guardians the federation must survive. With <em>n</em> guardians it tolerates
+    <em>f</em> = ⌊(<em>n</em> − 1) / 3⌋ of them, and it acts once <em>t</em> = <em>n</em> − <em>f</em> agree. Fedimint’s code
+    defines exactly these two numbers.<Cite page={page} s="fmNumPeers" />
+  </p>
+  <p class="formula">t = n − ⌊(n − 1) / 3⌋</p>
+  <p>That threshold does two jobs at once:</p>
+  <ul>
+    <li>It is <strong>low enough</strong> that the honest guardians can always reach it, even if all <em>f</em> faulty ones stay silent.</li>
+    <li>
+      It is <strong>high enough</strong> that the faulty ones can never reach it on their own, and that any two groups of <em>t</em>
+      signers share at least one honest guardian. That is the same arithmetic that makes Byzantine agreement possible when fewer
+      than a third of the members are faulty.<Cite page={page} s="lsp" />
+    </li>
+  </ul>
+
+  <figure>
+    <div class="table-wrap">
+      <table>
+        <caption>Signatures needed for 4 to 10 guardians</caption>
+        <thead><tr><th scope="col">Guardians (n)</th><th scope="col">Faulty tolerated (f)</th><th scope="col">Signatures needed (t)</th></tr></thead>
+        <tbody>
+          {federations.map((row) => <tr><th scope="row">{row.guardians}</th><td>{row.tolerated}</td><td>{row.threshold}</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <figcaption>Seven guardians tolerate two faults and need five signatures; ten tolerate three and need seven.</figcaption>
+  </figure>
+
+  <h2>How the game models it</h2>
+  <p>
+    On Signing Isle, withdrawals open while the match runs, each needing <em>t</em> signatures from the guardians still seated.
+    Byzantine guardians file forged withdrawals that need the same number, so they must fool honest guardians into signing. An audit
+    at the ledger desk tells you privately whether a withdrawal is real. The Academy’s Threshold Hall asks you to set the threshold
+    for federations of 4 to 13 guardians until the formula feels obvious.
+  </p>
+</Article>

@@ -1,4 +1,5 @@
 // Match XP: what each guardian earned in one match, computed by the server from its own record.
+import type { ArenaId } from '../arena.js';
 import type { Role } from '../types.js';
 import type { TaskKind } from '../tasks.js';
 import type { Side, WinReason } from '../win.js';
@@ -18,6 +19,8 @@ export interface MatchFacts {
   readonly reason: WinReason;
   readonly blockHeight: number;
   readonly events: readonly SeasonEvent[];
+  // Where the match was played; absent means the Citadel (facts from before arenas existed).
+  readonly arena?: ArenaId;
 }
 
 export interface PlayerFacts {

@@ -31,6 +31,12 @@ export const COUNTER_IDS = [
   'academyClears',
   'academyStars',
   'courierDeliveries',
+  'reefMatches',
+  'reefRoutes',
+  'peaksMatches',
+  'clearsSigning',
+  'clearsCouncil',
+  'clearsPeaks',
 ] as const;
 export type CounterId = (typeof COUNTER_IDS)[number];
 export type Counters = Readonly<Partial<Record<CounterId, number>>>;
@@ -48,6 +54,8 @@ function small(n: number, cap = 9): number {
 export function matchCounters(m: MatchFacts, p: PlayerFacts, newEpoch: boolean): Counters {
   const delta: Partial<Record<CounterId, number>> = {};
   for (const kind of TASK_KINDS) delta[TASK_COUNTER[kind]] = small(p.tasks[kind]);
+  // Routes through the reef's tight channels count like any station work, practice included.
+  if (m.arena === 'reef') delta.reefRoutes = small(p.tasks.route);
   if (isPractice(m)) return delta;
   const won = p.role === m.winner;
   Object.assign(delta, {
@@ -55,6 +63,8 @@ export function matchCounters(m: MatchFacts, p: PlayerFacts, newEpoch: boolean):
     bigMatches: m.players >= 7 ? 1 : 0,
     fullMatches: m.players >= 9 ? 1 : 0,
     privateMatches: m.privateRoom ? 1 : 0,
+    reefMatches: m.arena === 'reef' ? 1 : 0,
+    peaksMatches: m.arena === 'peaks' ? 1 : 0,
     wins: won ? 1 : 0,
     honestWins: won && p.role === 'honest' ? 1 : 0,
     byzantineWins: won && p.role === 'byzantine' ? 1 : 0,

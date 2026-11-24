@@ -66,7 +66,9 @@ function buildMap(rows: readonly string[]): CitadelMap {
 export const CITADEL_MAP: CitadelMap = buildMap(ROWS);
 
 // Areas used for "which room am I in" (quick chat, tasks); first match wins.
-export const ROOM_REGIONS: Readonly<Record<RoomId, Rect>> = Object.freeze({
+export type RoomRegions = Readonly<Record<RoomId, Rect>>;
+
+export const ROOM_REGIONS: RoomRegions = Object.freeze({
   vault: { x: 1, y: 1, w: 9, h: 9 },
   ledgerArchive: { x: 12, y: 1, w: 11, h: 8 },
   watchtower: { x: 23, y: 1, w: 4, h: 7 },
@@ -112,8 +114,9 @@ function inRect(pos: Vec2, r: Rect): boolean {
   return pos.x >= r.x && pos.x < r.x + r.w && pos.y >= r.y && pos.y < r.y + r.h;
 }
 
-export function roomAt(pos: Vec2): RoomId | null {
-  for (const [id, rect] of Object.entries(ROOM_REGIONS) as [RoomId, Rect][]) {
+// Regions default to the Citadel's; other arenas pass their own.
+export function roomAt(pos: Vec2, regions: RoomRegions = ROOM_REGIONS): RoomId | null {
+  for (const [id, rect] of Object.entries(regions) as [RoomId, Rect][]) {
     if (inRect(pos, rect)) return id;
   }
   return null;

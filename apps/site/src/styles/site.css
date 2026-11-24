@@ -115,6 +115,8 @@ main { display: block; }
 .prose figure { margin: 0.4em 0; }
 .prose figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 8px; }
 .formula { white-space: nowrap; font-family: var(--mono); background: var(--glass); border: 1px solid var(--edge); border-radius: 10px; padding: 12px 16px; overflow-x: auto; }
+/* A long formula scrolls inside its own box; without this its figure stretches the page on phones. */
+figure { min-width: 0; max-width: 100%; }
 .aside { display: grid; gap: 18px; align-content: start; }
 .in-game { background: var(--glass); border: 1px solid var(--edge); border-left: 4px solid var(--gold); border-radius: var(--radius); padding: 18px; display: grid; gap: 10px; }
 .in-game p { color: var(--muted); font-size: 0.98rem; }

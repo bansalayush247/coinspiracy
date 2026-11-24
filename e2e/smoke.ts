@@ -421,7 +421,7 @@ async function main(): Promise<void> {
     // The solo Academy: level 1 is two blind-signed deposits, checked by the server.
     step('alice plays the Academy');
     await alice.page.click('#open-academy');
-    await alice.page.locator('#academy .academy-levels').waitFor({ state: 'visible', timeout: 5000 });
+    await alice.page.locator('#academy .academy-levels').first().waitFor({ state: 'visible', timeout: 5000 });
     await shoot(alice, 'academy.png');
     await alice.page.click('#academy .level:first-child button');
     await alice.page.click('#academy .academy-actions button.cta');

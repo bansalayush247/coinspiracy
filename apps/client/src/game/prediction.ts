@@ -16,11 +16,12 @@ export class Predictor {
   #position: Vec2;
   #nextSeq = 1;
 
-  constructor(
-    start: Vec2,
-    readonly map: CitadelMap = CITADEL_MAP,
-  ) {
+  // The ground can change mid-match (bridges on Watchtower Peaks come down in a partition).
+  map: CitadelMap;
+
+  constructor(start: Vec2, map: CitadelMap = CITADEL_MAP) {
     this.#position = { x: start.x, y: start.y };
+    this.map = map;
   }
 
   get position(): Vec2 {

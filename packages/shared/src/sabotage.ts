@@ -30,8 +30,8 @@ export const RELAY_RANGE = 1.25;
 // How close a Byzantine must stand to freeze someone.
 export const FREEZE_RANGE = 1.5;
 
-export function relayAt(pos: Vec2): number | null {
-  const i = RELAYS.findIndex((r) => Math.hypot(pos.x - r.x, pos.y - r.y) <= RELAY_RANGE);
+export function relayAt(pos: Vec2, relays: readonly Vec2[] = RELAYS): number | null {
+  const i = relays.findIndex((r) => Math.hypot(pos.x - r.x, pos.y - r.y) <= RELAY_RANGE);
   return i < 0 ? null : i;
 }
 

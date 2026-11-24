@@ -1,0 +1,56 @@
+---
+import Cite from '../../components/Cite.astro';
+import Article from '../../layouts/Article.astro';
+import { codexPage } from '../../data/pages.js';
+
+const page = codexPage('network-partitions');
+---
+<Article slug={page.slug}>
+  <p>
+    A network partition splits a system into groups whose messages cannot reach each other. Every member may still be running and
+    honest; they just cannot hear the other side. For anything that has to agree, that is a hard problem.
+  </p>
+
+  <h2>Consistent or available, not both</h2>
+  <p>
+    Gilbert and Lynch proved that while a partition lasts, a system cannot both answer every request and keep every answer
+    consistent.<Cite page={page} s="cap" /> One side could carry on alone, but then the two sides might make conflicting decisions:
+    for ecash, the same note spent twice, once on each side. A federation chooses consistency. It stops deciding until the split heals.
+  </p>
+
+  <h2>Only a full quorum can act</h2>
+  <p>
+    A federation of <em>n</em> guardians acts once <em>t</em> = <em>n</em> − <em>f</em> of them agree.<Cite page={page} s="fmNumPeers" />
+    After a split, a side can only keep going if it alone holds <em>t</em> guardians. Two groups of <em>t</em> always overlap, so at
+    most one side can ever have that many; usually neither does, and everything waits.
+  </p>
+  <figure>
+    <div class="table-wrap">
+      <table>
+        <caption>A federation of 7 guardians (t = 5) split two ways</caption>
+        <thead><tr><th scope="col">Split</th><th scope="col">Can either side sign?</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">5 and 2</th><td>Yes, the side of 5</td></tr>
+          <tr><th scope="row">4 and 3</th><td>No, the federation waits</td></tr>
+          <tr><th scope="row">3, 2 and 2</th><td>No, the federation waits</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h2>Safe always, live when the network heals</h2>
+  <p>
+    Byzantine fault-tolerant protocols are built around this. Practical Byzantine Fault Tolerance never lets honest replicas disagree,
+    whatever the network does, but it only promises progress once messages get through again.<Cite page={page} s="pbft" /> Dwork,
+    Lynch and Stockmeyer showed this is the best possible: consensus can stay safe through any delay, and makes progress once the
+    network behaves for long enough.<Cite page={page} s="dls" />
+  </p>
+
+  <h2>How the game models it</h2>
+  <p>
+    A Byzantine guardian can cut the network. While it is cut, no withdrawal can be signed, and the link must be repaired before the
+    timer runs out: two guardians hold the two glowing relays at once. On Watchtower Peaks the partition is physical. The rope bridges
+    between the west and east ranges fall, each range keeps one relay, and the repair takes a guardian on each side. The Academy’s
+    Split Network level asks which side of a split, if any, can still sign.
+  </p>
+</Article>

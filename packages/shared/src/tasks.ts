@@ -13,7 +13,10 @@ export interface TaskStation {
   readonly row: number;
 }
 
-export const TASK_STATIONS: Readonly<Record<TaskKind, TaskStation>> = Object.freeze({
+export type TaskStations = Readonly<Record<TaskKind, TaskStation>>;
+
+// The Citadel's stations; other arenas place their own and pass them to the helpers below.
+export const TASK_STATIONS: TaskStations = Object.freeze({
   deposit: Object.freeze({ kind: 'deposit', room: 'depositGate', col: 7, row: 26 }),
   ledger: Object.freeze({ kind: 'ledger', room: 'ledgerArchive', col: 19, row: 7 }),
   route: Object.freeze({ kind: 'route', room: 'gatewayDock', col: 26, row: 22 }),
@@ -39,23 +42,23 @@ export function countTasks(mask: number): number {
 export const STATION_RANGE = 1.75;
 export const STATION_PROMPT_RANGE = 1.5;
 
-export function stationCenter(kind: TaskKind): Vec2 {
-  const s = TASK_STATIONS[kind];
+export function stationCenter(kind: TaskKind, stations: TaskStations = TASK_STATIONS): Vec2 {
+  const s = stations[kind];
   return { x: s.col + 0.5, y: s.row + 0.5 };
 }
 
-export function inStationRange(pos: Vec2, kind: TaskKind, range = STATION_RANGE): boolean {
+export function inStationRange(pos: Vec2, kind: TaskKind, range = STATION_RANGE, stations: TaskStations = TASK_STATIONS): boolean {
   if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
-  const c = stationCenter(kind);
+  const c = stationCenter(kind, stations);
   return Math.hypot(pos.x - c.x, pos.y - c.y) <= range;
 }
 
 // Closest station within range, if any.
-export function stationNear(pos: Vec2, range = STATION_RANGE): TaskKind | null {
+export function stationNear(pos: Vec2, range = STATION_RANGE, stations: TaskStations = TASK_STATIONS): TaskKind | null {
   let best: TaskKind | null = null;
   let bestDistance = Infinity;
   for (const kind of TASK_KINDS) {
-    const c = stationCenter(kind);
+    const c = stationCenter(kind, stations);
     const d = Math.hypot(pos.x - c.x, pos.y - c.y);
     if (d <= range && d < bestDistance) {
       best = kind;

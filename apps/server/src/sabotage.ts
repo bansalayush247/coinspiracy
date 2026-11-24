@@ -35,7 +35,11 @@ export class Sabotage {
   #outages = 0;
   #relays = 0;
 
-  constructor(timing: SabotageTiming, now: number) {
+  // The two relays a repair needs, which move with the arena.
+  readonly #relayPoints: readonly Vec2[];
+
+  constructor(timing: SabotageTiming, now: number, relays: readonly Vec2[] = RELAYS) {
+    this.#relayPoints = relays;
     this.#timing = timing;
     this.#readyAt = now + timing.openingMs;
   }
@@ -127,16 +131,16 @@ export class Sabotage {
     this.#relays = 0;
     if (p === null) return events;
     for (const pos of holders) {
-      const relay = relayAt(pos);
+      const relay = relayAt(pos, this.#relayPoints);
       if (relay !== null) this.#relays |= 1 << relay;
     }
-    const both = this.#relays === (1 << RELAYS.length) - 1;
+    const both = this.#relays === (1 << this.#relayPoints.length) - 1;
     if (!both) p.heldSince = null;
     else p.heldSince ??= now;
     if (p.heldSince !== null && now - p.heldSince >= this.#timing.repairMs) {
       this.#partition = null;
       this.#partitionReadyAt = now + this.#timing.partitionCooldownMs;
-      const by = holders.filter((h) => relayAt(h) !== null).flatMap((h) => (h.id === undefined ? [] : [h.id]));
+      const by = holders.filter((h) => relayAt(h, this.#relayPoints) !== null).flatMap((h) => (h.id === undefined ? [] : [h.id]));
       events.push({ kind: 'repaired', by });
     } else if (now >= p.endsAt) {
       this.#partition = null;

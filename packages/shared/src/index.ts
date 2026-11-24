@@ -20,3 +20,6 @@ export * from './tasks.js';
 export * from './ticks.js';
 export * from './types.js';
 export * from './win.js';
+export * from './arena.js';
+export * from './drills.js';
+export * from './isletMap.js';

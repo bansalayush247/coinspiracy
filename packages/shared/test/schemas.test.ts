@@ -31,6 +31,7 @@ const SPEC_TYPES = [
   'freeze',
   'addBot',
   'removeBot',
+  'setArena',
 ] as const;
 const SPEC_SIMPLE_PHRASES = [
   'whereWereYou',
@@ -96,6 +97,7 @@ const VALID_MESSAGES: readonly ValidCase[] = [
   { label: 'freeze', message: { type: 'freeze', targetId: PLAYER } },
   { label: 'addBot', message: { type: 'addBot' } },
   { label: 'removeBot', message: { type: 'removeBot', targetId: PLAYER } },
+  { label: 'setArena', message: { type: 'setArena', arena: 'reef' } },
   { label: 'auditProposal', message: { type: 'auditProposal', proposalId: PROPOSAL } },
   { label: 'castVote for skip', message: { type: 'castVote', target: 'skip' } },
   { label: 'castVote for a player', message: { type: 'castVote', target: PLAYER } },

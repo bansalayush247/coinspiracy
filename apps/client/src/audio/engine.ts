@@ -4,6 +4,8 @@
 import { Composer, MOODS, STEPS_PER_BAR, type BarPlan, type Mood } from './composer.js';
 
 export type { Mood };
+export const MUSIC_CHOICES = ['dynamic', 'menu', 'calm', 'proposals', 'final', 'council', 'beach', 'academy', 'story'] as const;
+export type MusicChoice = (typeof MUSIC_CHOICES)[number];
 export type Sfx =
   | 'click'
   | 'step'
@@ -30,6 +32,7 @@ interface Settings {
   muted: boolean;
   music: number;
   sfx: number;
+  musicChoice: MusicChoice;
 }
 
 const STORAGE_KEY = 'bc.audio';
@@ -38,18 +41,32 @@ const TICK_MS = 25;
 
 const hz = (midi: number): number => 440 * 2 ** ((midi - 69) / 12);
 
+export function isMusicChoice(value: unknown): value is MusicChoice {
+  return typeof value === 'string' && (MUSIC_CHOICES as readonly string[]).includes(value);
+}
+
+export function musicMood(requested: Mood, choice: MusicChoice): Mood {
+  if (requested === 'silent') return 'silent';
+  return choice === 'dynamic' ? requested : choice;
+}
+
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw !== null) {
       const v = JSON.parse(raw) as Partial<Settings>;
       const num = (x: unknown, d: number): number => (typeof x === 'number' && x >= 0 && x <= 1 ? x : d);
-      return { muted: v.muted === true, music: num(v.music, 0.55), sfx: num(v.sfx, 0.8) };
+      return {
+        muted: v.muted === true,
+        music: num(v.music, 0.55),
+        sfx: num(v.sfx, 0.8),
+        musicChoice: isMusicChoice(v.musicChoice) ? v.musicChoice : 'dynamic',
+      };
     }
   } catch {
     // Storage blocked: defaults.
   }
-  return { muted: false, music: 0.55, sfx: 0.8 };
+  return { muted: false, music: 0.55, sfx: 0.8, musicChoice: 'dynamic' };
 }
 
 export class AudioEngine {
@@ -61,6 +78,7 @@ export class AudioEngine {
   #reverb: ConvolverNode | null = null;
   #noise: AudioBuffer | null = null;
   #settings: Settings = loadSettings();
+  #requestedMood: Mood = 'silent';
   #mood: Mood = 'silent';
   #moodGain: GainNode | null = null;
   #timer = 0;
@@ -126,9 +144,8 @@ export class AudioEngine {
     this.#noise = this.#noiseBuffer(2);
     this.#apply();
     this.#startWind();
-    const mood = this.#mood;
     this.#mood = 'silent';
-    this.setMood(mood);
+    this.#playMood(this.#selectedMood());
   }
 
   onChange(fn: () => void): () => void {
@@ -137,6 +154,7 @@ export class AudioEngine {
   }
 
   update(patch: Partial<Settings>): void {
+    const musicChoiceChanged = patch.musicChoice !== undefined && patch.musicChoice !== this.#settings.musicChoice;
     this.#settings = { ...this.#settings, ...patch };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.#settings));
@@ -144,6 +162,7 @@ export class AudioEngine {
       // Storage blocked: the setting lasts for this visit only.
     }
     this.#apply();
+    if (musicChoiceChanged) this.#playMood(this.#selectedMood());
     for (const fn of this.#listeners) fn();
   }
 
@@ -159,14 +178,22 @@ export class AudioEngine {
 
   // Crossfades to the music for a place or moment.
   setMood(mood: Mood): void {
+    this.#requestedMood = mood;
+    this.#playMood(this.#selectedMood());
+  }
+
+  #selectedMood(): Mood {
+    return musicMood(this.#requestedMood, this.#settings.musicChoice);
+  }
+
+  #playMood(mood: Mood): void {
     if (mood === this.#mood) return;
     this.#mood = mood;
     const ctx = this.#ctx;
     if (ctx === null || this.#musicBus === null) return;
     const old = this.#moodGain;
     if (old !== null) {
-      old.gain.cancelScheduledValues(ctx.currentTime);
-      old.gain.setTargetAtTime(0, ctx.currentTime, 1.1);
+      fadeOut(old.gain, ctx.currentTime, 1.1);
       window.setTimeout(() => {
         old.disconnect();
       }, 8000);
@@ -242,6 +269,8 @@ export class AudioEngine {
     const damp = ctx.createBiquadFilter();
     damp.type = 'lowpass';
     damp.frequency.value = Math.min(9000, freq * bright);
+    // Low-pass Q is in dB: a negative value leaves no resonant peak, so the loop gain stays below 1 everywhere.
+    damp.Q.value = -6;
     const feedback = ctx.createGain();
     feedback.gain.value = 0.985;
     const env = ctx.createGain();
@@ -662,6 +691,13 @@ export class AudioEngine {
 
 export const audio = new AudioEngine();
 
+// Fades a param to silence from wherever it is now; holding first avoids a jump mid-ramp.
+function fadeOut(param: AudioParam, now: number, timeConstant: number): void {
+  if (typeof param.cancelAndHoldAtTime === 'function') param.cancelAndHoldAtTime(now);
+  else param.cancelScheduledValues(now);
+  param.setTargetAtTime(0, now, timeConstant);
+}
+
 // The melody voice: one held oscillator pair per mood that glides between notes (portamento),
 // swells on each note and breathes out at rests, with a slow vibrato like a singer's.
 class LeadVoice {
@@ -713,8 +749,7 @@ class LeadVoice {
   }
 
   stop(now: number): void {
-    this.#gain.gain.cancelScheduledValues(now);
-    this.#gain.gain.setTargetAtTime(0, now, 0.4);
+    fadeOut(this.#gain.gain, now, 0.4);
     for (const o of [...this.#osc, this.#lfo]) o.stop(now + 4);
   }
 }

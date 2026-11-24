@@ -86,6 +86,8 @@ export type TaskAnswer = z.infer<typeof TaskAnswerSchema>;
 export interface TaskContext {
   // Current Bitcoin chain tip, used as the honest watchtower reading.
   readonly tipHeight: number;
+  // Lightning Reef: decoy routes miss the amount by only a few sats.
+  readonly hardRoutes?: boolean;
 }
 
 function pick<T>(items: readonly T[], rng: RandomSource): T {
@@ -195,18 +197,19 @@ export function isValidRoute(c: RouteChallenge, path: readonly number[]): boolea
 }
 
 // Exactly one path can carry the payment; the others each have a channel that is too small.
-function generateRoute(rng: RandomSource): RouteChallenge {
-  const amount = 5 * (6 + rng.int(13));
+// Hard routes leave thin margins: the working path fits by 5 sats at most, and decoys fall at most 8 short.
+function generateRoute(rng: RandomSource, hard = false): RouteChallenge {
+  const amount = hard ? 7 + 3 * rng.int(60) : 5 * (6 + rng.int(13));
   const chosen = pick(ROUTE_PATHS, rng);
   const onChosen = new Set(chosen.slice(1).map((to, i) => edgeIndex(chosen[i] ?? -1, to)));
   const capacities = ROUTE_EDGES.map((_, edge) =>
-    onChosen.has(edge) ? amount + rng.int(41) : Math.max(5, amount - 30) + rng.int(66),
+    onChosen.has(edge) ? amount + rng.int(hard ? 6 : 41) : hard ? Math.max(1, amount - 8 + rng.int(17)) : Math.max(5, amount - 30) + rng.int(66),
   );
   const challenge: RouteChallenge = { kind: 'route', amount, capacities };
   for (const path of ROUTE_PATHS) {
     if (path === chosen || !isValidRoute(challenge, path)) continue;
     const own = path.slice(1).map((to, i) => edgeIndex(path[i] ?? -1, to)).filter((e) => !onChosen.has(e));
-    capacities[pick(own, rng)] = Math.max(1, amount - 1 - rng.int(20));
+    capacities[pick(own, rng)] = Math.max(1, amount - 1 - rng.int(hard ? 3 : 20));
   }
   return challenge;
 }
@@ -239,7 +242,7 @@ export function generateChallenge(kind: TaskKind, rng: RandomSource, ctx: TaskCo
     case 'ledger':
       return generateLedger(rng);
     case 'route':
-      return generateRoute(rng);
+      return generateRoute(rng, ctx.hardRoutes === true);
     case 'watchtower':
       return generateWatchtower(rng, ctx);
   }

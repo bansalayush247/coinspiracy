@@ -3,15 +3,18 @@
 import type { RewardId } from '../economy/catalog.js';
 import type { CounterId, Counters } from './counters.js';
 
-export const SEAL_TABS = ['citadel', 'council', 'byzantine', 'chain', 'academy', 'town'] as const;
+export const SEAL_TABS = ['citadel', 'signing', 'council', 'peaks', 'byzantine', 'chain', 'academy', 'town', 'reef'] as const;
 export type SealTab = (typeof SEAL_TABS)[number];
 export const SEAL_TAB_NAMES: Readonly<Record<SealTab, string>> = Object.freeze({
   citadel: 'The Citadel',
-  council: 'The Council',
+  signing: 'Signing Isle',
+  council: 'Council Isle',
+  peaks: 'Watchtower Peaks',
   byzantine: 'Byzantine Arts',
   chain: 'Chain & Seasons',
   academy: 'Academy',
   town: 'Beach Town',
+  reef: 'Lightning Reef',
 });
 
 export type SealFrame = 'normal' | 'goal' | 'legend';
@@ -33,6 +36,10 @@ export const SEAL_TITLE_IDS = [
   'halvingWitness',
   'scholar',
   'harbourRunner',
+  'reefWarden',
+  'channelMaster',
+  'peakWarden',
+  'pillarOfTheMint',
 ] as const;
 export type SealTitleId = (typeof SEAL_TITLE_IDS)[number];
 export const SEAL_TITLE_NAMES: Readonly<Record<SealTitleId, string>> = Object.freeze({
@@ -51,6 +58,10 @@ export const SEAL_TITLE_NAMES: Readonly<Record<SealTitleId, string>> = Object.fr
   halvingWitness: 'Halving Witness',
   scholar: 'Scholar',
   harbourRunner: 'Harbour Runner',
+  reefWarden: 'Reef Warden',
+  channelMaster: 'Channel Master',
+  peakWarden: 'Peak Warden',
+  pillarOfTheMint: 'Pillar of the Mint',
 });
 
 export interface Seal {
@@ -86,6 +97,11 @@ function chain(tab: SealTab, base: string, parent: string | null, counter: Count
   }));
 }
 
+// Gives one tier of a chain a reward item.
+function withItem(specs: Spec[], tier: number, item: RewardId): Spec[] {
+  return specs.map((s, i) => (i === tier ? { ...s, item } : s));
+}
+
 const SPECS: readonly Spec[] = [
   // The Citadel
   { id: 'firstShift', tab: 'citadel', parent: null, name: 'First Shift', goal: 'Finish your first match.', frame: 'goal', counter: 'matchesFinished', target: 1, item: 'firstMatch' },
@@ -98,11 +114,14 @@ const SPECS: readonly Spec[] = [
   { id: 'regular', tab: 'citadel', parent: 'veteran', name: 'Regular', goal: 'Finish 50 matches.', frame: 'goal', counter: 'matchesFinished', target: 50 },
   { id: 'oldGuard', tab: 'citadel', parent: 'regular', name: 'Old Guard', goal: 'Finish 250 matches.', frame: 'legend', counter: 'matchesFinished', target: 250, title: 'oldGuard' },
   // The Council
-  { id: 'firstSignature', tab: 'council', parent: null, name: 'First Signature', goal: 'Sign a real withdrawal.', frame: 'normal', counter: 'legitSigned', target: 1 },
-  ...chain('council', 'threshold', 'firstSignature', 'forgedRefused', ['Not On My Watch', 'Forgery Spotter', 'Threshold Keeper'], (n) => `Refuse ${String(n)} forged withdrawal${n === 1 ? '' : 's'}.`, [1, 10, 50], 'thresholdKeeper'),
-  ...chain('council', 'keenEye', 'firstSignature', 'byzantineVotes', ['Hunch', 'Sharp Eyes', 'Keen Eye'], (n) => `Vote for a Byzantine guardian in ${String(n)} council${n === 1 ? '' : 's'}.`, [1, 10, 50], 'keenEye'),
-  ...chain('council', 'mender', 'firstSignature', 'partitionsRepaired', ['Reconnected', 'Link Layer', 'Bridge Builder'], (n) => `Help repair ${String(n)} partition${n === 1 ? '' : 's'}.`, [1, 10, 50], 'bridgeBuilder'),
-  { id: 'honestWin', tab: 'council', parent: 'firstSignature', name: 'Honest Work', goal: 'Win a match as an honest guardian.', frame: 'goal', counter: 'honestWins', target: 1, item: 'honestWin' },
+  // Signing Isle
+  { id: 'firstSignature', tab: 'signing', parent: null, name: 'First Signature', goal: 'Sign a real withdrawal.', frame: 'normal', counter: 'legitSigned', target: 1 },
+  ...chain('signing', 'threshold', 'firstSignature', 'forgedRefused', ['Not On My Watch', 'Forgery Spotter', 'Threshold Keeper'], (n) => `Refuse ${String(n)} forged withdrawal${n === 1 ? '' : 's'}.`, [1, 10, 50], 'thresholdKeeper'),
+  // Council Isle
+  ...chain('council', 'keenEye', null, 'byzantineVotes', ['Hunch', 'Sharp Eyes', 'Keen Eye'], (n) => `Vote for a Byzantine guardian in ${String(n)} council${n === 1 ? '' : 's'}.`, [1, 10, 50], 'keenEye'),
+  // Watchtower Peaks
+  ...chain('peaks', 'mender', null, 'partitionsRepaired', ['Reconnected', 'Link Layer', 'Bridge Builder'], (n) => `Help repair ${String(n)} partition${n === 1 ? '' : 's'}.`, [1, 10, 50], 'bridgeBuilder'),
+  { id: 'honestWin', tab: 'council', parent: null, name: 'Honest Work', goal: 'Win a match as an honest guardian.', frame: 'goal', counter: 'honestWins', target: 1, item: 'honestWin' },
   ...chain('council', 'consensus', 'honestWin', 'consensusWins', ['Consensus', 'Steady Hands', 'Consensus Builder'], (n) => `Win ${String(n)} match${n === 1 ? '' : 'es'} by filling the Consensus bar.`, [1, 10, 50], 'consensusBuilder'),
   { id: 'sweep1', tab: 'council', parent: 'honestWin', name: 'Clean Sweep', goal: 'Win by rotating out every Byzantine.', frame: 'normal', counter: 'rotationWins', target: 1 },
   { id: 'sweep2', tab: 'council', parent: 'sweep1', name: 'Spotless', goal: 'Win 10 matches by rotating out every Byzantine.', frame: 'goal', counter: 'rotationWins', target: 10 },
@@ -127,6 +146,15 @@ const SPECS: readonly Spec[] = [
   // Beach Town
   ...chain('town', 'courier', null, 'courierDeliveries', ['First Parcel', 'Regular Runner', 'Harbour Runner'], (n) => `Deliver ${String(n)} parcel${n === 1 ? '' : 's'} between Beach Town stalls.`, [1, 10, 50], 'harbourRunner'),
   { id: 'topOfClass', tab: 'academy', parent: 'graduate', name: 'Top of the Class', goal: 'Earn 15 Academy stars.', frame: 'legend', counter: 'academyStars', target: 15, title: 'scholar' },
+  // Lightning Reef: matches on the islets, and payments through the harbour's tight channels.
+  ...withItem(chain('reef', 'reef', null, 'reefMatches', ['Reef Walker', 'Tidekeeper', 'Reef Warden'], (n) => `Finish ${String(n)} match${n === 1 ? '' : 'es'} on Lightning Reef.`, [1, 10, 50], 'reefWarden'), 0, 'reefWalker'),
+  ...withItem(chain('reef', 'channel', 'reef1', 'reefRoutes', ['Thin Margins', 'Channel Hopper', 'Channel Master'], (n) => `Route ${String(n)} payment${n === 1 ? '' : 's'} through the Gateway Harbour’s tight channels.`, [1, 10, 50], 'channelMaster'), 1, 'channelHopper'),
+  // Island Academy pages, appended after the books above.
+  { id: 'signingScholar', tab: 'signing', parent: 'firstSignature', name: 'Threshold Scholar', goal: 'Clear both Signing Isle Academy levels.', frame: 'goal', counter: 'clearsSigning', target: 2, item: 'signingScholar' },
+  ...chain('signing', 'cosigner', 'firstSignature', 'legitSigned', ['Co-signer', 'Trusted Hand', 'Pillar of the Mint'], (n) => `Sign ${String(n)} real withdrawal${n === 1 ? '' : 's'}.`, [10, 50, 250], 'pillarOfTheMint'),
+  { id: 'councilScholar', tab: 'council', parent: null, name: 'Rule of Thirds', goal: 'Clear both Council Isle Academy levels.', frame: 'goal', counter: 'clearsCouncil', target: 2, item: 'councilScholar' },
+  { id: 'peaksScholar', tab: 'peaks', parent: null, name: 'Split Reader', goal: 'Clear both Watchtower Peaks Academy levels.', frame: 'goal', counter: 'clearsPeaks', target: 2 },
+  ...withItem(chain('peaks', 'peaks', null, 'peaksMatches', ['Mountaineer', 'Ridge Runner', 'Peak Warden'], (n) => `Finish ${String(n)} match${n === 1 ? '' : 'es'} on Watchtower Peaks.`, [1, 10, 50], 'peakWarden'), 0, 'mountaineer'),
 ];
 
 export const SEALS: readonly Seal[] = Object.freeze(

@@ -1,7 +1,7 @@
 import type { Room } from '@colyseus/sdk';
 import type { ColyseusTestServer } from '@colyseus/testing';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { solveChallenge, type TaskChallenge, type TaskTiming } from '@byzantine-council/shared';
+import { solveDrill, type DrillChallenge, type TaskTiming } from '@byzantine-council/shared';
 import { ACADEMY_MESSAGES, ACADEMY_RETRY_MS, ACADEMY_ROOM, AcademyDoneSchema, AcademyDrillSchema, AcademyRefusedSchema, AcademyResultSchema } from '@byzantine-council/shared/progression';
 import { MemoryProfileStore } from '../src/profile/store.js';
 import { COOKIE_NAME, newProfileId, signCookie, type SessionKeys } from '../src/profile/session.js';
@@ -13,7 +13,7 @@ const FAST: TaskTiming = { minSolveMs: { deposit: 0, ledger: 0, route: 0, watcht
 let colyseus: ColyseusTestServer;
 
 beforeAll(async () => {
-  ({ colyseus } = await startServer(PORT, { maxSeatsPerIp: 64, taskTiming: FAST, profiles: { store: new MemoryProfileStore(), keys } }));
+  ({ colyseus } = await startServer(PORT, { maxSeatsPerIp: 64, taskTiming: FAST, islandDrillMinMs: { threshold: 0, quorum: 0, council: 0, partition: 0 }, profiles: { store: new MemoryProfileStore(), keys } }));
 });
 
 afterEach(async () => {
@@ -42,12 +42,13 @@ function open(cookie?: string): Promise<Room> {
   return sdk(PORT, cookie === undefined ? {} : { Cookie: cookie }).create(ACADEMY_ROOM, {});
 }
 
-function wrongAnswer(c: TaskChallenge) {
-  const right = solveChallenge(c);
+function wrongAnswer(c: DrillChallenge) {
+  const right = solveDrill(c);
   if (right.kind === 'watchtower') return { kind: 'watchtower' as const, height: right.height + 1 };
   if (right.kind === 'deposit') return { kind: 'deposit' as const, notes: [1] };
   if (right.kind === 'ledger') return { kind: 'ledger' as const, reject: [] };
-  return { kind: 'route' as const, path: [0, 7] };
+  if (right.kind === 'route') return { kind: 'route' as const, path: [0, 7] };
+  return right;
 }
 
 // Answers every drill of a level correctly and returns the done message.
@@ -57,7 +58,7 @@ async function clear(room: Room, level: number) {
   for (;;) {
     const d = AcademyDrillSchema.parse(await drill);
     const doneOrDrill = Promise.race([next(room, ACADEMY_MESSAGES.DONE).then((p) => ({ done: p })), next(room, ACADEMY_MESSAGES.DRILL).then((p) => ({ drill: p }))]);
-    room.send('answer', { id: d.id, answer: solveChallenge(d.challenge) });
+    room.send('answer', { id: d.id, answer: solveDrill(d.challenge) });
     const r = await doneOrDrill;
     if ('done' in r) return AcademyDoneSchema.parse(r.done);
     drill = Promise.resolve(r.drill);
@@ -84,12 +85,12 @@ describe('the Academy', () => {
     expect(again.id).not.toBe(d.id);
     expect(again.index).toBe(0);
     // The old drill is gone: answering it does nothing.
-    room.send('answer', { id: d.id, answer: solveChallenge(d.challenge) });
+    room.send('answer', { id: d.id, answer: solveDrill(d.challenge) });
     const rest = next(room, ACADEMY_MESSAGES.DRILL);
-    room.send('answer', { id: again.id, answer: solveChallenge(again.challenge) });
+    room.send('answer', { id: again.id, answer: solveDrill(again.challenge) });
     const second = AcademyDrillSchema.parse(await rest);
     const done = next(room, ACADEMY_MESSAGES.DONE);
-    room.send('answer', { id: second.id, answer: solveChallenge(second.challenge) });
+    room.send('answer', { id: second.id, answer: solveDrill(second.challenge) });
     expect(AcademyDoneSchema.parse(await done)).toMatchObject({ level: 4, stars: 2, mistakes: 1 });
   });
 
@@ -104,6 +105,27 @@ describe('the Academy', () => {
     expect(first.award?.seals).toContain('academy1');
     const replay = await clear(room, 1);
     expect(replay.award?.xpAfter).toBe(replay.award?.xpBefore);
+    const second = await clear(room, 2);
+    expect(second.level).toBe(2);
+  });
+
+  it('serves the island drills: thresholds, quorums, council evidence and network splits', async () => {
+    // A room per level: the Academy takes at most 10 messages a second, far above a person's pace.
+    for (const level of [8, 10, 11, 12, 13]) {
+      const done = await clear(await open(), level);
+      expect(done).toMatchObject({ level, stars: 3, mistakes: 0 });
+    }
+  });
+
+  it('keeps an island’s levels locked until the island opens, then in order', async () => {
+    const cookie = `${COOKIE_NAME}=${signCookie(keys, newProfileId(), Date.now())}`;
+    const room = await open(cookie);
+    // A new guest has not opened Council Isle, so its first level is locked.
+    const refused = next(room, ACADEMY_MESSAGES.REFUSED);
+    room.send('start', { level: 10 });
+    expect(AcademyRefusedSchema.parse(await refused)).toEqual({ reason: 'locked' });
+    // Mint Island's levels open one after another as usual.
+    await clear(room, 1);
     const second = await clear(room, 2);
     expect(second.level).toBe(2);
   });

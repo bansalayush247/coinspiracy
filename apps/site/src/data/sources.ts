@@ -169,6 +169,18 @@ export const SOURCES = {
     publisher: 'bitcoinbeach.com',
     url: 'https://www.bitcoinbeach.com/en/our-work',
   },
+  cap: {
+    id: 'gilbert-lynch-2002',
+    title: 'Brewer’s Conjecture and the Feasibility of Consistent, Available, Partition-Tolerant Web Services',
+    publisher: 'Seth Gilbert and Nancy Lynch, ACM SIGACT News 33(2), June 2002',
+    url: 'https://doi.org/10.1145/564585.564601',
+  },
+  dls: {
+    id: 'dls-1988',
+    title: 'Consensus in the Presence of Partial Synchrony',
+    publisher: 'Cynthia Dwork, Nancy Lynch and Larry Stockmeyer, Journal of the ACM 35(2), April 1988',
+    url: 'https://doi.org/10.1145/42282.42283',
+  },
   beachPaper: {
     id: 'bitcoin-beach-whitepaper',
     title: 'Basis Underlying Bitcoin Beach-Like Efforts (BUBBLEs), the project’s whitepaper',

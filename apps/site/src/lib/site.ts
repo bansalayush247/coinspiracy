@@ -1,7 +1,6 @@
 // Site-wide constants and URL helpers.
 
 export const SITE_NAME = 'Byzantine Council';
-export const SITE_TAGLINE = 'A social-deduction game about federated ecash';
 export const THEME_COLOR = '#2a1a33';
 export const OG_WIDTH = 1200;
 export const OG_HEIGHT = 630;

@@ -2,7 +2,6 @@
 import { z } from 'zod';
 import { ShopIdSchema } from '../economy/catalog.js';
 import { NicknameSchema } from '../lobby.js';
-import { MovePayloadSchema, NoPayloadSchema } from '../schemas.js';
 
 export const BEACH_ROOM = 'beach';
 export const BEACH_MAX_PLAYERS = 16;
@@ -18,15 +17,6 @@ export const EMOTE_GLYPHS: Readonly<Record<Emote, string>> = { wave: '👋', che
 export const EMOTE_GAP_MS = 1500;
 export const EmotePayloadSchema = z.strictObject({ emote: z.enum(EMOTES) });
 export const EmoteLineSchema = z.strictObject({ from: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), emote: z.enum(EMOTES) });
-
-export const BEACH_CLIENT_PAYLOADS = {
-  move: MovePayloadSchema,
-  takeJob: TakeJobPayloadSchema,
-  deliver: NoPayloadSchema,
-  dropJob: NoPayloadSchema,
-  emote: EmotePayloadSchema,
-  refreshLook: NoPayloadSchema,
-} as const;
 
 export const BEACH_MESSAGES = Object.freeze({
   JOB: 'courierJob',

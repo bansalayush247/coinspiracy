@@ -7,7 +7,7 @@ import { ProfileApi, type ProfileSummary } from '../src/profile/api.js';
 import { ProgressPage } from '../src/profile/progressPage.js';
 import { RewardsPanel } from '../src/profile/rewards.js';
 import { SeasonBanner } from '../src/profile/season.js';
-import { WorldMap } from '../src/profile/worldMap.js';
+import { WorldMap, islandPreviewEnabled } from '../src/profile/worldMap.js';
 import { Coach } from '../src/ui/coach.js';
 
 function loadPage(): void {
@@ -91,6 +91,9 @@ describe('world map', () => {
   it('shows Mint Island open and later islands with how to open them', () => {
     const map = new WorldMap();
     map.setProfile(summary());
+    expect(document.getElementById('world')?.hidden).toBe(true);
+    expect(document.getElementById('open-world')?.hidden).toBe(false);
+    map.open();
     expect(document.getElementById('world')?.hidden).toBe(false);
     const islands = document.querySelectorAll('.world-svg .island');
     expect(islands.length).toBe(6);
@@ -100,12 +103,32 @@ describe('world map', () => {
     locked?.dispatchEvent(new Event('click'));
     expect(document.getElementById('world-card')?.textContent).toMatch(/Opens at Rank|Coming soon/);
   });
+
+  it('opens every finished island in Explorer preview without changing progress', () => {
+    expect(islandPreviewEnabled('?explore=all')).toBe(true);
+    expect(islandPreviewEnabled('?explore=1')).toBe(false);
+    const visits: string[] = [];
+    const map = new WorldMap(true);
+    map.onVisit = (id) => visits.push(id);
+    map.setProfile(summary());
+    map.open();
+    const islands = document.querySelectorAll('.world-svg .island');
+    expect(islands).toHaveLength(6);
+    expect(document.querySelectorAll('.world-svg .island.open')).toHaveLength(6);
+    expect(document.getElementById('world-title')?.textContent).toContain('Explorer preview');
+    const beach = Array.from(islands).find((node) => node.getAttribute('aria-label')?.startsWith('Beach Town:'));
+    beach?.dispatchEvent(new Event('click'));
+    expect(document.getElementById('world-card')?.textContent).toContain('progression locks ignored');
+    document.querySelector<HTMLButtonElement>('.world-visit')?.click();
+    expect(visits).toEqual(['beach']);
+  });
 });
 
 describe('event islands', () => {
   it('rise on the map while a seasonal event is live', () => {
     const map = new WorldMap();
     map.setProfile(summary());
+    map.open();
     expect(document.querySelectorAll('.world-svg .island.event').length).toBe(0);
     map.setSeason({ height: 1_050_000, live: true, featured: { id: 'halving', title: 'Halving Party', headline: 'Halving! The block reward is now 1.5625 bitcoin.', blurb: 'Every 210,000 blocks the reward halves.', colors: ['#F4A340', '#FFE08A'] } });
     const island = document.querySelector('.world-svg .island.event');

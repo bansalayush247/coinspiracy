@@ -138,6 +138,30 @@ describe('route', () => {
     }
   });
 
+  it('on Lightning Reef, leaves one path with a thin margin and decoys that miss by a few sats', () => {
+    const hard = (rng: RandomSource): RouteChallenge => generateChallenge('route', rng, { tipHeight: TIP, hardRoutes: true }) as RouteChallenge;
+    const extremes: RandomSource[] = [always(0), always(1_000), cryptoRandom];
+    for (const rng of [...extremes, ...Array.from({ length: RUNS }, () => cryptoRandom)]) {
+      const c = hard(rng);
+      expect(TaskChallengeSchema.safeParse(c).success).toBe(true);
+      const valid = ROUTE_PATHS.filter((p) => isValidRoute(c, p));
+      expect(valid).toHaveLength(1);
+      // The working route never has more than 5 sats to spare on its tightest channel.
+      const route = valid[0] ?? [];
+      const spare = Math.min(...route.slice(1).map((to, i) => (c.capacities[ROUTE_EDGES.findIndex(([a, b]) => (a === route[i] && b === to) || (b === route[i] && a === to))] ?? 0) - c.amount));
+      expect(spare).toBeGreaterThanOrEqual(0);
+      expect(spare).toBeLessThanOrEqual(5);
+      // Every decoy's tightest channel is short, by 8 sats at most.
+      for (const p of ROUTE_PATHS.filter((x) => x !== route)) {
+        const caps = p.slice(1).map((to, i) => c.capacities[ROUTE_EDGES.findIndex(([a, b]) => (a === p[i] && b === to) || (b === p[i] && a === to))] ?? 0);
+        const worst = Math.min(...caps);
+        expect(worst).toBeLessThan(c.amount);
+        expect(c.amount - worst).toBeLessThanOrEqual(8);
+      }
+      expect(checkAnswer(c, solveChallenge(c))).toBe(true);
+    }
+  });
+
   it('rejects paths that skip a hop, run backwards or start elsewhere', () => {
     const c: RouteChallenge = { kind: 'route', amount: 40, capacities: ROUTE_EDGES.map(() => 100) };
     expect(isValidRoute(c, [0, 1, 3, 5, 7])).toBe(true);

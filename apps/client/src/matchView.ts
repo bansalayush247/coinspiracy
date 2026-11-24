@@ -17,11 +17,13 @@ import {
   TaskOpenedSchema,
   TaskRefusedSchema,
   TaskResultSchema,
+  arenaById,
   atAuditDesk,
   atCouncilSeal,
   hasTask,
   inSigningHall,
   stationNear,
+  type Arena,
   type CeremonyRefused,
   type CouncilRefused,
   type SabotageRefused,
@@ -38,6 +40,7 @@ import { Achievements } from './profile/achievements.js';
 import { Coach } from './ui/coach.js';
 import { RewardsPanel } from './profile/rewards.js';
 import { chatText } from './ui/chatText.js';
+import { placeName, setPlaces } from './ui/places.js';
 import { CouncilPanel, type CouncilMember } from './ui/council.js';
 import { el } from './ui/dom.js';
 import { ResultCard, RoleCard } from './ui/overlays.js';
@@ -104,7 +107,7 @@ function refusalText(r: CeremonyRefused, action: CeremonyAction): string {
     case 'cannotAct':
       return 'You can’t do that right now.';
     case 'notHere':
-      return action === 'forge' ? 'Forgeries can only be filed from the Signing Hall.' : 'Audits happen at the Ledger Archive desk.';
+      return action === 'forge' ? `Forgeries can only be filed from ${placeName('signingHall')}.` : `Audits happen at the desk in ${placeName('ledgerArchive')}.`;
     case 'cooldown':
       return action === 'forge' ? `You can forge again${wait}.` : `You can audit again${wait}.`;
     case 'busy':
@@ -131,6 +134,8 @@ export class MatchView {
   readonly #result = new ResultCard();
   readonly #proposals = new ProposalsPanel();
   readonly #council = new CouncilPanel();
+  // Which arena's place names are showing.
+  #placesFor = '';
   readonly #rewards = new RewardsPanel();
   readonly #achievements = new Achievements();
   readonly #coach = new Coach();
@@ -447,10 +452,21 @@ export class MatchView {
   }
 
   // Re-reads the room state; cheap, and called once per patch at most.
+  // The arena the room is on: names in prompts and chat, and where stations and the seal are.
+  #arena(): Arena {
+    return arenaById(this.#room?.state.arena);
+  }
+
   refresh(): void {
     const room = this.#room;
     if (room === null) return;
     const state = room.state;
+    const arena = this.#arena();
+    if (arena.id !== this.#placesFor) {
+      this.#placesFor = arena.id;
+      setPlaces(arena);
+      this.#council.relabelPlaces();
+    }
     const me = state.players.get(room.sessionId);
     const phase = state.phase;
     const roles = new Map<string, Role>();
@@ -647,7 +663,7 @@ export class MatchView {
     this.#freezeButton.disabled = !able || freezeIn > 0;
     if (target !== undefined) this.#freezeButton.textContent = freezeIn > 0 && Number.isFinite(freezeIn) ? `Disconnect ${target.name} (${String(freezeIn)}s)` : `Disconnect ${target.name}`;
     this.#forgeHint.textContent = !this.#inHall
-      ? 'Go to the Signing Hall to forge. Others may see you there.'
+      ? `Go to ${placeName('signingHall')} to forge. Others may see you there.`
       : resting
         ? 'Filing your forgery…'
         : 'Anyone nearby can see you standing here.';
@@ -676,15 +692,15 @@ export class MatchView {
     }
     this.#freezeTarget = target;
     if (free && pos !== null && !this.#panel.isOpen) {
-      const near = stationNear(pos, STATION_PROMPT_RANGE);
+      const near = stationNear(pos, STATION_PROMPT_RANGE, this.#arena().stations);
       if (near !== null && hasTask(me.tasks ?? 0, near) && !hasTask(me.tasksDone ?? 0, near)) kind = near;
     }
     this.#hud.setInteract(kind);
     this.scene.setFocusStation(kind);
-    this.#callCouncil.hidden = !(free && pos !== null && atCouncilSeal(pos) && !this.#panel.isOpen);
+    this.#callCouncil.hidden = !(free && pos !== null && atCouncilSeal(pos, this.#arena().seal) && !this.#panel.isOpen);
     const playing = room.state.phase === 'playing' && pos !== null;
-    const atDesk = playing && atAuditDesk(pos);
-    const inHall = playing && inSigningHall(pos);
+    const atDesk = playing && atAuditDesk(pos, this.#arena().stations);
+    const inHall = playing && inSigningHall(pos, this.#arena().regions);
     if (atDesk !== this.#atDesk || inHall !== this.#inHall) {
       this.#atDesk = atDesk;
       this.#inHall = inHall;

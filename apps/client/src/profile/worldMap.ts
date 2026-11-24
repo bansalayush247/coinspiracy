@@ -20,11 +20,44 @@ export class WorldMap {
   readonly #root = el('world', HTMLElement);
   readonly #map = el('world-map', HTMLDivElement);
   readonly #card = el('world-card', HTMLDivElement);
+  readonly #openButton = el('open-world', HTMLButtonElement);
+  readonly #progressText = el('world-progress-text', HTMLElement);
+  readonly #progressLeft = el('world-progress-left', HTMLElement);
+  readonly #progressBar = el('world-progress-bar', HTMLDivElement);
+  readonly #progressFill = el('world-progress-fill', HTMLDivElement);
+  readonly #previewAll: boolean;
   #selected = 'mint';
   #profile: ProfileSummary | null = null;
   #story: StoryBook | null = null;
   // Called when the player chooses to visit an island they can walk around (Beach Town).
   onVisit: (islandId: string) => void = () => undefined;
+
+  constructor(previewAll = islandPreviewEnabled()) {
+    this.#previewAll = previewAll;
+    this.#openButton.addEventListener('click', () => {
+      this.open();
+    });
+    el('world-close', HTMLButtonElement).addEventListener('click', () => {
+      this.close();
+    });
+    this.#root.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.close();
+    });
+    if (previewAll) {
+      this.#root.dataset['preview'] = 'all';
+      el('world-title', HTMLElement).textContent = 'The archipelago · Explorer preview';
+    }
+  }
+
+  open(): void {
+    if (this.#profile === null) return;
+    this.#root.hidden = false;
+    this.#root.focus();
+  }
+
+  close(): void {
+    this.#root.hidden = true;
+  }
 
   // Chapters of the Chronicle are read from the island cards.
   setStory(story: StoryBook): void {
@@ -37,8 +70,8 @@ export class WorldMap {
   // Story chapters belonging to an island (the prologue sits with Mint Island), open ones only.
   #chapters(islandId: string): Chapter[] {
     const v = this.#profile?.progress;
-    const rank = v?.rank ?? 1;
-    const stars = v?.academy.reduce((a, l) => a + l.stars, 0) ?? 0;
+    const rank = this.#previewAll ? Number.MAX_SAFE_INTEGER : (v?.rank ?? 1);
+    const stars = this.#previewAll ? Number.MAX_SAFE_INTEGER : (v?.academy.reduce((a, l) => a + l.stars, 0) ?? 0);
     return CHAPTERS.filter((c) => (c.island ?? 'mint') === islandId && (c.island !== null || islandId === 'mint') && chapterOpen(c, rank, stars) && !(c.id === 'epilogue' && islandId !== 'beach'));
   }
 
@@ -73,7 +106,7 @@ export class WorldMap {
       for (const c of CHAPTERS) if (open.has(c.id) && !this.#openChapters.has(c.id)) this.onNewChapter(c);
     }
     this.#openChapters = open;
-    this.#root.hidden = false;
+    this.#openButton.hidden = false;
     this.#render();
   }
 
@@ -81,13 +114,23 @@ export class WorldMap {
     const v = this.#profile?.progress;
     const rank = v?.rank ?? 1;
     const stars = v?.academy.reduce((a, l) => a + l.stars, 0) ?? 0;
-    const open = islandOpen(island, rank, stars);
     if (!island.ready) return { open: false, text: `Coming soon · opens at Rank ${String(island.rank)}` };
+    if (this.#previewAll) return { open: true, text: 'Explorer preview · progression locks ignored' };
+    const open = islandOpen(island, rank, stars);
     if (open) return { open: true, text: island.id === 'mint' ? 'Open · you start here' : 'Open' };
     return { open: false, text: `Opens at Rank ${String(island.rank)} or with ${String(island.stars)} Academy stars (you have Rank ${String(rank)}, ${String(stars)} stars)` };
   }
 
   #render(): void {
+    const ready = ISLANDS.filter((island) => island.ready);
+    const openCount = ready.filter((island) => this.#status(island).open).length;
+    const left = ready.length - openCount;
+    this.#progressText.textContent = this.#previewAll ? `All ${String(ready.length)} islands open for review` : `${String(openCount)} of ${String(ready.length)} islands open`;
+    this.#progressLeft.textContent = this.#previewAll ? 'Explorer preview does not change progress' : left === 0 ? 'Archipelago complete' : `${String(left)} left to unlock`;
+    this.#progressBar.setAttribute('aria-valuemax', String(ready.length));
+    this.#progressBar.setAttribute('aria-valuenow', String(openCount));
+    this.#progressFill.style.width = `${String((openCount / Math.max(1, ready.length)) * 100)}%`;
+    this.#openButton.replaceChildren('Explore', Object.assign(document.createElement('small'), { textContent: left === 0 ? 'All unlocked' : `${String(left)} to unlock` }));
     const drawing = svg('svg', { viewBox: '0 0 100 100', class: 'world-svg', role: 'group', 'aria-label': 'Islands' });
     drawing.append(worldDefs());
     // Sky above a sea of cloud, then drifting cloud banks.
@@ -164,11 +207,12 @@ export class WorldMap {
     if (island === undefined) return;
     const status = this.#status(island);
     this.#card.replaceChildren(h('b', '', island.name), h('span', 'concept', island.concept), h('p', '', island.about), h('span', status.open ? 'tag honest' : 'tag left', status.text));
-    if (island.id === 'beach' && status.open) {
-      const visit = h('button', 'cta world-visit', 'Visit Beach Town');
+    if (status.open) {
+      const visit = h('button', 'cta world-visit', island.id === 'beach' ? 'Visit Beach Town' : `Explore ${island.name}`);
       visit.type = 'button';
       visit.addEventListener('click', () => {
-        this.onVisit('beach');
+        this.close();
+        this.onVisit(island.id);
       });
       this.#card.append(visit);
     }
@@ -187,6 +231,10 @@ export class WorldMap {
       this.#card.append(list);
     }
   }
+}
+
+export function islandPreviewEnabled(search = window.location.search): boolean {
+  return new URLSearchParams(search).get('explore') === 'all';
 }
 
 function worldDefs(): SVGDefsElement {

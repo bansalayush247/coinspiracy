@@ -1,13 +1,14 @@
 // Bot decision making. Strategies only see a BotView built from the bot's own client view, so a
 // bot never knows more than a person in its seat would.
 import {
-  CITADEL_MAP,
-  COUNCIL_SEAL,
-  RELAYS,
+  CITADEL,
   ROOMS,
   isWalkableTile,
+  movementMap,
   roomAt,
   stationCenter,
+  type Arena,
+  type ArenaId,
   type ChatMessage,
   type RandomSource,
   type Role,
@@ -16,6 +17,7 @@ import {
   type TaskTiming,
   type Vec2,
 } from '@byzantine-council/shared';
+import { findPath } from '@byzantine-council/shared/pathfinding';
 import type { MatchPhase } from '@byzantine-council/shared/state';
 import type { BotProfile } from './profile.js';
 import { between, chance, pickOne } from './random.js';
@@ -59,6 +61,8 @@ export interface BotView {
   readonly freezeAt: number;
   // Whether this bot may still call a council this match.
   readonly canCallCouncil: boolean;
+  // Where the match is played, from the public room state.
+  readonly arena: Arena;
 }
 
 export type BotPlan =
@@ -116,51 +120,58 @@ export interface BotStrategy {
   readonly social: BotSocialHooks;
 }
 
-// Floor tiles with all eight neighbours walkable, by room: comfortable places to stand.
-const ROOMY: ReadonlyMap<RoomId, readonly Vec2[]> = (() => {
+// Floor tiles with all eight neighbours walkable, by room: comfortable places to stand. Worked out
+// once per arena.
+const roomyCache = new Map<ArenaId, ReadonlyMap<RoomId, readonly Vec2[]>>();
+function roomy(arena: Arena): ReadonlyMap<RoomId, readonly Vec2[]> {
+  const cached = roomyCache.get(arena.id);
+  if (cached !== undefined) return cached;
   const byRoom = new Map<RoomId, Vec2[]>();
-  for (let row = 1; row < CITADEL_MAP.height - 1; row++) {
-    for (let col = 1; col < CITADEL_MAP.width - 1; col++) {
+  const map = arena.map;
+  for (let row = 1; row < map.height - 1; row++) {
+    for (let col = 1; col < map.width - 1; col++) {
       let open = true;
       for (let dr = -1; dr <= 1 && open; dr++) {
-        for (let dc = -1; dc <= 1 && open; dc++) open = isWalkableTile(CITADEL_MAP, col + dc, row + dr);
+        for (let dc = -1; dc <= 1 && open; dc++) open = isWalkableTile(map, col + dc, row + dr);
       }
       const at = { x: col + 0.5, y: row + 0.5 };
-      const room = roomAt(at);
+      const room = roomAt(at, arena.regions);
       if (!open || room === null) continue;
       const list = byRoom.get(room) ?? [];
       list.push(at);
       byRoom.set(room, list);
     }
   }
+  roomyCache.set(arena.id, byRoom);
   return byRoom;
-})();
-const ALL_ROOMY: readonly Vec2[] = [...ROOMY.values()].flat();
+}
 
 // A comfortable spot in a random room, preferring a room other than `avoid`.
-export function wanderPoint(rng: RandomSource, avoid: RoomId | null = null): Vec2 {
-  const rooms = ROOMS.filter((r) => (ROOMY.get(r)?.length ?? 0) > 0);
+export function wanderPoint(rng: RandomSource, avoid: RoomId | null = null, arena: Arena = CITADEL): Vec2 {
+  const spots = roomy(arena);
+  const rooms = ROOMS.filter((r) => (spots.get(r)?.length ?? 0) > 0);
   const choices = rooms.filter((r) => r !== avoid);
   const room = pickOne(rng, choices.length > 0 ? choices : rooms) ?? 'plaza';
-  return pickOne(rng, ROOMY.get(room) ?? []) ?? { x: 15.5, y: 15.5 };
+  return pickOne(rng, spots.get(room) ?? []) ?? arena.seal;
 }
 
 // A comfortable spot within `radius` of `pos`, if there is one.
-export function nearbyPoint(rng: RandomSource, pos: Vec2, radius: number): Vec2 | null {
-  const room = roomAt(pos);
-  const spots = ALL_ROOMY.filter((p) => Math.hypot(p.x - pos.x, p.y - pos.y) <= radius && (room === null || roomAt(p) === room));
+export function nearbyPoint(rng: RandomSource, pos: Vec2, radius: number, arena: Arena = CITADEL): Vec2 | null {
+  const room = roomAt(pos, arena.regions);
+  const all = [...roomy(arena).values()].flat();
+  const spots = all.filter((p) => Math.hypot(p.x - pos.x, p.y - pos.y) <= radius && (room === null || roomAt(p, arena.regions) === room));
   return pickOne(rng, spots) ?? null;
 }
 
 export function lobbyStroll(view: BotView, rng: RandomSource): Vec2 | null {
-  return nearbyPoint(rng, view.position, STROLL_RADIUS);
+  return nearbyPoint(rng, view.position, STROLL_RADIUS, view.arena);
 }
 
-function nearestTask(pos: Vec2, todo: readonly TaskKind[]): TaskKind | undefined {
+function nearestTask(pos: Vec2, todo: readonly TaskKind[], arena: Arena): TaskKind | undefined {
   let best: TaskKind | undefined;
   let bestDistance = Infinity;
   for (const task of todo) {
-    const c = stationCenter(task);
+    const c = stationCenter(task, arena.stations);
     const d = Math.hypot(c.x - pos.x, c.y - pos.y);
     if (d < bestDistance) {
       best = task;
@@ -179,8 +190,8 @@ function thinkTime(profile: BotProfile, timing: TaskTiming, task: TaskKind, rng:
 function roam(view: BotView, rng: RandomSource, profile: BotProfile): BotPlan {
   const lingerMs = between(rng, profile.lingerMs[0], profile.lingerMs[1]);
   const other = chance(rng, FOLLOW_PERCENT) ? pickOne(rng, view.others.filter((o) => o.active)) : undefined;
-  const near = other === undefined ? null : nearbyPoint(rng, other, 2);
-  return { kind: 'visit', to: near ?? wanderPoint(rng, roomAt(view.position)), lingerMs };
+  const near = other === undefined ? null : nearbyPoint(rng, other, 2, view.arena);
+  return { kind: 'visit', to: near ?? wanderPoint(rng, roomAt(view.position, view.arena.regions), view.arena), lingerMs };
 }
 
 export function honestStrategy(profile: BotProfile, timing: TaskTiming, social: BotSocialHooks = HONEST_SOCIAL): BotStrategy {
@@ -191,9 +202,9 @@ export function honestStrategy(profile: BotProfile, timing: TaskTiming, social: 
       if (social !== null) return social;
       if (view.todo.length === 0) return roam(view, rng, profile);
       if (chance(rng, profile.detourPercent)) {
-        return { kind: 'visit', to: wanderPoint(rng, roomAt(view.position)), lingerMs: between(rng, profile.lingerMs[0], profile.lingerMs[1]) };
+        return { kind: 'visit', to: wanderPoint(rng, roomAt(view.position, view.arena.regions), view.arena), lingerMs: between(rng, profile.lingerMs[0], profile.lingerMs[1]) };
       }
-      const task = (chance(rng, NEAREST_PERCENT) ? nearestTask(view.position, view.todo) : pickOne(rng, view.todo)) ?? view.todo[0];
+      const task = (chance(rng, NEAREST_PERCENT) ? nearestTask(view.position, view.todo, view.arena) : pickOne(rng, view.todo)) ?? view.todo[0];
       return task === undefined ? { kind: 'wait', ms: 1000 } : { kind: 'task', task };
     },
     solve(_view, task, rng) {
@@ -229,19 +240,22 @@ const RELAY_WAIT_MS = 20_000;
 // How likely a bot is to answer a partition by heading to a relay, so not every bot drops its work.
 const RELAY_PERCENT = 70;
 // Spread of bots between the two relays when neither is held.
-function preferredRelay(selfId: string): number {
+function preferredRelay(selfId: string, count: number): number {
   let h = 0;
   for (const c of selfId) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return h % RELAYS.length;
+  return h % count;
 }
 
 function relayPlan(view: BotView, rng: RandomSource): BotPlan | null {
   if (view.partition === 0 || !chance(rng, RELAY_PERCENT)) return null;
-  const free = RELAYS.map((_, i) => i).filter((i) => (view.relays & (1 << i)) === 0);
+  const relays = view.arena.relays;
+  // Only relays this bot can walk to now: on Watchtower Peaks the cut bridges leave one per range.
+  const ground = movementMap(view.arena, view.partition > 0);
+  const free = relays.map((_, i) => i).filter((i) => (view.relays & (1 << i)) === 0 && relays[i] !== undefined && findPath(ground, view.position, relays[i]).ok);
   if (free.length === 0) return null;
-  const preferred = preferredRelay(view.selfId);
+  const preferred = preferredRelay(view.selfId, relays.length);
   const index = free.includes(preferred) ? preferred : (free[0] ?? 0);
-  const to = RELAYS[index] ?? RELAYS[0];
+  const to = relays[index] ?? relays[0];
   return to === undefined ? null : { kind: 'visit', to, lingerMs: RELAY_WAIT_MS };
 }
 
@@ -306,7 +320,7 @@ function honestSocialPlan(view: BotView, rng: RandomSource): BotPlan | null {
   if (relay !== null) return relay;
   if (view.canCallCouncil) {
     const top = topSuspect(view, activeOthers(view));
-    if (top !== null && top.score >= 2 && chance(rng, 60)) return { kind: 'act', to: COUNCIL_SEAL, action: { type: 'callCouncil' }, lingerMs: 1000 };
+    if (top !== null && top.score >= 2 && chance(rng, 60)) return { kind: 'act', to: view.arena.seal, action: { type: 'callCouncil' }, lingerMs: 1000 };
   }
   return null;
 }
@@ -315,7 +329,7 @@ function honestSocialPlan(view: BotView, rng: RandomSource): BotPlan | null {
 function byzantineSocialPlan(view: BotView, rng: RandomSource): BotPlan | null {
   if (view.partition === 0 && view.now >= view.partitionAt && chance(rng, 35)) return { kind: 'now', action: { type: 'partition' } };
   if (view.now >= view.forgeAt && chance(rng, 50)) {
-    const spot = pickOne(rng, ROOMY.get('signingHall') ?? []);
+    const spot = pickOne(rng, roomy(view.arena).get('signingHall') ?? []);
     if (spot !== undefined) return { kind: 'act', to: spot, action: { type: 'forge' }, lingerMs: 1500 };
   }
   if (view.now >= view.freezeAt && chance(rng, 25)) {

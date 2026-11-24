@@ -62,8 +62,10 @@ async function main(): Promise<void> {
     await page.goto(`${WEB}/`);
     await page.fill('#nickname', 'Mara');
     await page.locator('#open-progress').waitFor({ state: 'visible', timeout: 10_000 });
-    // Choose Beach Town on the map, then visit.
-    await page.locator('.world-svg .island.open').last().click();
+    // Open the island map, choose Beach Town, then visit.
+    await page.click('#open-world');
+    await page.locator('#world').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('.world-svg .island.open[aria-label^="Beach Town"]').click();
     const visit = page.locator('.world-visit');
     check(await visit.isVisible(), 'the Beach Town card offers a visit once the island is open');
     await visit.click();

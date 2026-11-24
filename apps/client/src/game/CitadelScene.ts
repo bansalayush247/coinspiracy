@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CITADEL_MAP, STATION_PROMPT_RANGE, TASK_KINDS, TICK_SECONDS, stationCenter, tileAt, type Role, type TaskKind, type Vec2, RELAYS, RELAY_RANGE } from '@byzantine-council/shared';
+import { CITADEL, STATION_PROMPT_RANGE, TASK_KINDS, TICK_SECONDS, arenaById, movementMap, stationCenter, tileAt, type Arena, type ArenaId, type Role, type TaskKind, type Vec2, RELAY_RANGE } from '@byzantine-council/shared';
 import type { PlayerState } from '@byzantine-council/shared/state';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from './guardianArt.js';
 import { paintGround } from './groundPaint.js';
@@ -28,6 +28,8 @@ import {
 } from './mapArt.js';
 import { COLORS, cssColor, seatColors } from './palette.js';
 import { CorrectionSmoother, Predictor, type PendingInput } from './prediction.js';
+import { ReefLife, createReefProps, drawReefGround, paintReef, reefLabels } from './reefArt.js';
+import { PeaksLife, createPeaksProps, paintPeaks, peaksLabels } from './peaksArt.js';
 
 export const SCENE_KEY = 'citadel';
 const STEP_MS = TICK_SECONDS * 1000;
@@ -38,7 +40,6 @@ export const MIN_USER_ZOOM = 0.6;
 export const MAX_USER_ZOOM = 1.8;
 // Default framing shows the plaza and the buildings around it, as in the concept art.
 const BASE_ZOOM = 0.72;
-const PLAZA = { x: 15, y: 15 };
 
 export interface DirectionSource {
   direction(): Vec2;
@@ -116,6 +117,12 @@ export class CitadelScene extends Phaser.Scene {
   // Strollers on the plaza while nobody is in a room (the menu backdrop).
   #townsfolk: Townsfolk | null = null;
   #relaysHeld = 0;
+  // Where this scene is drawn; a different arena restarts the scene (see useArena).
+  #arena: Arena = CITADEL;
+  #reefLife: ReefLife | null = null;
+  #peaksLife: PeaksLife | null = null;
+  // Whether the bridges a partition cuts are down right now (Watchtower Peaks).
+  #partitioned = false;
   // Set by the controller to explain sky phenomena to the player.
   onNatureNote: (note: NatureNote) => void = () => undefined;
 
@@ -123,18 +130,54 @@ export class CitadelScene extends Phaser.Scene {
     super({ key: SCENE_KEY });
   }
 
+  // A restart carries the arena; the same scene object is reused, so per-run collections start empty.
+  init(data?: { arena?: ArenaId }): void {
+    this.#arena = arenaById(data?.arena);
+    this.#avatars.clear();
+    this.#markers.clear();
+    this.#relays.length = 0;
+    this.#myId = null;
+    this.#local = null;
+    this.#input = null;
+    this.#sink = null;
+    this.#roles = new Map();
+    this.#relaysActive = false;
+    this.#relaysHeld = 0;
+    this.#townsfolk = null;
+    this.#reefLife = null;
+    this.#peaksLife = null;
+    this.#partitioned = false;
+    this.#festive = null;
+    this.#busy = null;
+    this.#beam = null;
+  }
+
+  get arenaId(): ArenaId {
+    return this.#arena.id;
+  }
+
+  // Redraws the scene for another arena; the caller re-attaches and re-adds players on CREATE.
+  useArena(arena: ArenaId): boolean {
+    if (arena === this.#arena.id) return false;
+    this.scene.restart({ arena });
+    return true;
+  }
+
   create(): void {
     this.#reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const dpr = sceneDpr(this);
-    const painted = paintGround(this);
+    const reef = this.#arena.id === 'reef';
+    const peaks = this.#arena.id === 'peaks';
+    const painted = reef ? paintReef(this) : peaks ? paintPeaks(this) : paintGround(this);
     this.add.image(painted.x, painted.y, painted.key).setOrigin(0).setScale(1 / painted.scale).setDepth(GROUND_DEPTH);
     const water = this.add.graphics().setDepth(WATER_DEPTH);
-    drawWaterShine(water);
-    if (!this.#reducedMotion) {
+    if (reef) drawReefGround(water);
+    else if (!peaks) drawWaterShine(water);
+    if (!this.#reducedMotion && !reef && !peaks) {
       this.tweens.add({ targets: water, alpha: { from: 0.2, to: 0.9 }, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
     const labelRes = Math.ceil(dpr * MAX_USER_ZOOM * BASE_ZOOM * 1.25);
-    for (const area of AREA_LABELS) {
+    for (const area of reef ? reefLabels(this.#arena) : peaks ? peaksLabels() : AREA_LABELS) {
       const p = labelPoint(area.x, area.y);
       this.add
         .text(p.x, p.y, area.text, { fontFamily: FONT, fontSize: '26px', fontStyle: '800', color: '#8a5a4a', resolution: labelRes })
@@ -143,12 +186,19 @@ export class CitadelScene extends Phaser.Scene {
         .setDepth(AREA_LABEL_DEPTH);
     }
     this.#entities = this.add.layer().setDepth(ENTITY_DEPTH);
-    this.#swaying = createProps(this, this.#entities);
+    if (peaks) {
+      const props = createPeaksProps(this, this.#entities);
+      this.#swaying = props.swaying;
+      this.#peaksLife = new PeaksLife(this, WATER_DEPTH, NAME_DEPTH - 3, props.cutRopes);
+    } else {
+      this.#swaying = reef ? createReefProps(this, this.#entities) : createProps(this, this.#entities);
+    }
+    if (reef) this.#reefLife = new ReefLife(this, AREA_LABEL_DEPTH + 0.5);
     makeFxTextures(this);
     const sky = this.add.layer().setDepth(NAME_DEPTH - 1);
     this.#physics = new PhysicsFx(this, this.#entities, sky);
     this.#effects = new Effects(this, this.#physics, this.#entities, this.#reducedMotion);
-    this.#atmosphere = new Atmosphere(this, this.#physics, this.#effects, this.#reducedMotion);
+    this.#atmosphere = new Atmosphere(this, this.#physics, this.#effects, this.#reducedMotion, this.#arena.map);
     this.#atmosphere.onNote = (note) => {
       this.onNatureNote(note);
     };
@@ -156,11 +206,12 @@ export class CitadelScene extends Phaser.Scene {
       { x: 13, y: 12 }, { x: 17.5, y: 12.5 }, { x: 12.5, y: 17 }, { x: 18, y: 17.5 }, { x: 6, y: 11 }, { x: 21, y: 9.5 },
       { x: 7, y: 21.5 }, { x: 24, y: 15 }, { x: 15, y: 20.5 }, { x: 10, y: 9.5 },
     ];
-    this.#townsfolk = new Townsfolk(this, this.#entities, CITADEL_MAP, spots, 6);
+    // Strollers fill the Citadel behind the menu; the island maps are only ever seen in a room.
+    if (!reef && !peaks) this.#townsfolk = new Townsfolk(this, this.#entities, this.#arena.map, spots, 6);
     this.#names = this.add.layer().setDepth(NAME_DEPTH);
     this.#createMarkers();
 
-    const plaza = worldToScreen(PLAZA.x, PLAZA.y);
+    const plaza = worldToScreen(this.#arena.seal.x, this.#arena.seal.y);
     this.cameras.main.centerOn(plaza.x, plaza.y);
     this.#applyZoom();
 
@@ -255,7 +306,7 @@ export class CitadelScene extends Phaser.Scene {
     if (isMe) {
       this.#local = {
         id,
-        predictor: new Predictor({ x: p.x, y: p.y }),
+        predictor: new Predictor({ x: p.x, y: p.y }, movementMap(this.#arena, this.#partitioned)),
         smoother: new CorrectionSmoother(),
         prev: { x: p.x, y: p.y },
         acc: 0,
@@ -343,8 +394,11 @@ export class CitadelScene extends Phaser.Scene {
     const b = Number.parseInt(colors[1].slice(1), 16);
     this.#confetti = [a, b, 0xffffff];
     const g = this.add.graphics().setDepth(NAME_DEPTH - 2);
-    // Strings run between the four plaza lamps and round the seal.
-    const posts = [{ x: 10.5, y: 10.5 }, { x: 19.5, y: 10.5 }, { x: 19.5, y: 19.5 }, { x: 10.5, y: 19.5 }];
+    // Strings run between the four lamps around the square and round the seal.
+    const sx = this.#arena.seal.x;
+    const sy = this.#arena.seal.y;
+    const k = this.#arena.id === 'reef' ? 3.6 : 4.5;
+    const posts = [{ x: sx - k, y: sy - k }, { x: sx + k, y: sy - k }, { x: sx + k, y: sy + k }, { x: sx - k, y: sy + k }];
     posts.forEach((p, i) => {
       const q = posts[(i + 1) % posts.length] ?? p;
       drawBunting(g, worldToScreen(p.x, p.y), worldToScreen(q.x, q.y), 58 * ART_SCALE, [a, b]);
@@ -363,7 +417,7 @@ export class CitadelScene extends Phaser.Scene {
     this.#beam = null;
     if (kind === 'watchtower' && !this.#reducedMotion) {
       // The telescope's lamp sweeps a beam across the sky.
-      const c = stationCenter('watchtower');
+      const c = stationCenter('watchtower', this.#arena.stations);
       const s = worldToScreen(c.x, c.y);
       const beam = this.add.graphics().setDepth(NAME_DEPTH - 1).setBlendMode(Phaser.BlendModes.ADD).setPosition(s.x + 10 * ART_SCALE, s.y - 74 * ART_SCALE);
       beam.fillStyle(0xfff1c9, 0.18);
@@ -379,7 +433,7 @@ export class CitadelScene extends Phaser.Scene {
   #stationLife(time: number): void {
     const kind = this.#busy;
     if (kind === null || this.#reducedMotion || time < this.#busyAt) return;
-    const c = stationCenter(kind);
+    const c = stationCenter(kind, this.#arena.stations);
     const accent = STATION_ACCENT[kind];
     if (kind === 'deposit') {
       // The mint press: a coin pops out with a glint and falls back.
@@ -401,7 +455,7 @@ export class CitadelScene extends Phaser.Scene {
 
   // Effects the match view triggers from game events.
   taskDone(kind: TaskKind): void {
-    this.#effects.taskDone(stationCenter(kind), STATION_ACCENT[kind]);
+    this.#effects.taskDone(stationCenter(kind, this.#arena.stations), STATION_ACCENT[kind]);
   }
 
   stamp(playerId: string, signed: boolean): void {
@@ -410,11 +464,11 @@ export class CitadelScene extends Phaser.Scene {
   }
 
   councilCalled(): void {
-    this.#effects.council({ x: 15, y: 15 });
+    this.#effects.council(this.#arena.seal);
   }
 
   celebrate(side: 'honest' | 'byzantine'): void {
-    this.#effects.fireworks({ x: 15, y: 15 }, side === 'honest' ? [0xffd27a, 0x5fd3b0, 0xffffff] : [0xff8a9a, 0xa983ff, 0xffb070]);
+    this.#effects.fireworks(this.#arena.seal, side === 'honest' ? [0xffd27a, 0x5fd3b0, 0xffffff] : [0xff8a9a, 0xa983ff, 0xffb070]);
   }
 
   setDaylight(daylight: Daylight): void {
@@ -441,6 +495,8 @@ export class CitadelScene extends Phaser.Scene {
     this.#physics.update(delta);
     this.#atmosphere.update(time, delta);
     this.#townsfolk?.update(time, delta, this.#reducedMotion);
+    this.#reefLife?.update(time, this.#reducedMotion);
+    this.#peaksLife?.update(time, this.#reducedMotion);
     this.#stationLife(time);
     if (this.#confetti.length > 0 && !this.#reducedMotion && time > this.#confettiAt) {
       this.#confettiAt = time + 120;
@@ -477,7 +533,7 @@ export class CitadelScene extends Phaser.Scene {
       cam.setLerp(k, k);
     } else if (!this.#reducedMotion) {
       // Slow drift over the plaza behind the menu.
-      const p = worldToScreen(PLAZA.x + Math.sin(time / 5000) * 2.5, PLAZA.y + Math.cos(time / 6500) * 2.5);
+      const p = worldToScreen(this.#arena.seal.x + Math.sin(time / 5000) * 2.5, this.#arena.seal.y + Math.cos(time / 6500) * 2.5);
       cam.centerOn(p.x, p.y);
     }
   }
@@ -518,7 +574,7 @@ export class CitadelScene extends Phaser.Scene {
     a.stride = step > 1 ? 0 : a.stride + step;
     if (a.stride > 0.55) {
       a.stride = 0;
-      if (!a.out) this.#effects.footstep(a.pos, tileAt(CITADEL_MAP, Math.floor(a.pos.x), Math.floor(a.pos.y)) === '=', a.isMe);
+      if (!a.out) this.#effects.footstep(a.pos, tileAt(this.#arena.map, Math.floor(a.pos.x), Math.floor(a.pos.y)) === '=', a.isMe);
     }
     a.root.setPosition(screen.x, screen.y);
     a.body.y = a.moving && !this.#reducedMotion ? Math.sin(time / 90) * 1.6 * ART_SCALE : 0;
@@ -539,7 +595,10 @@ export class CitadelScene extends Phaser.Scene {
   }
 
   #createRelays(): void {
-    for (const r of RELAYS) {
+    // Rebuilt on every detach, so drop the previous rings first.
+    for (const ring of this.#relays) ring.destroy();
+    this.#relays.length = 0;
+    for (const r of this.#arena.relays) {
       const ring = this.add.graphics().setDepth(AREA_LABEL_DEPTH).setVisible(false);
       const base = worldToScreen(r.x, r.y);
       ring.setPosition(base.x, base.y);
@@ -550,7 +609,7 @@ export class CitadelScene extends Phaser.Scene {
 
   // During a partition both relays glow; a held relay turns green.
   setRelays(active: boolean, held: number): void {
-    const [r0, r1] = RELAYS;
+    const [r0, r1] = this.#arena.relays;
     if (r0 !== undefined && r1 !== undefined) {
       if (active && !this.#relaysActive) this.#effects.lightning(r0, r1);
       // The link came back while both relays were held: a repair, not a timeout.
@@ -558,6 +617,12 @@ export class CitadelScene extends Phaser.Scene {
     }
     this.#relaysActive = active;
     this.#relaysHeld = held;
+    // On Watchtower Peaks the partition is physical: the bridges between the ranges come down.
+    if (active !== this.#partitioned) {
+      this.#partitioned = active;
+      this.#peaksLife?.setPartitioned(active);
+      if (this.#local !== null) this.#local.predictor.map = movementMap(this.#arena, active);
+    }
     const w = RELAY_RANGE * TILE_W * Math.SQRT2;
     const hgt = RELAY_RANGE * TILE_H * Math.SQRT2;
     this.#relays.forEach((ring, i) => {
@@ -576,7 +641,7 @@ export class CitadelScene extends Phaser.Scene {
 
   #createMarkers(): void {
     for (const kind of TASK_KINDS) {
-      const c = stationCenter(kind);
+      const c = stationCenter(kind, this.#arena.stations);
       const base = worldToScreen(c.x, c.y);
       const accent = STATION_ACCENT[kind];
       const ring = this.add.graphics().setDepth(AREA_LABEL_DEPTH).setVisible(false);

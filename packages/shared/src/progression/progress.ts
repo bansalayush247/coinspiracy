@@ -243,6 +243,14 @@ export function applyMatch(p: Progress, match: MatchFacts, player: PlayerFacts):
   );
 }
 
+// The per-island clear counter for the islands whose Seal Book pages track their Academy levels.
+function islandClears(island: string): Counters {
+  if (island === 'signing') return { clearsSigning: 1 };
+  if (island === 'council') return { clearsCouncil: 1 };
+  if (island === 'watchtower') return { clearsPeaks: 1 };
+  return {};
+}
+
 // An Academy level finished with this many stars. Rewards come once per level; replays only raise the best.
 export function applyAcademyResult(p: Progress, level: number, stars: number, nowMs: number, blockHeight: number): Applied {
   const def = academyLevel(level);
@@ -262,7 +270,7 @@ export function applyAcademyResult(p: Progress, level: number, stars: number, no
       xp: (firstClear ? ACADEMY_FIRST_CLEAR.xp : 0) + (firstThree ? ACADEMY_THREE_STARS.xp : 0),
       sats: firstClear ? ACADEMY_FIRST_CLEAR.sats : 0,
       items: [],
-      counters: { academyClears: firstClear ? 1 : 0, academyStars: newStars },
+      counters: { academyClears: firstClear ? 1 : 0, academyStars: newStars, ...(firstClear ? islandClears(def.island) : {}) },
       quest: { kind: 'academy', firstClear, newStars },
       lines: [],
       eligible: true,

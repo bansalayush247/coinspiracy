@@ -31,8 +31,9 @@ export const COUNCIL_TIMING: CouncilTiming = Object.freeze({
 export const COUNCIL_SEAL: Vec2 = Object.freeze({ x: 15, y: 15 });
 export const COUNCIL_SEAL_RANGE = 3;
 
-export function atCouncilSeal(pos: Vec2): boolean {
-  return Math.hypot(pos.x - COUNCIL_SEAL.x, pos.y - COUNCIL_SEAL.y) <= COUNCIL_SEAL_RANGE;
+// The seal defaults to the Citadel's; other arenas pass their own.
+export function atCouncilSeal(pos: Vec2, seal: Vec2 = COUNCIL_SEAL): boolean {
+  return Math.hypot(pos.x - seal.x, pos.y - seal.y) <= COUNCIL_SEAL_RANGE;
 }
 
 export const COUNCIL_STAGES = ['', 'voting', 'result'] as const;

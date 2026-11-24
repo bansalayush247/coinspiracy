@@ -1,7 +1,8 @@
 // One practice bot. It plays through its own SDK client and reads only what that client receives:
 // its own view of the synced state and the messages sent to it.
 import {
-  CITADEL_MAP,
+  arenaById,
+  movementMap,
   CLIENT_MESSAGE_PAYLOADS,
   CeremonyRefusedSchema,
   ChatLineSchema,
@@ -21,6 +22,7 @@ import {
   inStationRange,
   stationCenter,
   type ChatMessage,
+  type Arena,
   type CitadelMap,
   type RandomSource,
   type TaskChallenge,
@@ -91,7 +93,6 @@ export interface BrainOptions {
   readonly rng: RandomSource;
   // M4 intents (sign, refuse, council, vote, chat) are sent only when true.
   readonly social?: boolean;
-  readonly map?: CitadelMap;
   // Called once after repeated errors; the manager then makes the bot leave.
   readonly onFatal?: () => void;
   // Monotonic milliseconds.
@@ -138,7 +139,8 @@ export class BotBrain {
   readonly #strategies: StrategySet;
   readonly #rng: RandomSource;
   readonly #social: boolean;
-  readonly #map: CitadelMap;
+  // The ground the motor was built for; a new arena, or bridges coming down or back, gets a fresh motor.
+  #motorGround: CitadelMap | null = null;
   readonly #onFatal: (() => void) | undefined;
   readonly #now: () => number;
   readonly #follower = new PathFollower();
@@ -177,7 +179,6 @@ export class BotBrain {
     this.#strategies = options.strategies;
     this.#rng = options.rng;
     this.#social = options.social ?? false;
-    this.#map = options.map ?? CITADEL_MAP;
     this.#onFatal = options.onFatal;
     this.#now = options.now ?? (() => performance.now());
   }
@@ -299,7 +300,14 @@ export class BotBrain {
       this.#lastStep = null;
       return;
     }
-    this.#motor ??= new BotMotor({ x: me.x, y: me.y }, this.#map);
+    const ground = this.#ground();
+    if (this.#motor === null || this.#motorGround !== ground) {
+      // First tick, a new arena, or a partition changing the bridges: start from where the server put this bot.
+      this.#motor = new BotMotor({ x: me.x, y: me.y }, ground);
+      this.#motorGround = ground;
+      this.#follower.set([]);
+      this.#activity = wait(now + 500);
+    }
     const motor = this.#motor;
     this.#syncPhase(now);
     if (this.#phase === 'playing') {
@@ -427,8 +435,6 @@ export class BotBrain {
     this.#chatAt = null;
     this.#calledCouncil = false;
     this.#forgeAt = 0;
-    this.#partitionAt = Infinity;
-    this.#freezeAt = Infinity;
   }
 
   #me(): PlayerState | undefined {
@@ -442,6 +448,12 @@ export class BotBrain {
     this.#follower.clear();
     this.#unavailable.clear();
     if (phase === 'playing') this.#resetSocial();
+    // Sabotage readiness arrives as a message the moment a match starts, often before the patch that says
+    // it started, so it is cleared when a match ends rather than when the next one begins.
+    else {
+      this.#partitionAt = Infinity;
+      this.#freezeAt = Infinity;
+    }
     const p = this.#profile;
     if (phase === 'playing') this.#activity = wait(now + between(this.#rng, p.reactMs[0], p.reactMs[1]));
     else if (phase === 'lobby') this.#activity = wait(now + between(this.#rng, p.lobbyStrollMs[0], p.lobbyStrollMs[1]));
@@ -463,7 +475,7 @@ export class BotBrain {
         if (now < a.until) return;
         // Open only once the server has applied every move and agrees the bot is in range.
         if (motor.pendingCount > 0 && now < a.until + REPLY_TIMEOUT_MS) return;
-        if (motor.pendingCount > 0 || !inStationRange({ x: me.x, y: me.y }, a.task, STATION_RANGE - RANGE_MARGIN)) {
+        if (motor.pendingCount > 0 || !inStationRange({ x: me.x, y: me.y }, a.task, STATION_RANGE - RANGE_MARGIN, this.#arena().stations)) {
           this.#walk(now, { kind: 'task', task: a.task }, a.replans + 1, motor);
           return;
         }
@@ -548,6 +560,15 @@ export class BotBrain {
     }
   }
 
+  #arena(): Arena {
+    return arenaById(this.#link.state.arena);
+  }
+
+  // What can be walked on right now, bridges included or not.
+  #ground(): CitadelMap {
+    return movementMap(this.#arena(), this.#link.state.partition > 0);
+  }
+
   // Plans a path to the goal; a goal that cannot be reached, or keeps getting the bot stuck, is dropped.
   #walk(now: number, goal: Goal, replans: number, motor: BotMotor): void {
     if (replans > MAX_REPLANS) {
@@ -555,12 +576,14 @@ export class BotBrain {
       return;
     }
     const from = motor.position;
+    const arena = this.#arena();
+    const ground = this.#ground();
     const result =
       goal.kind === 'task'
-        ? findPathNear(this.#map, from, stationCenter(goal.task), STATION_PROMPT_RANGE)
+        ? findPathNear(ground, from, stationCenter(goal.task, arena.stations), STATION_PROMPT_RANGE)
         : goal.kind === 'act'
-          ? findPathNear(this.#map, from, goal.to, ACT_RANGE)
-          : findPath(this.#map, from, goal.to);
+          ? findPathNear(ground, from, goal.to, ACT_RANGE)
+          : findPath(ground, from, goal.to);
     if (!result.ok) {
       this.#activity = wait(now + 1000);
       return;
@@ -613,6 +636,7 @@ export class BotBrain {
       partitionAt: this.#partitionAt,
       freezeAt: this.#freezeAt,
       canCallCouncil: !this.#calledCouncil,
+      arena: this.#arena(),
     };
   }
 

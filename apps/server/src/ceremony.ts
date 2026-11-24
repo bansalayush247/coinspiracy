@@ -2,6 +2,7 @@
 // proposals are forged and who forged them never leave this object except through
 // targeted messages to Byzantines, audit results to the auditor, and verdicts once a proposal closes.
 import {
+  CITADEL,
   atAuditDesk,
   createProposal,
   inSigningHall,
@@ -10,6 +11,7 @@ import {
   settleProposal,
   signProposal,
   withdrawalAmount,
+  type Arena,
   type CeremonyRefused,
   type CeremonyTiming,
   type Guardian,
@@ -59,12 +61,15 @@ export class Ceremony {
   readonly #startedAt: number;
   readonly #actors = new Map<string, Actor>();
   #proposals: Proposal[] = [];
+  // The signing hall and audit desk move with the arena.
+  readonly #arena: Arena;
   #nextId = 1;
   #nextSpawnAt: number;
   // Spawn gaps are multiplied by this; the final blocks speed withdrawals up.
   #pace = 1;
 
-  constructor(playerIds: readonly string[], timing: CeremonyTiming, rng: RandomSource, now: number) {
+  constructor(playerIds: readonly string[], timing: CeremonyTiming, rng: RandomSource, now: number, arena: Arena = CITADEL) {
+    this.#arena = arena;
     this.#timing = timing;
     this.#rng = rng;
     this.#startedAt = now;
@@ -116,7 +121,7 @@ export class Ceremony {
     const actor = this.#actors.get(id);
     if (actor === undefined || role !== 'byzantine') return { ok: false, reason: 'cannotAct' };
     if (!this.#started(now)) return { ok: false, reason: 'notYet' };
-    if (!inSigningHall(pos)) return { ok: false, reason: 'notHere' };
+    if (!inSigningHall(pos, this.#arena.regions)) return { ok: false, reason: 'notHere' };
     if (now < actor.forgeReadyAt) return wait(actor.forgeReadyAt, now);
     if (this.#open() >= this.#timing.maxOpen || this.#proposals.length >= MAX_PROPOSALS) return { ok: false, reason: 'tooMany' };
     actor.forgeReadyAt = now + this.#timing.forgeCooldownMs;
@@ -145,7 +150,7 @@ export class Ceremony {
     if (proposal?.status !== 'open') return { ok: false, reason: 'notOpen' };
     if (actor.audit !== null) return { ok: false, reason: 'busy' };
     if (actor.audited.has(proposalId)) return { ok: false, reason: 'audited' };
-    if (!atAuditDesk(pos)) return { ok: false, reason: 'notHere' };
+    if (!atAuditDesk(pos, this.#arena.stations)) return { ok: false, reason: 'notHere' };
     if (now < actor.auditReadyAt) return wait(actor.auditReadyAt, now);
     actor.audit = { proposalId, startedAt: now };
     return { ok: true };
@@ -195,7 +200,7 @@ export class Ceremony {
       if (audit === null) continue;
       const proposal = this.#proposals.find((p) => p.id === audit.proposalId);
       const pos = positionOf(id);
-      if (proposal?.status !== 'open' || pos === undefined || !atAuditDesk(pos)) {
+      if (proposal?.status !== 'open' || pos === undefined || !atAuditDesk(pos, this.#arena.stations)) {
         actor.audit = null;
         audits.push({ id, status: 'cancelled', proposalId: audit.proposalId });
       } else if (now >= audit.startedAt + this.#timing.auditMs) {

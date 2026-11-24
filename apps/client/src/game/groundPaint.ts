@@ -542,7 +542,8 @@ function underside(x: number, dz: number): number {
 }
 
 // Rock faces under the open edges: warm strata that fade into violet shadow, in screen space.
-export function paintCliffs(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) => string): void {
+// Cliff faces under every edge that drops to void ('#'). `depth` sets how far each face hangs.
+export function paintCliffs(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) => string, depth: (t: string, c: number) => number = (t, c) => (t === '=' && c >= 27 ? 14 : 64)): void {
   const P = (x: number, y: number, z = 0): [number, number] => [(x - y) * (TILE_W / 2), (x + y) * (TILE_H / 2) - z * ART_SCALE];
   const rand = rng(99);
   const face = (a: [number, number], b: [number, number], depth: number, lit: boolean): void => {
@@ -612,9 +613,9 @@ export function paintCliffs(ctx: Ctx, map: CitadelMap, at: (c: number, r: number
     for (let c = 0; c < map.width; c++) {
       const t = at(c, r);
       if (t === '#') continue;
-      const depth = t === '=' && c >= 27 ? 14 : 64;
-      if (at(c, r + 1) === '#') face(P(c, r + 1), P(c + 1, r + 1), depth, true);
-      if (at(c + 1, r) === '#') face(P(c + 1, r + 1), P(c + 1, r), depth, false);
+      const d = depth(t, c);
+      if (at(c, r + 1) === '#') face(P(c, r + 1), P(c + 1, r + 1), d, true);
+      if (at(c + 1, r) === '#') face(P(c + 1, r + 1), P(c + 1, r), d, false);
     }
   }
   // Dock posts under the pier.

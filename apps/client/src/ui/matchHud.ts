@@ -1,5 +1,6 @@
 import { TASK_KINDS, hasTask, type Act, type Role, type TaskKind } from '@byzantine-council/shared';
 import { el, h } from './dom.js';
+import { stationName } from './places.js';
 import { TASK_COPY } from './tasks/copy.js';
 
 export class MatchHud {
@@ -54,7 +55,7 @@ export class MatchHud {
       const finished = hasTask(done, kind);
       const li = h('li', finished ? 'done' : '');
       li.dataset['kind'] = kind;
-      li.append(h('span', 'check', finished ? '✓' : ''), h('span', '', TASK_COPY[kind].title), h('span', 'where', TASK_COPY[kind].station));
+      li.append(h('span', 'check', finished ? '✓' : ''), h('span', '', TASK_COPY[kind].title), h('span', 'where', stationName(kind)));
       return li;
     });
     this.#tasks.replaceChildren(...items);
@@ -81,6 +82,6 @@ export class MatchHud {
     if (kind === this.#interactKind) return;
     this.#interactKind = kind;
     this.#interact.hidden = kind === null;
-    if (kind !== null) this.#interact.textContent = `Use ${TASK_COPY[kind].station}`;
+    if (kind !== null) this.#interact.textContent = `Use ${stationName(kind)}`;
   }
 }

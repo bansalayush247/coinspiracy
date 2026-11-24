@@ -1,5 +1,6 @@
 // Synced room state, imported by the server and the browser client from one place.
 import { schema, t, type SchemaType } from '@colyseus/schema';
+import type { ArenaId } from './arena.js';
 import type { CouncilStage } from './meeting.js';
 import type { Act } from './pacing.js';
 import type { ProposalStatus } from './proposals.js';
@@ -130,6 +131,12 @@ export const CitadelState = schema(
     // The block clock: which act the match is in and how many blocks are left.
     act: t.string<Act | ''>().default(''),
     blocksLeft: t.uint8().default(0),
+    // Where the match is played; the host of a private lobby may change it.
+    arena: t.string<ArenaId>().default('citadel'),
+    // Someone in the room has opened Lightning Reef, so the host may pick it (locks never split friends).
+    reefOpen: t.boolean().default(false),
+    // The same for Watchtower Peaks.
+    peaksOpen: t.boolean().default(false),
   },
   'CitadelState',
 );

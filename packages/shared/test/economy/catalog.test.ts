@@ -106,6 +106,11 @@ const GOLDEN_IDS = [
   'hat:epoch-coral',
   'hat:epoch-lime',
   'hat:epoch-frost',
+  'shades:pearl',
+  'board:reef',
+  'outfit:signet',
+  'shades:verdict',
+  'outfit:alpine',
 ] as const;
 
 // Prices from the approved Beach Town concept.
@@ -324,6 +329,11 @@ describe('prices and sources', () => {
       'hat:epoch-coral',
       'hat:epoch-lime',
       'hat:epoch-frost',
+      'shades:pearl',
+      'board:reef',
+      'outfit:signet',
+      'shades:verdict',
+      'outfit:alpine',
     ]);
   });
 

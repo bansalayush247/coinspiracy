@@ -18,7 +18,11 @@
     "smoke": "tsx --conditions=source e2e/smoke.ts",
     "offline": "tsx --conditions=source e2e/offline.ts",
     "beach": "tsx --conditions=source e2e/beach.ts",
+    "reef": "tsx --conditions=source e2e/reef.ts",
+    "peaks": "ARENA=peaks tsx --conditions=source e2e/reef.ts",
+    "academy": "tsx --conditions=source e2e/academy.ts",
     "loadtest": "tsx --conditions=source scripts/loadtest/run.ts",
+    "dev:islands": "tsx --conditions=source scripts/dev/all-islands.ts",
     "beach:phone": "BEACH_VIEWPORT=phone tsx --conditions=source e2e/beach.ts"
   },
   "devDependencies": {

@@ -1,9 +1,9 @@
 // Draws the Mint Citadel from the shared map in the golden-hour low-poly style.
 // Heights are in concept-art pixels (64 px tiles) and scaled by ART_SCALE.
 import Phaser from 'phaser';
-import { CITADEL_MAP, SPAWN_POINTS, TASK_KINDS, TASK_STATIONS, roomAt, tileAt, type RoomId, type TaskKind } from '@byzantine-council/shared';
+import { CITADEL_MAP, TASK_KINDS, TASK_STATIONS, roomAt, tileAt, type RoomId, type TaskKind } from '@byzantine-council/shared';
 import { ART_SCALE, TILE_H, TILE_W } from './iso.js';
-import { COLORS, lit, mix, shade } from './palette.js';
+import { COLORS, lit, shade } from './palette.js';
 
 type G = Phaser.GameObjects.Graphics;
 interface Pt {
@@ -79,72 +79,6 @@ function buildingAt(c: number, r: number) {
 
 const map = CITADEL_MAP;
 const at = (c: number, r: number): string => tileAt(map, c, r);
-
-function groundColor(t: string, c: number, r: number): number {
-  if (t === '~') return COLORS.water;
-  if (t === '=') return COLORS.bridge;
-  if (t === 'T') return COLORS.grass;
-  const room = roomAt({ x: c + 0.5, y: r + 0.5 });
-  if (room === 'plaza') return COLORS.plaza;
-  if (room === 'signingHall') return COLORS.hall;
-  return COLORS.floor;
-}
-
-// Static ground: floor, water, cliffs, the council seal and spawn seats. Drawn once.
-export function drawGround(g: G): void {
-  for (let r = 0; r < map.height; r++) {
-    for (let c = 0; c < map.width; c++) {
-      const t = at(c, r);
-      if (t === '#') continue;
-      const z = t === '~' ? -7 : 0;
-      const base = groundColor(t, c, r);
-      const checker = t === '~' ? 0 : (c + r) % 2 === 0 ? 0.045 : 0;
-      const top = mix(base, 0xffffff, checker);
-      // Each tile is two flat facets, lighter toward the sun.
-      fan(g, lit(top, 0.06), [P(c, r, z), P(c + 1, r, z), P(c, r + 1, z)]);
-      fan(g, top, [P(c + 1, r, z), P(c + 1, r + 1, z), P(c, r + 1, z)]);
-      if (t === '=') {
-        g.lineStyle(ART_SCALE, COLORS.bridgeLine, 1);
-        for (let k = 1; k < 4; k++) {
-          const a = P(c + k / 4, r, 0);
-          const b = P(c + k / 4, r + 1, 0);
-          g.lineBetween(a.x, a.y, b.x, b.y);
-        }
-      }
-      // Cliffs below open edges; the dock hangs over the sky with a thin edge.
-      const depth = t === '=' && c >= 27 ? 10 : 46;
-      if (at(c, r + 1) === '#') fan(g, COLORS.cliffLeft, [P(c, r + 1), P(c + 1, r + 1), P(c + 1, r + 1, -depth), P(c, r + 1, -depth)]);
-      if (at(c + 1, r) === '#') fan(g, COLORS.cliffRight, [P(c + 1, r + 1), P(c + 1, r), P(c + 1, r, -depth), P(c + 1, r + 1, -depth)]);
-    }
-  }
-  // Banks on the channel's visible inner edges.
-  for (let r = 0; r < map.height; r++) {
-    for (let c = 0; c < map.width; c++) {
-      if (at(c, r) !== '~') continue;
-      if (at(c - 1, r) !== '~') fan(g, COLORS.bank, [P(c, r), P(c, r + 1), P(c, r + 1, -7), P(c, r, -7)]);
-      if (at(c, r - 1) !== '~' && at(c, r - 1) !== '=') fan(g, mix(COLORS.bank, 0xffffff, 0.2), [P(c, r), P(c + 1, r), P(c + 1, r, -7), P(c, r, -7)]);
-    }
-  }
-  // Council seal: rings centred on the plaza, then one diamond per seat.
-  const seal = P(15, 15);
-  for (const [radius, color, alpha, width] of [
-    [3.0, COLORS.seal, 0.6, 3],
-    [2.2, COLORS.seal, 0.35, 2],
-    [1.1, COLORS.seal, 0.7, 4],
-  ] as const) {
-    g.lineStyle(width * ART_SCALE, color, alpha);
-    g.strokeEllipse(seal.x, seal.y, radius * TILE_W * Math.SQRT2, radius * TILE_H * Math.SQRT2, 48);
-  }
-  for (const s of SPAWN_POINTS) {
-    const p = P(s.x, s.y);
-    fan(g, COLORS.seal, [
-      { x: p.x, y: p.y - 6 * ART_SCALE },
-      { x: p.x + 10 * ART_SCALE, y: p.y },
-      { x: p.x, y: p.y + 6 * ART_SCALE },
-      { x: p.x - 10 * ART_SCALE, y: p.y },
-    ], 0.8);
-  }
-}
 
 // Soft highlights on the water, faded in and out by a tween for a little life.
 export function drawWaterShine(g: G): void {
@@ -227,7 +161,7 @@ export const STATION_ACCENT: Readonly<Record<TaskKind, number>> = {
 // Height in concept px of each station's top, for markers floating above it.
 export const STATION_HEIGHT: Readonly<Record<TaskKind, number>> = { deposit: 70, ledger: 58, route: 96, watchtower: 74 };
 
-function drawStation(g: G, kind: TaskKind, c: number, r: number): void {
+export function drawStation(g: G, kind: TaskKind, c: number, r: number): void {
   const accent = STATION_ACCENT[kind];
   // Shared stone plinth.
   prism(g, c + 0.1, r + 0.1, c + 0.9, r + 0.9, 0, 12, 0xe2c49a, { top: 0xf4e0c0 });

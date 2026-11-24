@@ -42,14 +42,47 @@ Agreed with the user on 2026-11-22. This is the spine of progression: the main m
 | Island | Opens at | Built |
 |---|---|---|
 | Mint Island | start | The citadel match, Academy levels 1–5, Chronicle prologue and chapter 1 |
-| Signing Isle | Rank 2 or 3 stars | Signing ceremonies, audits, chapter 2 |
-| Council Isle | Rank 4 or 6 stars | Councils and rotation, chapter 3 |
-| Watchtower Peaks | Rank 6 or 9 stars | Partitions and freezes, chapter 4 |
-| Lightning Reef | Rank 8 or 12 stars | Academy levels 6–7 (Reef Currents, Gateway Rush), chapter 5 |
+| Signing Isle | Rank 2 or 3 stars | Signing ceremonies, audits, Academy levels 8–9 (Threshold Hall, Audit Desk), a Seal Book tab, the Signet Robe, the threshold-signatures Codex page, chapter 2 |
+| Council Isle | Rank 4 or 6 stars | Councils and rotation, Academy levels 10–11 (One-Third Rule, Council Evidence), a Seal Book tab, the Verdict Shades, chapter 3 |
+| Watchtower Peaks | Rank 6 or 9 stars | Its own match map (mountain tops on rope bridges; a partition cuts the bridges between the ranges), Academy levels 12–13 (Split Network, Night Watch), a Seal Book tab, the Alpine Robe, the network-partitions Codex page, chapter 4 |
+| Lightning Reef | Rank 8 or 12 stars | Its own match map (islets, plank bridges, tight Gateway Harbour routes), Academy levels 6–7 (Reef Currents, Gateway Rush), a Seal Book tab, Pearl Diver Goggles and the Reef Board, chapter 5 |
 | Beach Town | Rank 3 or 4 stars | The hub (below); chapter 6 at Rank 10, the epilogue at Rank 12 |
 | Event islands | while an event is live | Appear on the map with the event's story; a match during the event earns its hidden seal |
 
 Beach Town opens early on purpose: it is where play sats are spent, so new players find a reason to earn them.
+
+### The island Academy
+
+- Every Academy level belongs to an island and opens with it (by rank or stars); after that, an island's levels open one
+  after another. A level once cleared stays open.
+- Drills beyond the four stations (`packages/shared/src/drills.ts`): **threshold** (how many signatures n guardians need),
+  **quorum** (how many honest guardians can be wrongly rotated out before Byzantines are a third), **council** (rotate out
+  the guardian the evidence proves, or skip), and **partition** (which side of a split can still sign). Answers derive
+  from the challenge, and the server checks them with the same minimum-time rule as station drills.
+
+### Watchtower Peaks
+
+- **Arena.** Mountain tops over the clouds joined by rope bridges. The west range (Summit Square, the Ice Vault, the
+  Signing Lodge, the Deposit Pass) and the east range (the Ledger Crag, the Watchtower Summit, the Gateway Ridge) meet
+  only on three bridges.
+- **Rule.** While a partition lasts, those three bridges are down: movement on the server, prediction on the client and
+  bot paths all use the cut map, and anyone on a bridge steps back to the nearest ledge. Each range holds one relay, so a
+  repair needs a guardian on each side.
+
+### Lightning Reef
+
+- **Arena.** A second match map, `packages/shared/src/arena.ts`. It has the same seven rooms and four stations as the
+  Citadel, so every rule works unchanged. Its geography is seven sandy islets in a lagoon joined by eight plank bridges:
+  Lagoon Square in the middle, the Pearl Vault, the Tide Ledger, the Lighthouse, the Signing Pavilion, the Deposit Pier
+  and the Gateway Harbour. The two relays sit at opposite ends of the reef.
+- **Harder routing.** Gateway payments on the reef leave thin margins. The working route clears the amount by 5 sats at
+  most, and every other route falls short by 8 sats at most.
+- **Who can play it.** The host of a private lobby picks the map. Lightning Reef is offered when anyone in the room has
+  opened the island, which the server checks from their profile (locks never split friends). If that guest leaves
+  before the match starts, the lobby goes back to the Citadel. Quick-match rooms always play the Citadel.
+- **Seal Book.** A Lightning Reef tab with two chains: matches finished on the reef (Reef Walker, Tidekeeper, Reef
+  Warden) and payments routed at its harbour (Thin Margins, Channel Hopper, Channel Master). They reward the Pearl Diver
+  Goggles and the Reef Board.
 
 ### Beach Town
 

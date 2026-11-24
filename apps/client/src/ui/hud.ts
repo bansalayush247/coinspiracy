@@ -1,4 +1,4 @@
-import { MAX_PLAYERS, MIN_PLAYERS, formatRoomCode, isRoomCode, type Role } from '@byzantine-council/shared';
+import { ArenaIdSchema, MAX_PLAYERS, MIN_PLAYERS, formatRoomCode, isRoomCode, type ArenaId, type Role } from '@byzantine-council/shared';
 import type { MatchPhase } from '@byzantine-council/shared/state';
 import { cssColor, seatColors } from '../game/palette.js';
 import { inviteLink } from '../net/invite.js';
@@ -23,6 +23,12 @@ export interface LobbyInfo {
   readonly hostName: string;
   // False once the server said practice bots are off.
   readonly botsAvailable: boolean;
+  // Private lobbies pick their map; quick-match rooms always play the Citadel.
+  readonly isPrivate: boolean;
+  readonly arena: ArenaId;
+  // Someone in the room has opened Lightning Reef, or Watchtower Peaks.
+  readonly reefOpen: boolean;
+  readonly peaksOpen: boolean;
 }
 
 export type ConnectionState = 'connected' | 'reconnecting';
@@ -44,6 +50,8 @@ export class Hud {
   readonly #leave = el('leave', HTMLButtonElement);
   readonly #start = el('start-match', HTMLButtonElement);
   readonly #addBot = el('add-bot', HTMLButtonElement);
+  readonly #arenaPick = el('arena-pick', HTMLDivElement);
+  readonly #arenaNote = el('arena-note', HTMLParagraphElement);
   readonly #toasts = el('toasts', HTMLDivElement);
   #code = '';
   #ping: number | null = null;
@@ -51,6 +59,7 @@ export class Hud {
   onLeave: () => void = () => undefined;
   onStart: () => void = () => undefined;
   onAddBot: () => void = () => undefined;
+  onArena: (arena: ArenaId) => void = () => undefined;
   onRemoveBot: (id: string) => void = () => undefined;
 
   constructor() {
@@ -67,6 +76,36 @@ export class Hud {
     this.#addBot.addEventListener('click', () => {
       this.onAddBot();
     });
+    for (const b of this.#arenaButtons()) {
+      b.addEventListener('click', () => {
+        const parsed = ArenaIdSchema.safeParse(b.dataset['arena']);
+        if (parsed.success) this.onArena(parsed.data);
+      });
+    }
+  }
+
+  #arenaButtons(): HTMLButtonElement[] {
+    return [...this.#arenaPick.querySelectorAll<HTMLButtonElement>('button[data-arena]')];
+  }
+
+  // The host of a private lobby picks the map; everyone else sees which one is set.
+  #renderArena(lobby: LobbyInfo): void {
+    this.#arenaPick.hidden = lobby.phase !== 'lobby' || !lobby.isPrivate;
+    if (this.#arenaPick.hidden) return;
+    for (const b of this.#arenaButtons()) {
+      const id = b.dataset['arena'];
+      b.setAttribute('aria-pressed', String(id === lobby.arena));
+      b.disabled = !lobby.amHost || (id === 'reef' && !lobby.reefOpen) || (id === 'peaks' && !lobby.peaksOpen);
+    }
+    this.#arenaNote.textContent = !lobby.amHost
+      ? `${lobby.hostName} picks the map.`
+      : lobby.arena === 'reef'
+        ? 'Islets, plank bridges and tight Lightning routes at the harbour.'
+        : lobby.arena === 'peaks'
+          ? 'Mountain tops on rope bridges. A partition cuts the bridges between the two ranges.'
+          : !lobby.peaksOpen || !lobby.reefOpen
+            ? 'Island maps open for the whole room once anyone here has opened the island: Watchtower Peaks at Rank 6 or 9 stars, Lightning Reef at Rank 8 or 12.'
+            : 'Pick a map for this room.';
   }
 
   show(): void {
@@ -150,6 +189,7 @@ export class Hud {
     if (!inLobby) this.#inviteField.hidden = true;
     this.#start.hidden = !inLobby || !lobby.amHost;
     this.#addBot.hidden = !inLobby || !lobby.amHost || !lobby.botsAvailable || entries.length >= MAX_PLAYERS;
+    this.#renderArena(lobby);
     this.#start.disabled = missing > 0 || !everyoneHere;
     this.#hint.textContent = !inLobby
       ? lobby.phase === 'playing'

@@ -1,11 +1,13 @@
 import {
   CEREMONY_TIMING,
   COUNCIL_TIMING,
+  ISLAND_DRILL_MIN_MS,
   PACING,
   SABOTAGE_TIMING,
   TASK_TIMING,
   type CeremonyTiming,
   type CouncilTiming,
+  type IslandDrillKind,
   type Pacing,
   type SabotageTiming,
   type TaskTiming,
@@ -29,6 +31,8 @@ export interface RoomPolicy {
   // A player who sends nothing for this long is removed.
   readonly idleKickMs: number;
   readonly taskTiming: TaskTiming;
+  // Fastest answers to the Academy's island drills (thresholds, quorums, councils, partitions).
+  readonly islandDrillMinMs: Readonly<Record<IslandDrillKind, number>>;
   readonly ceremonyTiming: CeremonyTiming;
   readonly councilTiming: CouncilTiming;
   readonly sabotageTiming: SabotageTiming;
@@ -52,6 +56,7 @@ export interface RoomPolicyOptions {
   readonly reconnectSeconds?: number;
   readonly idleKickMs?: number;
   readonly taskTiming?: TaskTiming;
+  readonly islandDrillMinMs?: Readonly<Record<IslandDrillKind, number>>;
   readonly ceremonyTiming?: CeremonyTiming;
   readonly councilTiming?: CouncilTiming;
   readonly sabotageTiming?: SabotageTiming;
@@ -79,6 +84,7 @@ export function configureRoomPolicy(options: RoomPolicyOptions = {}): RoomPolicy
     reconnectSeconds: options.reconnectSeconds ?? 30,
     idleKickMs: options.idleKickMs ?? 10 * 60_000,
     taskTiming: options.taskTiming ?? TASK_TIMING,
+    islandDrillMinMs: options.islandDrillMinMs ?? ISLAND_DRILL_MIN_MS,
     ceremonyTiming: options.ceremonyTiming ?? CEREMONY_TIMING,
     councilTiming: options.councilTiming ?? COUNCIL_TIMING,
     sabotageTiming: options.sabotageTiming ?? SABOTAGE_TIMING,
