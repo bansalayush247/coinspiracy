@@ -909,7 +909,7 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .story-codex { display: block; margin-top: 10px; font-family: var(--font); font-size: 14px; font-weight: 700; color: var(--gold); }
 
 /* Lobby shortcuts: one even row of tiles instead of a stack of pills. */
-.menu-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.menu-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; }
 .menu-tiles > button { margin: 0; justify-self: stretch; display: grid; gap: 2px; justify-items: center; align-content: center; padding: 10px 6px; border-radius: 12px; font-size: 14px; font-weight: 700; min-height: 58px; }
 .menu-tiles small { font-size: 11px; font-weight: 600; opacity: 0.75; }
 .menu-tiles .wardrobe-open { background: rgba(255, 210, 122, 0.1); color: var(--gold); }
@@ -924,3 +924,20 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .corner-settings .corner-toggle, .corner-settings .music-picker { justify-content: space-between; text-align: left; }
 @media (max-width: 640px) { .corner-settings .corner-toggles { left: auto; } }
 @media (max-width: 640px) { .keys-hint { display: none; } }
+
+/* Port Concord. */
+.city-hud { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.city-hud > * { pointer-events: auto; }
+.city-bar { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 14px; max-width: calc(100% - 24px - 260px); }
+.city-bar .eyebrow { display: block; }
+.city-district { font-size: 18px; }
+.city-was, .city-pop { margin: 0; font-size: 13px; color: var(--muted); }
+.city-map { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); width: 240px; aspect-ratio: 2 / 1; padding: 6px; }
+.city-map canvas { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); image-rendering: pixelated; }
+.city-open { background: rgba(255, 154, 60, 0.14); color: #ffb56b; }
+@media (max-width: 640px) {
+  .city-bar { right: max(12px, env(safe-area-inset-right)); max-width: none; gap: 8px; padding: 8px 10px; }
+  .city-was { display: none; }
+  .city-map { top: auto; bottom: max(112px, calc(env(safe-area-inset-bottom) + 112px)); width: 150px; }
+  .city-emotes { bottom: max(52px, calc(env(safe-area-inset-bottom) + 52px)); }
+}

@@ -20,7 +20,8 @@ export interface CitadelMap {
 }
 
 // Only floor and bridge/dock planks are walkable; everything else blocks.
-export const WALKABLE_TILES = new Set(['.', '=']);
+// Floor and bridges, plus the open city's road, park grass and dirt.
+export const WALKABLE_TILES = new Set(['.', '=', ':', ',', 'd']);
 
 // Legend: # void/edge, . floor, = bridge or dock, B building, P pillar, K table,
 // L lamp, T tree, C crates, G gate post, S task station, ~ water.

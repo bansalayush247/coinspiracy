@@ -41,6 +41,11 @@
       "source": "./src/progression/index.ts",
       "types": "./dist/progression/index.d.ts",
       "import": "./dist/progression/index.js"
+    },
+    "./city": {
+      "source": "./src/city/index.ts",
+      "types": "./dist/city/index.d.ts",
+      "import": "./dist/city/index.js"
     }
   },
   "files": [

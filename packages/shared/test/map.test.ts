@@ -58,8 +58,9 @@ describe('CITADEL_MAP', () => {
     expect(Object.isFrozen(CITADEL_MAP.rows)).toBe(true);
   });
 
-  it('only walks on floor and planks', () => {
-    expect([...WALKABLE_TILES].sort()).toEqual(['.', '=']);
+  it('only walks on floor and planks; the city-only ground never appears in the Citadel', () => {
+    expect([...WALKABLE_TILES].sort()).toEqual([',', '.', ':', '=', 'd']);
+    for (const row of CITADEL_MAP.rows) for (const t of [':', ',', 'd']) expect(row.includes(t)).toBe(false);
   });
 
   it('seals the top and bottom edges', () => {

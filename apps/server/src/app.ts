@@ -9,6 +9,8 @@ import { DEFAULT_MAX_BOTS_PER_PROCESS, installBotManager, loopbackEndpoint, shut
 import { CitadelRoom } from './CitadelRoom.js';
 import { BeachRoom } from './hub/BeachRoom.js';
 import { BEACH_ROOM } from '@byzantine-council/shared/hub';
+import { CITY_ROOM } from '@byzantine-council/shared/city';
+import { CityRoom } from './city/CityRoom.js';
 import { ipKey, requestIp, type ClientIpPolicy } from './clientIp.js';
 import { installHttpGate, type HttpGate } from './httpGate.js';
 import { log } from './logger.js';
@@ -75,7 +77,7 @@ export function createGameServer(options: GameServerOptions) {
     options.profiles == null ? null : createProfileRouter({ store: options.profiles.store, keys: options.profiles.keys, allowedOrigins: options.allowedOrigins });
 
   const server = defineServer({
-    rooms: { [ROOM_NAME]: defineRoom(CitadelRoom), [ACADEMY_ROOM]: defineRoom(AcademyRoom), [BEACH_ROOM]: defineRoom(BeachRoom) },
+    rooms: { [ROOM_NAME]: defineRoom(CitadelRoom), [ACADEMY_ROOM]: defineRoom(AcademyRoom), [BEACH_ROOM]: defineRoom(BeachRoom), [CITY_ROOM]: defineRoom(CityRoom) },
     transport,
     presence: scaling.presence,
     driver: scaling.driver,

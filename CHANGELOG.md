@@ -4,6 +4,20 @@ Nothing here has been committed yet; this records what the working tree contains
 
 ## 24 November 2026
 
+### Port Concord, the open city (milestone 1 of the open world)
+- A new "Port Concord" tile on the menu opens one shared 128 × 128 tile harbour city (about 10,000 walkable tiles,
+  ten times a match map). Its nine districts are the old islands reborn: the Mint, Council Hill, Signet Row,
+  Saltmarket, the Reef Docks, the Heights, Low Tide, the Gullmoor tip and the Shallows islets.
+- Roads with crossings, a river with bridges, a harbour with piers, a seafront boardwalk, parks, a container yard,
+  the tip's rubbish mounds, and landmarks: the Mint Hall, City Hall, the dead Gate exchange tower, St Brigid's
+  hospital, the fish market, the arcade, a chapel, the lighthouse and the radio mast.
+- The map is generated from shared code, so server and clients agree on every tile; a test checks every walkable
+  tile is reachable and every building is drawable.
+- The client paints the ground in 16 × 16 tile chunks around the camera and drops far ones, one chunk per frame.
+- The server sends each player only the guardians within 30 tiles (kept until 36), five times a second; emotes reach
+  only those who can see you. A minimap, district arrivals and population sit in the HUD.
+- `npm run city` runs a two-player browser test of all of this.
+
 ### Bigger, richer island maps
 - Lightning Reef and Watchtower Peaks are grown 1.5× (48 × 42 tiles), about the Citadel's walkable size, with the
   same rooms, bridges, relays and partition rules.

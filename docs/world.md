@@ -109,3 +109,11 @@ network; the Lightning Reef's currents; the town that pays in light; and the Old
 1. M4 finishes the core rules (signing, councils, partitions, three acts). Islands 2, 3 and 5 depend on these.
 2. M5: world map v1, with Mint Island and Signing Isle open and the rest visible but locked. Also progression (`docs/progression.md`) and guest profiles.
 3. Later milestones add Beach Town, Lightning Reef, Watchtower Peaks and the event islands.
+
+## Port Concord (open city)
+
+The open-world direction (story bible "The Cold Key") turns the archipelago into one harbour city. Milestone 1 is
+the city itself: `packages/shared/src/city/` builds the map deterministically (districts, roads every 16 tiles,
+river, harbour, boardwalk, landmarks) and defines interest management; `apps/server/src/city/CityRoom.ts` is one
+region room of up to 60 players with server-checked movement and per-player views; `apps/client/src/city/` streams
+chunks and draws buildings by district. Next: Act one, The Dump, as the first story mission in a private instance.

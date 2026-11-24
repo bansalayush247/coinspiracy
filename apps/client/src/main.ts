@@ -19,6 +19,8 @@ import { SeasonBanner } from './profile/season.js';
 import { StoryBook } from './story/storyBook.js';
 import { BEACH_SCENE_KEY, BeachScene } from './beach/BeachScene.js';
 import { BeachController } from './beach/beachController.js';
+import { CITY_SCENE_KEY, CityScene } from './city/CityScene.js';
+import { CityController } from './city/cityController.js';
 import { ISLAND_SCENE_KEY, IslandScene, type PreviewIslandId } from './explore/IslandScene.js';
 import { Wardrobe } from './profile/wardrobe.js';
 import { registerServiceWorker } from './pwa/register.js';
@@ -65,7 +67,7 @@ function startGame(parent: HTMLElement): Promise<CitadelScene> {
       input: { keyboard: false, mouse: false, touch: false, gamepad: false },
       loader: { imageLoadType: 'HTMLImageElement' },
       scale: setup.scale,
-      scene: [CitadelScene, BeachScene, IslandScene],
+      scene: [CitadelScene, BeachScene, IslandScene, CityScene],
       callbacks: {
         preBoot: (game) => {
           game.registry.set(REG_DPR, setup.dpr);
@@ -131,6 +133,7 @@ class Controller {
   readonly #story = new StoryBook();
   readonly #wardrobe = new Wardrobe();
   #beach: BeachController | null = null;
+  #city: CityController | null = null;
   #lastProfile: ProfileSummary | null = null;
   #seasonColors: readonly [string, string] | null = null;
   readonly #academy = new AcademyPanel();
@@ -228,6 +231,9 @@ class Controller {
     el('open-wardrobe', HTMLButtonElement).addEventListener('click', () => {
       this.#wardrobe.open();
     });
+    el('open-city', HTMLButtonElement).addEventListener('click', () => {
+      void this.#visitCity();
+    });
     el('island-back', HTMLButtonElement).addEventListener('click', () => {
       this.#leaveIsland();
     });
@@ -320,6 +326,7 @@ class Controller {
         e.preventDefault();
         const factor = e.deltaY > 0 ? 0.9 : 1.1;
         if (this.#beach?.active === true) this.#beachScene()?.zoomBy(factor);
+        else if (this.#city?.active === true) this.#cityScene()?.zoomBy(factor);
         else this.scene.zoomBy(factor);
       },
       { passive: false },
@@ -332,7 +339,7 @@ class Controller {
   }
 
   #visitIsland(islandId: PreviewIslandId): void {
-    if (this.#busy || this.#room !== null || this.#beach?.active === true) return;
+    if (this.#busy || this.#room !== null || this.#beach?.active === true || this.#city?.active === true) return;
     const island = ISLAND_PREVIEWS[islandId];
     this.#world.close();
     this.#menu.hide();
@@ -374,6 +381,59 @@ class Controller {
     audio.setMood('menu');
   }
 
+  #cityScene(): CityScene | null {
+    const s = this.scene.scene.get(CITY_SCENE_KEY);
+    return s instanceof CityScene ? s : null;
+  }
+
+  // Port Concord: switch scenes, join the city room, and come back to the menu on leaving.
+  async #visitCity(): Promise<void> {
+    if (this.#busy || this.#room !== null || this.#beach?.active === true || this.#city?.active === true) return;
+    const nickname = this.#menu.validNickname();
+    if (nickname === null) return;
+    this.#busy = true;
+    await this.#profileReady;
+    const city = this.#cityScene();
+    if (city === null) {
+      this.#busy = false;
+      return;
+    }
+    const created = new Promise<void>((resolve) => {
+      city.events.once(Phaser.Scenes.Events.CREATE, () => {
+        resolve();
+      });
+    });
+    this.scene.scene.launch(CITY_SCENE_KEY);
+    this.scene.scene.sleep();
+    await created;
+    if (this.#city === null) {
+      const controller = new CityController(this.session, city, this.#input);
+      controller.onToast = (text) => {
+        this.#hud.toast(text);
+      };
+      controller.onLeft = () => {
+        this.scene.scene.stop(CITY_SCENE_KEY);
+        this.scene.scene.wake();
+        document.documentElement.dataset['phase'] = 'menu';
+        this.#menu.show();
+      };
+      this.#city = controller;
+    }
+    this.#menu.hide();
+    document.documentElement.dataset['phase'] = 'city';
+    try {
+      await this.#city.enter(nickname);
+    } catch (error) {
+      this.scene.scene.stop(CITY_SCENE_KEY);
+      this.scene.scene.wake();
+      document.documentElement.dataset['phase'] = 'menu';
+      this.#menu.show();
+      this.#menu.showError(joinErrorMessage(error));
+    } finally {
+      this.#busy = false;
+    }
+  }
+
   #beachScene(): BeachScene | null {
     const s = this.scene.scene.get(BEACH_SCENE_KEY);
     return s instanceof BeachScene ? s : null;
@@ -381,7 +441,7 @@ class Controller {
 
   // Beach Town: switch scenes, join the hub room, and come back to the map on leaving.
   async #visitBeach(): Promise<void> {
-    if (this.#busy || this.#room !== null || this.#beach?.active === true) return;
+    if (this.#busy || this.#room !== null || this.#beach?.active === true || this.#city?.active === true) return;
     const nickname = this.#menu.validNickname();
     if (nickname === null) return;
     this.#busy = true;

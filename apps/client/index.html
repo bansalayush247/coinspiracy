@@ -66,6 +66,7 @@
           </form>
           <button id="open-progress" type="button" class="progress-chip" hidden></button>
           <div class="menu-tiles">
+            <button id="open-city" type="button" class="city-open">Port Concord<small>Open city</small></button>
             <button id="open-academy" type="button" class="academy-open">Academy<small>Play solo</small></button>
             <button id="open-world" type="button" class="world-open" hidden>Explore<small>Island map</small></button>
             <button id="open-wardrobe" type="button" class="wardrobe-open" hidden>Wardrobe<small>Your look</small></button>
@@ -114,6 +115,19 @@
           </div>
         </section>
 
+        <section id="city-hud" class="city-hud" aria-label="Port Concord" hidden>
+          <div class="panel city-bar">
+            <div><span class="eyebrow">Port Concord</span><b id="city-district" class="city-district">Port Concord</b></div>
+            <p id="city-was" class="city-was"></p>
+            <p id="city-pop" class="city-pop"></p>
+            <button id="city-leave" type="button">Back to the map</button>
+          </div>
+          <div class="panel city-map" aria-hidden="true">
+            <canvas id="city-minimap"></canvas>
+            <canvas id="city-dots"></canvas>
+          </div>
+          <div id="city-emotes" class="panel beach-emotes city-emotes" role="group" aria-label="Emotes"></div>
+        </section>
         <section id="beach-hud" class="beach-hud" aria-label="Beach Town" hidden>
           <div class="panel beach-bar">
             <div><span class="eyebrow">Beach Town</span><b id="beach-wallet" class="beach-wallet"></b></div>
