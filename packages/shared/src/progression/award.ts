@@ -105,6 +105,8 @@ export interface DayState {
   readonly firstBonus: boolean;
   // Courier deliveries paid today in Beach Town.
   readonly courier?: number;
+  // Play sats carried into the Mint vault today in Port Concord.
+  readonly vault?: number;
 }
 
 export type Ineligible = 'left' | 'afk' | 'idle';

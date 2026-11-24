@@ -1,10 +1,11 @@
 // Runs a visit to Port Concord: the city room, the HUD, the minimap and district arrivals.
 import { Callbacks } from '@colyseus/sdk';
-import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WIDTH, districtAt, type CityPlayer, type DistrictId } from '@byzantine-council/shared/city';
+import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WIDTH, DepositResultSchema, PunchLineSchema, VAULT_DOOR, atVault, districtAt, isRough, type CityDrop, type CityPlayer, type DepositResult, type DistrictId } from '@byzantine-council/shared/city';
 import { EMOTES, EMOTE_GLYPHS, EmoteLineSchema, type Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import type { PlayerInput } from '../game/input.js';
 import type { Session } from '../net/session.js';
+import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { el, h } from '../ui/dom.js';
 import type { CityScene } from './CityScene.js';
 
@@ -21,14 +22,24 @@ export class CityController {
   readonly #was = el('city-was', HTMLParagraphElement);
   readonly #pop = el('city-pop', HTMLElement);
   readonly #dots = el('city-dots', HTMLCanvasElement);
+  readonly #zone = el('city-zone', HTMLParagraphElement);
+  readonly #pocket = el('city-pocket', HTMLElement);
+  readonly #punch = el('city-punch', HTMLButtonElement);
+  readonly #down = el('city-down', HTMLParagraphElement);
+  readonly #deposit = el('city-deposit', HTMLButtonElement);
+  #atVault = false;
+  #rough: boolean | null = null;
+  #coins = 0;
   #room: CityRoom | null = null;
   #here: DistrictId | null = null;
   #poll = 0;
   onLeft: () => void = () => undefined;
   onToast: (text: string) => void = () => undefined;
+  onProfile: (p: ProfileSummary) => void = () => undefined;
 
   constructor(
     private readonly session: Session,
+    private readonly profiles: ProfileApi,
     private readonly scene: CityScene,
     private readonly input: PlayerInput,
   ) {
@@ -47,8 +58,22 @@ export class CityController {
         return b;
       }),
     );
+    this.#punch.addEventListener('click', () => {
+      this.#swing();
+    });
+    this.#deposit.addEventListener('click', () => {
+      this.#vault();
+    });
     window.addEventListener('keydown', (e) => {
       if (this.#room === null || this.#hud.hidden) return;
+      if ((e.key === 'f' || e.key === 'F') && !e.repeat && !(e.target instanceof HTMLInputElement)) {
+        this.#swing();
+        return;
+      }
+      if ((e.key === 'e' || e.key === 'E') && !e.repeat && !(e.target instanceof HTMLInputElement)) {
+        this.#vault();
+        return;
+      }
       const n = Number(e.key);
       const emote = Number.isInteger(n) ? EMOTES[n - 1] : undefined;
       if (emote !== undefined) this.#emote(emote);
@@ -73,9 +98,28 @@ export class CityController {
     const callbacks = Callbacks.get(room);
     callbacks.onAdd('players', (player: CityPlayer, id: string) => {
       this.scene.addPlayer(id, player);
+      if (id === room.sessionId) this.#mine(player);
       callbacks.onChange(player, () => {
         this.scene.updatePlayer(id, player);
+        if (id === room.sessionId) this.#mine(player);
       });
+    });
+    callbacks.onAdd('drops', (drop: CityDrop, id: string) => {
+      this.scene.addDrop(id, drop);
+      callbacks.onChange(drop, () => {
+        this.scene.updateDrop(id, drop);
+      });
+    });
+    callbacks.onRemove('drops', (_d: CityDrop, id: string) => {
+      this.scene.removeDrop(id);
+    });
+    room.onMessage(CITY_MESSAGES.VAULT, (payload: unknown) => {
+      const result = DepositResultSchema.safeParse(payload);
+      if (result.success) this.#deposited(result.data);
+    });
+    room.onMessage(CITY_MESSAGES.PUNCH, (payload: unknown) => {
+      const line = PunchLineSchema.safeParse(payload);
+      if (line.success) this.scene.punch(line.data);
     });
     callbacks.onRemove('players', (_p: CityPlayer, id: string) => {
       this.scene.removePlayer(id);
@@ -107,6 +151,13 @@ export class CityController {
     if (this.#room === null) return;
     this.#room = null;
     window.clearInterval(this.#poll);
+    this.#rough = null;
+    this.#coins = 0;
+    this.#pocket.textContent = '0';
+    this.#down.hidden = true;
+    this.#deposit.hidden = true;
+    this.#deposit.disabled = false;
+    this.#atVault = false;
     this.scene.detach();
     this.#here = null;
     this.#hud.hidden = true;
@@ -133,7 +184,72 @@ export class CityController {
         this.onToast(`Entering ${d.name}`);
       }
     }
+    const rough = isRough(pos);
+    if (rough !== this.#rough) {
+      const announce = this.#rough !== null;
+      this.#rough = rough;
+      this.#zone.dataset.rough = String(rough);
+      this.#zone.replaceChildren(rough ? 'Rough streets' : 'Safe streets', h('span', 'city-zone-more', rough ? ' · fights allowed' : ''));
+      if (announce) this.onToast(rough ? 'Rough streets: anyone can knock you out and take your pocket' : 'Safe streets: nobody can fight here');
+    }
+    this.#punch.disabled = !rough || this.scene.meDown;
+    const vaultHere = atVault(pos) && !this.scene.meDown;
+    if (vaultHere !== this.#atVault) {
+      this.#atVault = vaultHere;
+      if (vaultHere) this.onToast(this.#coins > 0 ? 'The Mint vault. Coins inside can’t be punched out of you.' : 'The Mint vault. Bring coins from the rough streets to keep them safe here.');
+    }
+    this.#deposit.hidden = !vaultHere || this.#coins === 0;
     drawDots(this.#dots, pos, this.scene.others());
+  }
+
+  // Pocket and knockout state for this client's own guardian.
+  #mine(player: CityPlayer): void {
+    const coins = player.pocket ?? 0;
+    if (coins !== this.#coins) {
+      if (coins > this.#coins) audio.play('coin');
+      this.#coins = coins;
+      this.#pocket.textContent = coins.toLocaleString();
+    }
+    if (this.#down.hidden === player.down) {
+      this.#down.hidden = !player.down;
+      if (player.down) this.input.enabled = false;
+      else this.input.enabled = this.#room !== null;
+    }
+  }
+
+  #vault(): void {
+    if (this.#deposit.hidden || this.#deposit.disabled) return;
+    this.#deposit.disabled = true;
+    this.#room?.send('deposit');
+  }
+
+  #deposited(r: DepositResult): void {
+    this.#deposit.disabled = false;
+    const left = `${String(r.limit - r.today)} more today`;
+    if (r.reason === 'paid') {
+      audio.play('coin');
+      this.scene.celebrate(VAULT_DOOR);
+      this.onToast(r.kept > 0 ? `Vaulted ${String(r.paid)} play sats. That’s today’s limit; ${String(r.kept)} stay in your pocket.` : `Vaulted ${String(r.paid)} play sats. Safe from any punch. (${left})`);
+      void this.profiles.profile().then((p) => {
+        if (p !== null) this.onProfile(p);
+      });
+      return;
+    }
+    const why: Record<Exclude<DepositResult['reason'], 'paid'>, string> = {
+      empty: 'Your pocket is empty.',
+      notAtVault: 'Stand at the Mint Hall door to use the vault.',
+      dailyLimit: 'The vault has taken today’s limit. Your coins stay in your pocket; come back tomorrow.',
+      walletFull: 'Your wallet is full.',
+      noProfile: 'The vault needs a saved guest profile. Your coins stay in your pocket.',
+      busy: 'Still counting your last deposit…',
+      error: 'The vault couldn’t take coins just now. They’re back in your pocket.',
+    };
+    this.onToast(why[r.reason]);
+  }
+
+  #swing(): void {
+    if (this.#punch.disabled) return;
+    this.#room?.send('punch');
   }
 
   #emote(emote: Emote): void {
@@ -157,6 +273,12 @@ function paintMinimap(canvas: HTMLCanvasElement): void {
       ctx.fillRect(mapX(c, r) - 1, mapY(c, r), 2, 1);
     }
   }
+  ctx.fillStyle = '#2a1a33';
+  ctx.beginPath();
+  ctx.arc(mapX(VAULT_DOOR.x, VAULT_DOOR.y), mapY(VAULT_DOOR.x, VAULT_DOOR.y), 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffd27a';
+  ctx.fillRect(mapX(VAULT_DOOR.x, VAULT_DOOR.y) - 3.5, mapY(VAULT_DOOR.x, VAULT_DOOR.y) - 3.5, 7, 7);
 }
 
 function drawDots(canvas: HTMLCanvasElement, me: { x: number; y: number }, others: readonly { x: number; y: number }[]): void {

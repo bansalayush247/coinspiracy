@@ -2,7 +2,8 @@
 // so a city many times the size of a match map costs about the same to draw.
 import Phaser from 'phaser';
 import { TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
-import { CHUNK, CITY_BUILDINGS, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, chunksAround, type CityBuilding, type CityPlayer } from '@byzantine-council/shared/city';
+import { CHUNK, CITY_BUILDINGS, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, MAX_HEALTH, VAULT_DOOR, chunksAround, type CityBuilding, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
+import { audio } from '../audio/engine.js';
 import { Effects } from '../game/effects.js';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
 import { fairZoom, sceneDpr, viewSize } from '../game/hidpi.js';
@@ -12,11 +13,12 @@ import { COLORS, cssColor, seatColors } from '../game/palette.js';
 import { PhysicsFx, makeFxTextures } from '../game/physics.js';
 import { CorrectionSmoother, Predictor, type PendingInput } from '../game/prediction.js';
 import { Townsfolk } from '../game/townsfolk.js';
-import { buildingFront, drawBuilding, drawContainer, drawMound, drawStreetLamp, drawStreetTree, paintChunk } from './cityArt.js';
+import { buildingFront, drawBuilding, drawContainer, drawMound, drawStreetLamp, drawStreetTree, makeCoinTexture, paintChunk } from './cityArt.js';
 
 export const CITY_SCENE_KEY = 'city';
 const STEP_MS = TICK_SECONDS * 1000;
 const BASE_ZOOM = 0.72;
+const COIN = 'city-coin';
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 // Chunks are painted within LOAD of the camera and dropped beyond KEEP.
 const LOAD = 2;
@@ -33,7 +35,14 @@ export interface CitySink {
 interface Avatar {
   readonly root: Phaser.GameObjects.Container;
   readonly body: Phaser.GameObjects.Graphics;
+  readonly bubble: Phaser.GameObjects.Graphics;
+  readonly bar: Phaser.GameObjects.Graphics;
   readonly label: Phaser.GameObjects.Text;
+  stars: Phaser.GameObjects.Text | null;
+  health: number;
+  down: boolean;
+  shielded: boolean;
+  lunge: number;
   readonly buffer: InterpBuffer;
   readonly isMe: boolean;
   readonly pos: { x: number; y: number };
@@ -43,6 +52,14 @@ interface Avatar {
   lastScreenX: number;
   hop: number;
   hopV: number;
+}
+
+interface Pile {
+  readonly c: Phaser.GameObjects.Container;
+  readonly g: Phaser.GameObjects.Graphics;
+  readonly face: Phaser.GameObjects.Image;
+  readonly pos: Vec2;
+  amount: number;
 }
 
 interface Chunk {
@@ -81,6 +98,7 @@ export function sortDepth(x: number, y: number): number {
 export class CityScene extends Phaser.Scene {
   readonly #avatars = new Map<string, Avatar>();
   readonly #chunks = new Map<string, Chunk>();
+  readonly #piles = new Map<string, Pile>();
   #queue: string[] = [];
   #entities!: Phaser.GameObjects.Layer;
   #names!: Phaser.GameObjects.Layer;
@@ -111,6 +129,7 @@ export class CityScene extends Phaser.Scene {
     this.#entities = this.add.layer().setDepth(10);
     this.#names = this.add.layer().setDepth(20);
     makeFxTextures(this);
+    makeCoinTexture(this, COIN);
     const sky = this.add.layer().setDepth(19);
     this.#physics = new PhysicsFx(this, this.#entities, sky);
     this.#effects = new Effects(this, this.#physics, this.#entities, this.#reduced);
@@ -124,6 +143,7 @@ export class CityScene extends Phaser.Scene {
         .setDepth(5);
       this.#names.add(label);
     }
+    this.#vaultMark();
     // A few townsfolk wander between the city's squares and stalls.
     const spots = [{ x: 52, y: 63 }, { x: 78, y: 79 }, { x: 88, y: 47 }, { x: 57, y: 31 }, { x: 31, y: 47 }, { x: 103, y: 79 }, { x: 47, y: 90 }, { x: 74, y: 95 }];
     this.#townsfolk = new Townsfolk(this, this.#entities, CITY_MAP, spots, 8);
@@ -152,6 +172,7 @@ export class CityScene extends Phaser.Scene {
 
   detach(): void {
     for (const id of [...this.#avatars.keys()]) this.removePlayer(id);
+    for (const id of [...this.#piles.keys()]) this.removeDrop(id);
     this.#myId = null;
     this.#predictor = null;
     this.#input = null;
@@ -171,13 +192,21 @@ export class CityScene extends Phaser.Scene {
     const body = new Phaser.GameObjects.Graphics(this);
     const wear: Wear = { hat: p.hat, shades: p.shades, outfit: p.outfit };
     drawGuardian(body, seatColors(p.seat), 1, wear);
-    const root = new Phaser.GameObjects.Container(this, 0, 0, [soft, ring, body]);
+    const bubble = new Phaser.GameObjects.Graphics(this);
+    drawShield(bubble);
+    const root = new Phaser.GameObjects.Container(this, 0, 0, [soft, ring, body, bubble]);
     this.#entities.add(root);
     const label = new Phaser.GameObjects.Text(this, 0, 0, p.name, {
       fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: isMe ? cssColor(COLORS.gold) : '#fff1de', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this)),
     }).setOrigin(0.5, 1);
     this.#names.add(label);
-    const avatar: Avatar = { root, body, label, buffer: new InterpBuffer(), isMe, pos: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, lastScreenX: 0, hop: 0, hopV: 0 };
+    const bar = new Phaser.GameObjects.Graphics(this);
+    this.#names.add(bar);
+    const avatar: Avatar = {
+      root, body, bubble, bar, label, stars: null, health: MAX_HEALTH, down: false, shielded: false, lunge: 0,
+      buffer: new InterpBuffer(), isMe, pos: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, lastScreenX: 0, hop: 0, hopV: 0,
+    };
+    this.#setFight(avatar, p);
     avatar.buffer.push(performance.now(), p.x, p.y);
     this.#avatars.set(id, avatar);
     if (isMe) {
@@ -196,6 +225,7 @@ export class CityScene extends Phaser.Scene {
       a.seat = p.seat;
       drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear);
     }
+    this.#setFight(a, p);
     if (a.isMe && this.#predictor !== null) {
       const before = this.#predictor.position;
       this.#predictor.reconcile({ x: p.x, y: p.y }, p.ack ?? 0);
@@ -213,7 +243,101 @@ export class CityScene extends Phaser.Scene {
     if (a.isMe) this.cameras.main.stopFollow();
     a.root.destroy();
     a.label.destroy();
+    a.bar.destroy();
+    a.stars?.destroy();
     this.#avatars.delete(id);
+  }
+
+  // Whether this client's guardian is knocked out, so the controller can hold back input.
+  get meDown(): boolean {
+    const me = this.#myId === null ? undefined : this.#avatars.get(this.#myId);
+    return me?.down ?? false;
+  }
+
+  #setFight(a: Avatar, p: CityPlayer): void {
+    const changed = a.health !== p.health;
+    a.health = p.health;
+    a.shielded = p.shielded;
+    a.bubble.setVisible(p.shielded);
+    if (a.down !== p.down) {
+      a.down = p.down;
+      a.body.setAngle(p.down ? (a.facing === 1 ? -82 : 82) : 0);
+      a.stars?.destroy();
+      a.stars = null;
+      if (p.down) {
+        a.stars = this.add.text(0, 0, '★ ★ ★', { fontFamily: FONT, fontSize: '20px', color: '#ffd27a', stroke: '#2a1a33', strokeThickness: 4 }).setOrigin(0.5).setDepth(30);
+        this.#names.add(a.stars);
+        if (!this.#reduced) this.tweens.add({ targets: a.stars, angle: 360, duration: 1400, repeat: -1 });
+      }
+    }
+    if (changed || p.down) drawHealth(a.bar, a.health, a.down);
+    a.bar.setVisible(a.health < MAX_HEALTH && !a.down);
+  }
+
+  // A swing: the attacker lunges toward the target, and a hit lands with a star burst, or a whoosh if it misses.
+  punch(line: PunchLine): void {
+    const from = this.#avatars.get(line.from);
+    if (from === undefined) return;
+    const to = line.to === null ? undefined : this.#avatars.get(line.to);
+    if (to !== undefined) {
+      const dir = to.pos.x - to.pos.y > from.pos.x - from.pos.y ? 1 : -1;
+      if (dir !== from.facing) {
+        from.facing = dir;
+        drawGuardian(from.body, seatColors(from.seat), dir, from.wear);
+      }
+    }
+    from.lunge = this.#reduced ? 0 : 9 * ART_SCALE * from.facing;
+    if (to === undefined) {
+      audio.play('whiff');
+      return;
+    }
+    audio.play(line.knockedOut ? 'knockout' : 'punch');
+    const at = worldToScreen(to.pos.x, to.pos.y);
+    const word = line.knockedOut ? 'KO!' : (['POW!', 'BIFF!', 'BONK!', 'WHAP!'][Math.floor(Math.random() * 4)] ?? 'POW!');
+    const pop = this.add
+      .text(at.x, at.y - GUARDIAN_HEIGHT * 0.6, word, { fontFamily: FONT, fontSize: line.knockedOut ? '40px' : '28px', fontStyle: '900', color: line.knockedOut ? '#ff6b4a' : '#ffd27a', stroke: '#2a1a33', strokeThickness: 6 })
+      .setOrigin(0.5)
+      .setDepth(31)
+      .setScale(0.3 / (this.cameras.main.zoom / sceneDpr(this)))
+      .setAngle(Phaser.Math.Between(-14, 14));
+    this.tweens.add({ targets: pop, scale: 1 / (this.cameras.main.zoom / sceneDpr(this)), duration: this.#reduced ? 1 : 140, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: pop, alpha: 0, y: pop.y - 24, delay: 450, duration: 350, onComplete: () => {
+      pop.destroy();
+    } });
+    if (!this.#reduced) {
+      to.hopV = line.knockedOut ? 260 : 120;
+      if (line.knockedOut) this.#effects.ring(to.pos, 0xffd27a, 1.2, 500);
+      if (to.isMe) this.cameras.main.shake(line.knockedOut ? 260 : 90, line.knockedOut ? 0.012 : 0.004);
+    }
+  }
+
+  addDrop(id: string, drop: CityDrop): void {
+    const g = new Phaser.GameObjects.Graphics(this);
+    const face = new Phaser.GameObjects.Image(this, 0, 0, COIN).setDisplaySize(15 * ART_SCALE, 15 * ART_SCALE);
+    const s = worldToScreen(drop.x, drop.y);
+    const c = new Phaser.GameObjects.Container(this, s.x, s.y, [g, face]).setDepth(sortDepth(drop.x, drop.y) - 0.5);
+    const pile: Pile = { c, g, face, pos: { x: drop.x, y: drop.y }, amount: drop.amount };
+    drawPile(g, face, drop.amount);
+    this.#entities.add(c);
+    this.#piles.set(id, pile);
+    if (!this.#reduced) {
+      c.setScale(0.2);
+      this.tweens.add({ targets: c, scale: 1, duration: 260, ease: 'Back.easeOut' });
+    }
+  }
+
+  updateDrop(id: string, drop: CityDrop): void {
+    const pile = this.#piles.get(id);
+    if (pile === undefined || pile.amount === drop.amount) return;
+    pile.amount = drop.amount;
+    drawPile(pile.g, pile.face, drop.amount);
+  }
+
+  removeDrop(id: string): void {
+    const pile = this.#piles.get(id);
+    if (pile === undefined) return;
+    pile.c.destroy();
+    this.#piles.delete(id);
   }
 
   predictedPosition(): Vec2 | null {
@@ -358,7 +482,7 @@ export class CityScene extends Phaser.Scene {
       this.#prev = { ...p.position };
       const dir = this.#input?.direction() ?? { x: 0, y: 0 };
       const sink = this.#sink;
-      if (Math.hypot(dir.x, dir.y) < 0.01 || sink === null || !sink.canSend || p.stalled) continue;
+      if (Math.hypot(dir.x, dir.y) < 0.01 || sink === null || !sink.canSend || p.stalled || this.meDown) continue;
       sink.send(p.apply(Math.max(-1, Math.min(1, dir.x)), Math.max(-1, Math.min(1, dir.y))));
     }
   }
@@ -375,7 +499,9 @@ export class CityScene extends Phaser.Scene {
       }
     }
     a.lastScreenX = s.x;
-    a.root.setPosition(s.x, s.y);
+    a.lunge *= 0.8;
+    if (Math.abs(a.lunge) < 0.1) a.lunge = 0;
+    a.root.setPosition(s.x + a.lunge, s.y);
     if (a.hop > 0 || a.hopV > 0) {
       const dt = Math.min(this.game.loop.delta, 50) / 1000;
       a.hopV -= 980 * dt;
@@ -387,6 +513,9 @@ export class CityScene extends Phaser.Scene {
     const zoom = this.cameras.main.zoom / sceneDpr(this);
     a.label.setScale(1 / zoom);
     a.label.setPosition(s.x, s.y - GUARDIAN_HEIGHT - 8 * ART_SCALE);
+    a.bar.setScale(1 / zoom).setPosition(s.x, s.y - GUARDIAN_HEIGHT - 2 * ART_SCALE);
+    a.stars?.setScale(1 / zoom).setPosition(s.x, s.y - GUARDIAN_HEIGHT * 0.55);
+    a.bubble.setAlpha(this.#reduced ? 0.5 : 0.35 + Math.sin(time / 260) * 0.15);
   }
 
   #applyZoom(): void {
@@ -394,8 +523,70 @@ export class CityScene extends Phaser.Scene {
     this.cameras.main.setZoom(sceneDpr(this) * fairZoom(w, h) * BASE_ZOOM * this.#userZoom);
   }
 
+  // A pulsing gold ring on the street at the Mint Hall door, where pockets go into the vault.
+  #vaultMark(): void {
+    const s = worldToScreen(VAULT_DOOR.x, VAULT_DOOR.y);
+    const g = this.add.graphics().setPosition(s.x, s.y).setDepth(sortDepth(VAULT_DOOR.x, VAULT_DOOR.y) - 1);
+    this.#entities.add(g);
+    const w = 3 * 64 * ART_SCALE;
+    g.fillStyle(0xffd27a, 0.22);
+    g.fillEllipse(0, 0, w, w / 2);
+    g.lineStyle(3 * ART_SCALE, 0xffd27a, 0.9);
+    g.strokeEllipse(0, 0, w, w / 2);
+    g.lineStyle(2 * ART_SCALE, 0xfff6e6, 0.7);
+    g.strokeEllipse(0, 0, w * 0.7, w * 0.35);
+    const label = this.add
+      .text(s.x, s.y + w / 4 + 10 * ART_SCALE, 'VAULT', { fontFamily: FONT, fontSize: '22px', fontStyle: '900', color: '#ffd27a', stroke: '#2a1a33', strokeThickness: 6 })
+      .setOrigin(0.5)
+      .setDepth(6);
+    this.#names.add(label);
+    if (!this.#reduced) this.tweens.add({ targets: g, alpha: 0.55, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
   // The visual feedback hook the controller uses for small celebrations.
   celebrate(at: Vec2): void {
     this.#effects.taskDone(at, 0xffd27a);
   }
+}
+
+function drawShield(g: Phaser.GameObjects.Graphics): void {
+  g.clear();
+  g.fillStyle(0x7fe0ff, 0.18);
+  g.fillEllipse(0, -GUARDIAN_HEIGHT * 0.45, 34 * ART_SCALE, GUARDIAN_HEIGHT * 1.15);
+  g.lineStyle(2 * ART_SCALE, 0xbff1ff, 0.8);
+  g.strokeEllipse(0, -GUARDIAN_HEIGHT * 0.45, 34 * ART_SCALE, GUARDIAN_HEIGHT * 1.15);
+}
+
+// A short bar above the head, in screen pixels: green when healthy, amber, then red.
+function drawHealth(g: Phaser.GameObjects.Graphics, health: number, down: boolean): void {
+  const w = 44;
+  const k = down ? 0 : Math.max(0, Math.min(1, health / MAX_HEALTH));
+  g.clear();
+  g.fillStyle(0x2a1a33, 0.85);
+  g.fillRoundedRect(-w / 2 - 2, -6, w + 4, 8, 3);
+  g.fillStyle(k > 0.6 ? 0x5fd38a : k > 0.3 ? 0xffb347 : 0xff5a4a, 1);
+  g.fillRoundedRect(-w / 2, -4, Math.max(2, w * k), 4, 2);
+}
+
+// A pile of gold coins whose height grows with the amount, topped by one standing ₿ coin.
+function drawPile(g: Phaser.GameObjects.Graphics, face: Phaser.GameObjects.Image, amount: number): void {
+  const stacks = amount >= 500 ? 5 : amount >= 100 ? 3 : amount >= 30 ? 2 : 1;
+  const height = Math.min(6, 1 + Math.floor(Math.log2(Math.max(1, amount)) / 2));
+  const spots = [[0, 0], [-7, 3], [7, 3], [-4, -3], [5, -4]];
+  g.clear();
+  g.fillStyle(0x2a1a33, 0.25);
+  g.fillEllipse(0, 2 * ART_SCALE, 26 * ART_SCALE, 9 * ART_SCALE);
+  for (let i = 0; i < stacks; i++) {
+    const [sx = 0, sy = 0] = spots[i] ?? [];
+    const levels = Math.max(1, height - i);
+    for (let l = 0; l < levels; l++) {
+      const x = sx * ART_SCALE;
+      const y = (sy - l * 2.4) * ART_SCALE;
+      g.fillStyle(0xb8862f, 1);
+      g.fillEllipse(x, y + 1.2 * ART_SCALE, 9 * ART_SCALE, 4 * ART_SCALE);
+      g.fillStyle(0xffd27a, 1);
+      g.fillEllipse(x, y, 9 * ART_SCALE, 4 * ART_SCALE);
+    }
+  }
+  face.setPosition(2 * ART_SCALE, -((height - 1) * 2.4 + 6.5) * ART_SCALE);
 }

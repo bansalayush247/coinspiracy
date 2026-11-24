@@ -1,6 +1,6 @@
 import type { ColyseusTestServer } from '@colyseus/testing';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { CITY_MESSAGES, CITY_ROOM, CITY_SPAWNS, CityState } from '@byzantine-council/shared/city';
+import { CITY_MESSAGES, CITY_ROOM, CITY_SPAWNS, CityState, KNOCKOUT_MS, MAX_HEALTH, PUNCH_COOLDOWN_MS, PunchLineSchema, ROUGH_STREETS, districtAt, type PunchLine } from '@byzantine-council/shared/city';
 import { EmoteLineSchema } from '@byzantine-council/shared/hub';
 import type { CityRoom } from '../src/city/CityRoom.js';
 import { sdk, startServer, waitFor } from './helpers.js';
@@ -93,4 +93,84 @@ describe('Port Concord', () => {
   it('refuses a bad nickname', async () => {
     await expect(join('')).rejects.toThrow();
   });
+
+  describe('street fights', () => {
+    const street = ROUGH_STREETS.find((p) => districtAt(p)?.id === 'lowtide') ?? { x: 100.5, y: 100.5 };
+    const gap = () => new Promise((r) => setTimeout(r, PUNCH_COOLDOWN_MS + 30));
+
+    const pair = async () => {
+      const a = await join('Brawler');
+      const b = await join('Target');
+      await waitFor(() => a.state.players.size === 2 && b.state.players.size === 2, 'together');
+      const room = colyseus.getRoomById<CityRoom>(a.roomId);
+      room.random = { int: () => 0 };
+      const pa = room.state.players.get(a.sessionId);
+      const pb = room.state.players.get(b.sessionId);
+      if (pa === undefined || pb === undefined) throw new Error('players');
+      return { a, b, room, pa, pb };
+    };
+
+    it('misses on safe streets, whoever is in reach', async () => {
+      const { a, pb } = await pair();
+      const lines: PunchLine[] = [];
+      a.onMessage(CITY_MESSAGES.PUNCH, (m: unknown) => lines.push(PunchLineSchema.parse(m)));
+      a.send('punch');
+      await waitFor(() => lines.length === 1, 'swing seen');
+      expect(lines[0]?.to).toBeNull();
+      expect(pb.health).toBe(MAX_HEALTH);
+    });
+
+    it('knocks a guardian out on rough streets, hands their pocket to the winner and wakes them at home', async () => {
+      const { a, b, room, pa, pb } = await pair();
+      pa.x = street.x;
+      pa.y = street.y;
+      pb.x = street.x + 0.6;
+      pb.y = street.y;
+      pb.pocket = 120;
+      const home = { x: CITY_SPAWNS[1]?.x ?? 0, y: CITY_SPAWNS[1]?.y ?? 0 };
+      room.shieldOff(b.sessionId);
+      const lines: PunchLine[] = [];
+      b.onMessage(CITY_MESSAGES.PUNCH, (m: unknown) => lines.push(PunchLineSchema.parse(m)));
+      for (let i = 0; i < 4; i++) {
+        a.send('punch');
+        await gap();
+      }
+      await waitFor(() => lines.length === 4, 'four swings seen');
+      expect(lines.every((l) => l.to === b.sessionId)).toBe(true);
+      expect(lines.at(-1)?.knockedOut).toBe(true);
+      expect(pb.down).toBe(true);
+      expect(pb.pocket).toBe(0);
+      await waitFor(() => pa.pocket === 120, 'the winner grabs the pile');
+      await waitFor(() => !pb.down, 'wakes up', KNOCKOUT_MS + 2000);
+      expect(pb.health).toBe(MAX_HEALTH);
+      expect(pb.shielded).toBe(true);
+      expect(pb.x).toBeCloseTo(home.x);
+      expect(pb.y).toBeCloseTo(home.y);
+    });
+
+    it('lets the attacker pick up the pile, and only the owner sees their pocket', async () => {
+      const { a, b, room, pa } = await pair();
+      pa.x = street.x;
+      pa.y = street.y;
+      room.dropCoins(street.x + 0.3, street.y, 75);
+      await waitFor(() => a.state.players.get(a.sessionId)?.pocket === 75, 'picked up');
+      expect([...room.state.drops.values()].some((d) => d.amount === 75)).toBe(false);
+      expect(b.state.players.get(a.sessionId)?.pocket).toBeUndefined();
+    });
+
+    it('drops the pocket of a guardian who quits mid-fight', async () => {
+      const { a, b, room, pa, pb } = await pair();
+      pa.x = street.x;
+      pa.y = street.y;
+      pb.x = street.x + 0.6;
+      pb.y = street.y;
+      pb.pocket = 40;
+      room.shieldOff(b.sessionId);
+      a.send('punch');
+      await waitFor(() => pb.health < MAX_HEALTH, 'hit');
+      await b.leave();
+      await waitFor(() => [...room.state.drops.values()].some((d) => d.amount === 40), 'pocket left behind');
+    });
+  });
 });
+

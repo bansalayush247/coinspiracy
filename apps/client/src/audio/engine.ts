@@ -26,7 +26,10 @@ export type Sfx =
   | 'gull'
   | 'thunder'
   | 'stepWood'
-  | 'stepSand';
+  | 'stepSand'
+  | 'punch'
+  | 'whiff'
+  | 'knockout';
 
 interface Settings {
   muted: boolean;
@@ -529,6 +532,20 @@ export class AudioEngine {
         this.#noiseHit(t, 0.08, out, 'highpass', 2000, 0.6);
         for (let i = 0; i < 14; i++) this.#noiseHit(t + 0.6 + Math.random() * 0.5, 0.12, out, 'highpass', 4000, 0.03);
         this.#tone(90, t + 0.6, 0.6, 0.35, 'sine', 40);
+        return;
+      case 'punch':
+        // A cartoon thwack: a low thump with a short slap of noise on top.
+        this.#tone(150, t, 0.12, 0.35, 'sine', 60);
+        this.#noiseHit(t, 0.22, out, 'lowpass', 1800, 0.06);
+        return;
+      case 'whiff':
+        this.#noiseHit(t, 0.12, out, 'bandpass', 900, 0.14, 1.5);
+        return;
+      case 'knockout':
+        // A bonk, then a falling slide whistle and little bells for the stars.
+        this.#tone(120, t, 0.18, 0.4, 'sine', 50);
+        this.#tone(1200, t + 0.1, 0.6, 0.1, 'triangle', 300);
+        for (let i = 0; i < 4; i++) this.#bell(hz(91 + i * 2), t + 0.45 + i * 0.09, 0.04, out, 0.8, 2);
         return;
       case 'chirp':
         for (let i = 0; i < 3; i++) this.#tone(2600 + Math.random() * 1200, t + i * 0.11, 0.08, 0.05, 'sine', 3800 + Math.random() * 800);

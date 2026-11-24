@@ -935,9 +935,28 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .city-map { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); width: 240px; aspect-ratio: 2 / 1; padding: 6px; }
 .city-map canvas { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); image-rendering: pixelated; }
 .city-open { background: rgba(255, 154, 60, 0.14); color: #ffb56b; }
+.city-zone { margin: 0; font: 700 12px/1 var(--font); padding: 6px 9px; border-radius: 999px; background: rgba(95, 211, 138, 0.16); color: #8fe6ae; }
+.city-zone[data-rough='true'] { background: rgba(255, 107, 74, 0.18); color: #ff9c85; }
+.city-pocket { margin: 0; display: grid; gap: 2px; }
+.city-pocket b { font-variant-numeric: tabular-nums; color: #ffd27a; }
+.city-pocket-row { display: inline-flex; align-items: center; gap: 6px; }
+.coin-mark { width: 18px; height: 18px; flex: none; }
+.city-punch { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(64px, calc(env(safe-area-inset-bottom) + 64px)); width: 84px; height: 84px; border-radius: 50%; display: grid; place-content: center; gap: 2px; font-weight: 800; font-size: 16px; background: #ff6b4a; color: #2a1a33; border: 3px solid #2a1a33; box-shadow: 0 6px 0 #2a1a33; touch-action: manipulation; }
+.city-punch small { font-size: 11px; opacity: 0.7; }
+.city-punch:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 #2a1a33; }
+.city-punch:disabled { background: #5a5462; color: #cfc4b6; box-shadow: 0 6px 0 #2a1a33; opacity: 0.65; }
+.city-deposit { position: absolute; left: 50%; bottom: max(86px, calc(env(safe-area-inset-bottom) + 86px)); transform: translateX(-50%); display: grid; gap: 2px; padding: 12px 20px; font-weight: 800; font-size: 16px; background: #ffd27a; color: #2a1a33; border: 3px solid #2a1a33; border-radius: 14px; box-shadow: 0 5px 0 #2a1a33; touch-action: manipulation; }
+.city-deposit small { font-size: 11px; font-weight: 600; opacity: 0.7; }
+.city-deposit:active:not(:disabled) { transform: translate(-50%, 4px); box-shadow: 0 1px 0 #2a1a33; }
+.city-deposit:disabled { opacity: 0.6; }
+.city-down { position: absolute; left: 50%; bottom: 26%; transform: translateX(-50%); margin: 0; padding: 12px 18px; font-weight: 700; text-align: center; max-width: calc(100% - 32px); }
 @media (max-width: 640px) {
   .city-bar { right: max(12px, env(safe-area-inset-right)); max-width: none; gap: 8px; padding: 8px 10px; }
   .city-was { display: none; }
-  .city-map { top: auto; bottom: max(112px, calc(env(safe-area-inset-bottom) + 112px)); width: 150px; }
+  .city-map { top: auto; bottom: max(156px, calc(env(safe-area-inset-bottom) + 156px)); width: 150px; }
+  .city-zone-more { display: none; }
+  .city-pocket b::after { content: ' coins'; }
   .city-emotes { bottom: max(52px, calc(env(safe-area-inset-bottom) + 52px)); }
+  .city-punch { width: 76px; height: 76px; }
+  .city-pocket .eyebrow { display: none; }
 }

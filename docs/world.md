@@ -116,4 +116,28 @@ The open-world direction (story bible "The Cold Key") turns the archipelago into
 the city itself: `packages/shared/src/city/` builds the map deterministically (districts, roads every 16 tiles,
 river, harbour, boardwalk, landmarks) and defines interest management; `apps/server/src/city/CityRoom.ts` is one
 region room of up to 60 players with server-checked movement and per-player views; `apps/client/src/city/` streams
-chunks and draws buildings by district. Next: Act one, The Dump, as the first story mission in a private instance.
+chunks and draws buildings by district.
+
+The city is rated Teen: cartoon fights, no blood or realistic guns, and real cases retold only as invented events.
+
+Milestone 2 is street fights (`packages/shared/src/city/combat.ts`):
+- Fights only work in the rough districts: Low Tide, the Reef Docks, Gullmoor and the Shallows. Everywhere else,
+  including the Saltmarket spawn, is safe.
+- The client only sends "punch"; the server picks the nearest guardian it can legally hit (in reach, awake, not
+  shielded, both on rough streets). Four punches knock someone out for 3 seconds; they wake at home with full health
+  and an 8-second shield, which also covers new arrivals. Health comes back after 6 quiet seconds.
+- A knockout drops only the coins in the guardian's pocket as a pile anyone can pick up. Leaving within 10 seconds of
+  being hit drops it too. Loose coins (5 to 25) turn up on rough streets only, at most 30 at a time.
+- The pocket is session cash and only its owner is sent the amount. Vaulted money (the profile wallet) is untouched;
+  carrying coins to the Mint vault is milestone 3.
+
+Milestone 3 is the Mint vault (`packages/shared/src/city/vault.ts`):
+- A gold ring marks the street at the Mint Hall's front door, in the safe Mint district, and on the minimap. Standing
+  within 2.5 tiles of the hall shows "Vault my pocket" (E).
+- The server empties the pocket first, then credits the profile wallet in one atomic profile change with a fresh
+  idempotency key, so the same coins can never be paid twice. Whatever does not fit goes back in the pocket.
+- At most 300 play sats a UTC day go into the vault (the `vault` daily counter), because loose coins are new money.
+- Guests without a saved profile keep their coins in the pocket.
+- Coins carry the ₿ mark (piles and the pocket HUD), drawn as shapes rather than a font glyph. They stay play sats.
+
+Next: Act one, The Dump, as the first story mission in a private instance.

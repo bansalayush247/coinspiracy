@@ -38,7 +38,7 @@ export const ProgressSchema = z.strictObject({
   offerDay: Day,
   rerollDay: Day,
   epoch: EpochSchema,
-  day: z.strictObject({ index: Day, matchXp: Int(1_000_000), practiceXp: Int(1_000_000), firstBonus: z.boolean(), courier: Int(1000).optional() }),
+  day: z.strictObject({ index: Day, matchXp: Int(1_000_000), practiceXp: Int(1_000_000), firstBonus: z.boolean(), courier: Int(1000).optional(), vault: Int(1_000_000).optional() }),
   lastEpochPlayed: z.number().int().min(-1).max(10_000_000),
   // Profiles saved before newer levels existed are padded with zeros, so adding levels never breaks a load.
   academy: z

@@ -1,5 +1,6 @@
 // Port Concord end to end: production build, real server, headless Brave. Two guests enter the open city,
-// see each other at the seafront, walk, stream in new chunks of the map, and lose sight of each other far apart.
+// see each other at the seafront, walk, stream in new chunks of the map, lose sight of each other far apart,
+// then meet on the rough streets of Low Tide for a fight that ends in a knockout, and the winner vaults the coins.
 // Run: npx tsx --conditions=source e2e/city.ts
 import { randomBytes } from 'node:crypto';
 import { mkdir, rm } from 'node:fs/promises';
@@ -8,6 +9,7 @@ import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
 import { createGameServer } from '../apps/server/src/app.js';
 import type { CityRoom } from '../apps/server/src/city/CityRoom.js';
+import { PUNCH_COOLDOWN_MS, ROUGH_STREETS, VAULT_DOOR, districtAt } from '@byzantine-council/shared/city';
 import { MemoryProfileStore } from '../apps/server/src/profile/store.js';
 import { matchMaker } from '@colyseus/core';
 
@@ -64,6 +66,7 @@ async function main(): Promise<void> {
     check(true, `both guardians arrive together (${await population(rook)})`);
     check(((await rook.textContent('#city-district')) ?? '') === 'Saltmarket', 'arrival is on the Saltmarket seafront');
     check((await chunks(rook)) >= 4, `map chunks streamed in around the camera (${String(await chunks(rook))})`);
+    check(((await rook.textContent('#city-zone')) ?? '') === 'Safe streets' && (await rook.isDisabled('#city-punch')), 'the seafront is safe: no punching');
     await rook.screenshot({ path: `${shots}city-arrive.png` });
     await dani.screenshot({ path: `${shots}city-phone.png` });
     // Walk north into the city for a few seconds.
@@ -92,6 +95,48 @@ async function main(): Promise<void> {
     check(((await dani.textContent('#city-district')) ?? '') === 'The Heights', 'the HUD names the district you are in');
     await dani.waitForTimeout(1500);
     await dani.screenshot({ path: `${shots}city-heights.png` });
+    // Both meet on a Low Tide street, where fights are allowed.
+    const street = ROUGH_STREETS.find((p) => districtAt(p)?.id === 'lowtide' && ROUGH_STREETS.some((q) => q.x === p.x + 1 && q.y === p.y));
+    const rookId = [...(room?.state.players.entries() ?? [])].find(([, p]) => p.name === 'Rook')?.[0];
+    const me = rookId === undefined ? undefined : room?.state.players.get(rookId);
+    if (street !== undefined && me !== undefined && far !== undefined && daniId !== undefined) {
+      me.x = street.x;
+      me.y = street.y;
+      far.x = street.x + 0.7;
+      far.y = street.y;
+      far.pocket = 150;
+      room?.shieldOff(daniId);
+      const nearby = ROUGH_STREETS.find((q) => Math.hypot(q.x - street.x, q.y - street.y) > 1.4 && Math.hypot(q.x - street.x, q.y - street.y) < 2.6);
+      if (nearby !== undefined) room?.dropCoins(nearby.x, nearby.y, 260);
+    }
+    await rook.waitForFunction(() => document.getElementById('city-zone')?.dataset['rough'] === 'true', undefined, { timeout: 10_000 }).catch(() => undefined);
+    check(!(await rook.isDisabled('#city-punch')), `rough streets enable punching (${(await rook.textContent('#city-zone')) ?? ''})`);
+    await rook.waitForTimeout(800);
+    for (let i = 0; i < 4; i++) {
+      await rook.keyboard.press('f');
+      if (i === 1) await rook.screenshot({ path: `${shots}city-fight.png` });
+      await rook.waitForTimeout(PUNCH_COOLDOWN_MS + 80);
+    }
+    await dani.locator('#city-down').waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
+    check(await dani.isVisible('#city-down'), 'four punches knock the other guardian out');
+    await rook.waitForFunction(() => document.getElementById('city-pocket')?.textContent === '150', undefined, { timeout: 5_000 }).catch(() => undefined);
+    check(((await rook.textContent('#city-pocket')) ?? '') === '150', `the winner scoops up the dropped pocket (${(await rook.textContent('#city-pocket')) ?? ''})`);
+    await rook.screenshot({ path: `${shots}city-knockout.png` });
+    await dani.screenshot({ path: `${shots}city-down-phone.png` });
+    // Carry the winnings to the Mint Hall door and put them in the vault.
+    if (me !== undefined) {
+      me.x = VAULT_DOOR.x;
+      me.y = VAULT_DOOR.y;
+    }
+    await rook.locator('#city-deposit').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(await rook.isVisible('#city-deposit'), 'the vault button appears at the Mint Hall door');
+    await rook.waitForTimeout(1200);
+    await rook.screenshot({ path: `${shots}city-vault.png` });
+    await rook.keyboard.press('e');
+    await rook.waitForFunction(() => document.getElementById('city-pocket')?.textContent === '0', undefined, { timeout: 5_000 }).catch(() => undefined);
+    check(((await rook.textContent('#city-pocket')) ?? '') === '0', 'vaulting empties the pocket');
+    const vaulted = await rook.waitForFunction(() => document.body.textContent.includes('Vaulted 150 play sats'), undefined, { timeout: 5_000 }).then(() => true).catch(() => false);
+    check(vaulted, 'the vault confirms the deposit into the wallet');
     await rook.click('#city-leave');
     await rook.locator('#menu').waitFor({ state: 'visible', timeout: 10_000 });
     check(true, 'back to the menu from the city');

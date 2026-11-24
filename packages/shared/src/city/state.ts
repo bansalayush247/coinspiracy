@@ -11,15 +11,31 @@ export const CityPlayer = schema(
     hat: t.string().default(''),
     shades: t.string().default(''),
     outfit: t.string().default(''),
+    health: t.uint8().default(100),
+    down: t.boolean().default(false),
+    shielded: t.boolean().default(false),
+    pocket: t.uint32().view(VIEW_TAGS.OWNER).optional(),
     ack: t.uint32().view(VIEW_TAGS.OWNER).optional(),
   },
   'CityPlayer',
 );
 export type CityPlayer = SchemaType<typeof CityPlayer>;
 
+// A pile of coins on the ground: dropped by a knocked-out player, or loose on a rough street.
+export const CityDrop = schema(
+  {
+    x: t.float64().default(0),
+    y: t.float64().default(0),
+    amount: t.uint32().default(0),
+  },
+  'CityDrop',
+);
+export type CityDrop = SchemaType<typeof CityDrop>;
+
 export const CityState = schema(
   {
     players: t.map(CityPlayer).view(),
+    drops: t.map(CityDrop).view(),
     // Everyone in this region, near or far, for the HUD.
     population: t.uint16().default(0),
   },

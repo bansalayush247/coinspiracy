@@ -407,9 +407,12 @@ class Controller {
     this.scene.scene.sleep();
     await created;
     if (this.#city === null) {
-      const controller = new CityController(this.session, city, this.#input);
+      const controller = new CityController(this.session, this.profiles, city, this.#input);
       controller.onToast = (text) => {
         this.#hud.toast(text);
+      };
+      controller.onProfile = (p) => {
+        this.#setProfile(p);
       };
       controller.onLeft = () => {
         this.scene.scene.stop(CITY_SCENE_KEY);

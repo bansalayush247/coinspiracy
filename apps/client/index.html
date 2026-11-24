@@ -120,8 +120,13 @@
             <div><span class="eyebrow">Port Concord</span><b id="city-district" class="city-district">Port Concord</b></div>
             <p id="city-was" class="city-was"></p>
             <p id="city-pop" class="city-pop"></p>
+            <p id="city-zone" class="city-zone" data-rough="false">Safe streets</p>
+            <p class="city-pocket"><span class="eyebrow">Pocket</span><span class="city-pocket-row"><svg class="coin-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="15.5" fill="#2a1a33"/><circle cx="16" cy="16" r="14.5" fill="#b8862f"/><circle cx="16" cy="15.5" r="12.5" fill="#ffd27a"/><path transform="translate(15.25 15.5) rotate(14) scale(0.25)" d="M-14 -26V26M-14 -26H4A13 13 0 0 1 4 0H-14M-14 0H6A13 13 0 0 1 6 26H-14M-8 -26V-38M2 -26V-38M-8 26V38M2 26V38" fill="none" stroke="#8a5a14" stroke-width="10" stroke-linejoin="round"/></svg><b id="city-pocket">0</b></span></p>
             <button id="city-leave" type="button">Back to the map</button>
           </div>
+          <button id="city-punch" class="city-punch" type="button" aria-keyshortcuts="F" disabled>Punch<small>F</small></button>
+          <button id="city-deposit" class="city-deposit" type="button" aria-keyshortcuts="E" hidden>Vault my pocket<small>E · at the Mint Hall</small></button>
+          <p id="city-down" class="panel city-down" role="status" hidden>Knocked out! Your pocket hit the pavement. Back on your feet at home in a moment.</p>
           <div class="panel city-map" aria-hidden="true">
             <canvas id="city-minimap"></canvas>
             <canvas id="city-dots"></canvas>

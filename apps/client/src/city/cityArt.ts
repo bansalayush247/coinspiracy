@@ -514,3 +514,69 @@ export function drawMound(g: G, c: number, r: number, seed: number): void {
     g.fillTriangle(foot.x - 12 * ART_SCALE, foot.y - 40 * ART_SCALE, foot.x - 17 * ART_SCALE, foot.y - 39 * ART_SCALE, foot.x - 12 * ART_SCALE, foot.y - 38 * ART_SCALE);
   }
 }
+
+// The ₿ mark as strokes on a 120-unit coin, so it never depends on the font having the glyph.
+function traceBitcoinMark(ctx: CanvasRenderingContext2D): void {
+  ctx.beginPath();
+  ctx.moveTo(-14, -26);
+  ctx.lineTo(-14, 26);
+  ctx.moveTo(-14, -26);
+  ctx.lineTo(4, -26);
+  ctx.arc(4, -13, 13, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(-14, 0);
+  ctx.moveTo(-14, 0);
+  ctx.lineTo(6, 0);
+  ctx.arc(6, 13, 13, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(-14, 26);
+  for (const x of [-8, 2]) {
+    ctx.moveTo(x, -26);
+    ctx.lineTo(x, -38);
+    ctx.moveTo(x, 26);
+    ctx.lineTo(x, 38);
+  }
+}
+
+// A gold play-sats coin with the ₿ mark, tilted like the logo, made once per scene.
+export function makeCoinTexture(scene: Phaser.Scene, key: string): void {
+  if (scene.textures.exists(key)) return;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx === null) return;
+  const mid = size / 2;
+  ctx.fillStyle = '#2a1a33';
+  ctx.beginPath();
+  ctx.arc(mid, mid, 63, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#b8862f';
+  ctx.beginPath();
+  ctx.arc(mid, mid, 59, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffd27a';
+  ctx.beginPath();
+  ctx.arc(mid, mid - 2, 51, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#e0a63f';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(mid, mid - 2, 44, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(mid - 3, mid - 2);
+  ctx.rotate((14 * Math.PI) / 180);
+  ctx.strokeStyle = '#8a5a14';
+  ctx.lineWidth = 10;
+  ctx.lineJoin = 'round';
+  traceBitcoinMark(ctx);
+  ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(255, 246, 230, 0.75)';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(mid, mid - 2, 38, Math.PI * 1.1, Math.PI * 1.4);
+  ctx.stroke();
+  scene.textures.addCanvas(key, canvas);
+}

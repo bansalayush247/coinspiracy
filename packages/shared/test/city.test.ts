@@ -12,10 +12,29 @@ import {
   DISTRICT_IDS,
   INTEREST_HIDE,
   INTEREST_SHOW,
+  MAX_HEALTH,
+  MAX_POCKET,
+  MINT_HALL,
+  PUNCH_RANGE,
+  REGEN_DELAY_MS,
+  ROUGH_DISTRICTS,
+  ROUGH_STREETS,
+  VAULT_DAILY_LIMIT,
+  VAULT_DOOR,
+  afterPunch,
+  atVault,
+  canHit,
+  canPickUp,
   chunkOf,
   chunksAround,
+  depositable,
   districtAt,
+  isRough,
   keepsInView,
+  pickTarget,
+  regenerate,
+  takeFromPile,
+  type Fighter,
 } from '../src/city/index.js';
 import { isWalkableTile, tileAt } from '../src/map.js';
 import { canStand, findPath } from '../src/pathfinding.js';
@@ -135,5 +154,83 @@ describe('interest management', () => {
     const middle = chunksAround({ x: 64, y: 64 }, 2, CITY_WIDTH, CITY_HEIGHT);
     expect(middle).toHaveLength(25);
     expect(middle[0]).toBe('4,4');
+  });
+});
+
+describe('street fights', () => {
+  const at = (x: number, y: number, extra: Partial<Fighter> = {}): Fighter => ({ x, y, health: MAX_HEALTH, knockedOutUntil: 0, shieldUntil: 0, ...extra });
+  const street = ROUGH_STREETS.find((p) => districtAt(p)?.id === 'lowtide');
+  if (street === undefined) throw new Error('no rough street');
+  const safe = CITY_SPAWNS[0];
+  if (safe === undefined) throw new Error('spawn');
+
+  it('marks the four rough districts and keeps the spawn safe', () => {
+    expect([...ROUGH_DISTRICTS].sort()).toEqual(['docks', 'gullmoor', 'lowtide', 'shallows']);
+    expect(isRough(safe)).toBe(false);
+    expect(ROUGH_STREETS.length).toBeGreaterThan(500);
+    for (const p of ROUGH_STREETS) {
+      expect(isRough(p)).toBe(true);
+      expect(walkable(Math.floor(p.x), Math.floor(p.y))).toBe(true);
+    }
+  });
+
+  it('only lands punches on rough streets, in reach, on someone awake and unshielded', () => {
+    const me = at(street.x, street.y);
+    expect(canHit(me, at(street.x + 1, street.y), 0)).toBe(true);
+    expect(canHit(me, at(street.x + PUNCH_RANGE + 0.1, street.y), 0)).toBe(false);
+    expect(canHit(me, at(street.x + 1, street.y, { shieldUntil: 10 }), 5)).toBe(false);
+    expect(canHit(me, at(street.x + 1, street.y, { knockedOutUntil: 10 }), 5)).toBe(false);
+    expect(canHit(at(street.x, street.y, { knockedOutUntil: 10 }), at(street.x + 1, street.y), 5)).toBe(false);
+    expect(canHit(at(safe.x, safe.y), at(safe.x + 1, safe.y), 0)).toBe(false);
+  });
+
+  it('picks the nearest target it can hit', () => {
+    const me = at(street.x, street.y);
+    const others: [string, Fighter][] = [
+      ['far', at(street.x + 1.4, street.y)],
+      ['near', at(street.x + 0.5, street.y)],
+      ['shielded', at(street.x + 0.2, street.y, { shieldUntil: 99 })],
+    ];
+    expect(pickTarget(me, others, 1)).toBe('near');
+    expect(pickTarget(me, [], 1)).toBeNull();
+  });
+
+  it('knocks out after four punches and heals only after a quiet spell', () => {
+    let health = MAX_HEALTH;
+    let out = false;
+    for (let i = 0; i < 4; i++) ({ health, knockedOut: out } = afterPunch(health));
+    expect(health).toBe(0);
+    expect(out).toBe(true);
+    expect(regenerate(50, 1000, 1000 + REGEN_DELAY_MS - 1, 1)).toBe(50);
+    expect(regenerate(50, 1000, 1000 + REGEN_DELAY_MS, 1)).toBe(60);
+    expect(regenerate(98, 0, REGEN_DELAY_MS, 1)).toBe(MAX_HEALTH);
+  });
+
+  it('fills a pocket up to its limit and leaves the rest on the ground', () => {
+    expect(takeFromPile(0, 30)).toEqual({ pocket: 30, left: 0 });
+    expect(takeFromPile(MAX_POCKET - 10, 30)).toEqual({ pocket: MAX_POCKET, left: 20 });
+    expect(canPickUp({ x: 1, y: 1 }, { x: 1.5, y: 1.5 })).toBe(true);
+    expect(canPickUp({ x: 1, y: 1 }, { x: 2, y: 2 })).toBe(false);
+  });
+});
+
+describe('the Mint vault', () => {
+  it('has its door on a street in the safe Mint district', () => {
+    expect(MINT_HALL.kind).toBe('mintHall');
+    expect(canStand(CITY_MAP, VAULT_DOOR)).toBe(true);
+    expect(districtAt(VAULT_DOOR)?.id).toBe('mint');
+    expect(isRough(VAULT_DOOR)).toBe(false);
+    expect(atVault(VAULT_DOOR)).toBe(true);
+    const spawn = CITY_SPAWNS[0];
+    if (spawn === undefined) throw new Error('spawn');
+    expect(atVault(spawn)).toBe(false);
+    expect(findPath(CITY_MAP, spawn, VAULT_DOOR).ok).toBe(true);
+  });
+
+  it('takes the pocket up to what is left of today', () => {
+    expect(depositable(120, 0)).toBe(120);
+    expect(depositable(120, VAULT_DAILY_LIMIT - 20)).toBe(20);
+    expect(depositable(120, VAULT_DAILY_LIMIT)).toBe(0);
+    expect(depositable(0, 0)).toBe(0);
   });
 });

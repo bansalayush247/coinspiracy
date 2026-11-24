@@ -1,6 +1,26 @@
 # Changelog
 
-Nothing here has been committed yet; this records what the working tree contains.
+## 25 November 2026
+
+### The Mint vault (milestone 3 of the open world)
+- Carry your pocket to the gold VAULT ring at the Mint Hall door and press E (or "Vault my pocket"): the coins become
+  play sats in your wallet, where no punch can reach them. That is the custody lesson as gameplay.
+- Up to 300 play sats a day; anything over stays in your pocket. A double-pressed deposit is paid once, and a failed
+  one hands the coins back.
+- The vault is marked on the minimap. `npm run city` now ends with the winner of the fight banking the winnings.
+- Coins carry the ₿ mark: every pile in the street has a standing ₿ coin on top, and the pocket in the HUD shows one.
+  The mark is drawn as shapes, so it looks the same on devices whose fonts lack the ₿ character. They are still
+  play sats.
+
+### Street fights in Port Concord (milestone 2 of the open world, rated Teen)
+- Low Tide, the Reef Docks, Gullmoor and the Shallows are now rough streets: press F or the Punch button to swing.
+  The server picks who it lands on, so a client can never hit someone out of reach or on safe streets.
+- Four punches knock a guardian out with a "KO!", spinning stars and a slide whistle. They wake at home 3 seconds
+  later with full health and a short shield. Health bars appear above anyone who has been hit.
+- A knocked-out guardian drops their pocket as a coin pile. Quitting mid-fight drops it too. Loose coins turn up on
+  rough streets, so the money is where the risk is.
+- The HUD shows whether the streets are safe or rough, and the coins in your pocket. Vault money is never at risk.
+- Unit and server tests cover the rules; `npm run city` now includes a fight that ends in a knockout.
 
 ## 24 November 2026
 
