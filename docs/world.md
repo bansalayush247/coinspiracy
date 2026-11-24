@@ -140,4 +140,18 @@ Milestone 3 is the Mint vault (`packages/shared/src/city/vault.ts`):
 - Guests without a saved profile keep their coins in the pocket.
 - Coins carry the ₿ mark (piles and the pocket HUD), drawn as shapes rather than a font glyph. They stay play sats.
 
-Next: Act one, The Dump, as the first story mission in a private instance.
+Act one of "The Cold Key", The Dump, is the first story mission (`packages/shared/src/city/dump.ts`, `script.ts`,
+`mission.ts`; server `apps/server/src/city/MissionRoom.ts`):
+- "The Dump" on the menu opens a private, solo `mission` room on the Port Concord map at night. Mr Pell calls,
+  Rook finds Dani at St Brigid's Hospital, talks past Mags at the Gullmoor gatehouse, digs the tip while Ivor patrols
+  with a torch and Duncan the dog roams, finds the wallet crushed, and gets the twelve words from Dani on paper.
+- Scenes are data: nodes of lines, choices (some on a clock, where silence is an answer), and marks that characters
+  remember and later lines depend on. `scriptProblems` checks every link, clock and hand-back in the tests.
+- Clues live in the talk: answering Dani calmly or staying silent gives "winter 2013"; paying Mags double says
+  which winter heap was already dug; a bluff lets Duncan out at once. Wrong heaps turn up junk (and Rook's guitar).
+- The server walks the script, times every clock, checks digs by reach and stillness, catches players in the torch
+  cone (heaps block it) or by Duncan, and keeps which heap holds the device to itself. The first finish pays 250 play
+  sats once per profile; replays save what the characters remember without paying again.
+- Buildings between the camera and your guardian fade, in the open city as well as in the story.
+
+Next: co-op story instances (friends join by code), then act two, The Ransom Call.

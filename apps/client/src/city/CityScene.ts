@@ -2,7 +2,7 @@
 // so a city many times the size of a match map costs about the same to draw.
 import Phaser from 'phaser';
 import { TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
-import { CHUNK, CITY_BUILDINGS, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, MAX_HEALTH, VAULT_DOOR, chunksAround, type CityBuilding, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
+import { CHUNK, CITY_BUILDINGS, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, type CityBuilding, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
 import { audio } from '../audio/engine.js';
 import { Effects } from '../game/effects.js';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
@@ -13,6 +13,7 @@ import { COLORS, cssColor, seatColors } from '../game/palette.js';
 import { PhysicsFx, makeFxTextures } from '../game/physics.js';
 import { CorrectionSmoother, Predictor, type PendingInput } from '../game/prediction.js';
 import { Townsfolk } from '../game/townsfolk.js';
+import { MissionView } from './missionView.js';
 import { buildingFront, drawBuilding, drawContainer, drawMound, drawStreetLamp, drawStreetTree, makeCoinTexture, paintChunk } from './cityArt.js';
 
 export const CITY_SCENE_KEY = 'city';
@@ -62,8 +63,18 @@ interface Pile {
   amount: number;
 }
 
+interface Wall {
+  readonly g: Phaser.GameObjects.Graphics;
+  readonly depth: number;
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+}
+
 interface Chunk {
   readonly ground: Phaser.GameObjects.Image;
+  readonly walls: readonly Wall[];
   readonly key: string;
   readonly props: Phaser.GameObjects.GameObject[];
 }
@@ -99,6 +110,7 @@ export class CityScene extends Phaser.Scene {
   readonly #avatars = new Map<string, Avatar>();
   readonly #chunks = new Map<string, Chunk>();
   readonly #piles = new Map<string, Pile>();
+  readonly #walls = new Set<Wall>();
   #queue: string[] = [];
   #entities!: Phaser.GameObjects.Layer;
   #names!: Phaser.GameObjects.Layer;
@@ -106,6 +118,7 @@ export class CityScene extends Phaser.Scene {
   #physics!: PhysicsFx;
   #effects!: Effects;
   #townsfolk: Townsfolk | null = null;
+  #mission: MissionView | null = null;
   #reduced = false;
   #myId: string | null = null;
   #predictor: Predictor | null = null;
@@ -122,7 +135,7 @@ export class CityScene extends Phaser.Scene {
     super({ key: CITY_SCENE_KEY, active: false });
   }
 
-  create(): void {
+  create(data?: { mission?: boolean }): void {
     this.#reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.cameras.main.setBackgroundColor('#1d4a66');
     this.#ground = this.add.layer().setDepth(0);
@@ -144,11 +157,12 @@ export class CityScene extends Phaser.Scene {
       this.#names.add(label);
     }
     this.#vaultMark();
-    // A few townsfolk wander between the city's squares and stalls.
+    this.#mission = data?.mission === true ? new MissionView(this, this.#entities, this.#names, sortDepth, this.#reduced) : null;
+    // A few townsfolk wander between the city's squares and stalls; on a story night the streets are empty.
     const spots = [{ x: 52, y: 63 }, { x: 78, y: 79 }, { x: 88, y: 47 }, { x: 57, y: 31 }, { x: 31, y: 47 }, { x: 103, y: 79 }, { x: 47, y: 90 }, { x: 74, y: 95 }];
-    this.#townsfolk = new Townsfolk(this, this.#entities, CITY_MAP, spots, 8);
+    this.#townsfolk = this.#mission === null ? new Townsfolk(this, this.#entities, CITY_MAP, spots, 8) : null;
     if (import.meta.env.VITE_E2E === '1') Object.assign(window, { __bcCityPos: () => this.predictedPosition(), __bcCityChunks: () => this.#chunks.size });
-    const start = CITY_SPAWNS[0] ?? { x: 73, y: 63 };
+    const start = this.#mission !== null ? DUMP_START : (CITY_SPAWNS[0] ?? { x: 73, y: 63 });
     const center = worldToScreen(start.x, start.y);
     this.cameras.main.centerOn(center.x, center.y);
     this.#applyZoom();
@@ -160,6 +174,8 @@ export class CityScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, onResize);
       for (const key of [...this.#chunks.keys()]) this.#unload(key);
+      this.#mission?.destroy();
+      this.#mission = null;
     });
   }
 
@@ -340,6 +356,11 @@ export class CityScene extends Phaser.Scene {
     this.#piles.delete(id);
   }
 
+  // The story overlay, when this scene was launched for a mission.
+  get mission(): MissionView | null {
+    return this.#mission;
+  }
+
   predictedPosition(): Vec2 | null {
     return this.#predictor === null ? null : { ...this.#predictor.position };
   }
@@ -394,8 +415,25 @@ export class CityScene extends Phaser.Scene {
       }
       this.#place(a, time);
     }
+    this.#seeThrough(delta);
+    this.#mission?.update(time, this.predictedPosition());
     const k = lerpFactor(0.12, delta);
     this.cameras.main.setLerp(k, k);
+  }
+
+  // Fades any building drawn in front of this client's guardian, so they are never lost behind a tower.
+  #seeThrough(delta: number): void {
+    const me = this.#myId === null ? undefined : this.#avatars.get(this.#myId);
+    const k = Math.min(1, delta / 120);
+    for (const w of this.#walls) {
+      let target = 1;
+      if (me !== undefined) {
+        const s = worldToScreen(me.pos.x, me.pos.y, this.#tmp);
+        const hidden = s.x > w.left && s.x < w.right && s.y - GUARDIAN_HEIGHT < w.bottom && s.y > w.top && w.depth > sortDepth(me.pos.x, me.pos.y);
+        if (hidden) target = 0.3;
+      }
+      if (w.g.alpha !== target) w.g.setAlpha(Math.abs(w.g.alpha - target) < 0.02 ? target : w.g.alpha + (target - w.g.alpha) * k);
+    }
   }
 
   // Queues the chunks near the camera and drops the far ones.
@@ -420,6 +458,7 @@ export class CityScene extends Phaser.Scene {
     const ground = this.add.image(painted.x, painted.y, painted.key).setOrigin(0).setScale(1 / painted.scale);
     this.#ground.add(ground);
     const props: Phaser.GameObjects.GameObject[] = [];
+    const walls: Wall[] = [];
     const add = (depth: number, draw: (g: Phaser.GameObjects.Graphics) => void, x = 0, y = 0): Phaser.GameObjects.Graphics => {
       const g = new Phaser.GameObjects.Graphics(this);
       draw(g);
@@ -431,9 +470,21 @@ export class CityScene extends Phaser.Scene {
     // A building belongs to the chunk holding its front corner, so it is drawn exactly once.
     for (const b of CITY_BUILDINGS) {
       if (Math.floor(b.box.c1 / CHUNK) !== cx || Math.floor(b.box.r1 / CHUNK) !== cy) continue;
-      add(buildingFront(b.box) * (TILE_H / 2), (g) => {
-        drawBuilding(g, b);
+      const depth = buildingFront(b.box) * (TILE_H / 2);
+      const g = add(depth, (gr) => {
+        drawBuilding(gr, b);
       });
+      const { c0, r0, c1, r1 } = b.box;
+      const wall: Wall = {
+        g,
+        depth,
+        left: worldToScreen(c0, r1 + 1).x,
+        right: worldToScreen(c1 + 1, r0).x,
+        top: worldToScreen(c0, r0).y - (b.height + 120) * ART_SCALE,
+        bottom: worldToScreen(c1 + 1, r1 + 1).y,
+      };
+      walls.push(wall);
+      this.#walls.add(wall);
     }
     for (let r = cy * CHUNK; r < (cy + 1) * CHUNK; r++) {
       for (let c = cx * CHUNK; c < (cx + 1) * CHUNK; c++) {
@@ -460,13 +511,14 @@ export class CityScene extends Phaser.Scene {
         }
       }
     }
-    this.#chunks.set(key, { ground, key: painted.key, props });
+    this.#chunks.set(key, { ground, walls, key: painted.key, props });
   }
 
   #unload(key: string): void {
     const chunk = this.#chunks.get(key);
     if (chunk === undefined) return;
     chunk.ground.destroy();
+    for (const w of chunk.walls) this.#walls.delete(w);
     for (const p of chunk.props) p.destroy();
     if (this.textures.exists(chunk.key)) this.textures.remove(chunk.key);
     this.#chunks.delete(key);

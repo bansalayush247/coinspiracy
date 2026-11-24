@@ -261,7 +261,7 @@ export class CityController {
 const mapX = (c: number, r: number): number => c - r + CITY_HEIGHT;
 const mapY = (c: number, r: number): number => (c + r) / 2;
 
-function paintMinimap(canvas: HTMLCanvasElement): void {
+export function paintMinimap(canvas: HTMLCanvasElement): void {
   canvas.width = CITY_WIDTH + CITY_HEIGHT;
   canvas.height = (CITY_WIDTH + CITY_HEIGHT) / 2;
   const ctx = canvas.getContext('2d');
@@ -279,6 +279,18 @@ function paintMinimap(canvas: HTMLCanvasElement): void {
   ctx.fill();
   ctx.fillStyle = '#ffd27a';
   ctx.fillRect(mapX(VAULT_DOOR.x, VAULT_DOOR.y) - 3.5, mapY(VAULT_DOOR.x, VAULT_DOOR.y) - 3.5, 7, 7);
+}
+
+// A ringed dot on the minimap at a world position.
+export function drawMapDot(ctx: CanvasRenderingContext2D, p: { x: number; y: number }, color: string, r: number): void {
+  ctx.fillStyle = '#2a1a33';
+  ctx.beginPath();
+  ctx.arc(mapX(p.x, p.y), mapY(p.x, p.y), r + 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(mapX(p.x, p.y), mapY(p.x, p.y), r, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawDots(canvas: HTMLCanvasElement, me: { x: number; y: number }, others: readonly { x: number; y: number }[]): void {

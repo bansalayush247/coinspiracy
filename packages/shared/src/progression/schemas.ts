@@ -24,6 +24,13 @@ export const QuestIdSchema = z.enum(QUEST_IDS as unknown as [string, ...string[]
 const QuestSchema = z.strictObject({ id: QuestIdSchema, progress: Int(1000) });
 const EpochSchema = z.strictObject({ index: Int(10_000_000), xp: Int(1_000_000), tier: Int(EPOCH_TIERS) });
 
+// A finished story chapter: what the characters remember. Mark names stay plain strings so renaming one never breaks a load.
+const StoryRecordSchema = z.strictObject({
+  done: z.boolean(),
+  honest: z.boolean(),
+  marks: z.array(z.string().regex(/^[a-zA-Z]{1,24}$/)).max(32),
+});
+
 // Stored progress; checked on every load and save.
 export const ProgressSchema = z.strictObject({
   v: z.literal(1),
@@ -49,6 +56,7 @@ export const ProgressSchema = z.strictObject({
   epochFrame: z.boolean(),
   title: TitleIdSchema.nullable(),
   frame: FrameIdSchema.nullable(),
+  story: z.strictObject({ dump: StoryRecordSchema.optional() }).optional(),
 });
 
 const XpLineSchema = z.strictObject({ reason: z.enum(XP_REASONS), xp: Int(10_000) });

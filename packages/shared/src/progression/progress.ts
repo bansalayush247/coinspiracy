@@ -35,6 +35,13 @@ export interface Progress {
   readonly epochFrame: boolean;
   readonly title: TitleId | null;
   readonly frame: FrameId | null;
+  readonly story?: { readonly dump?: StoryRecord };
+}
+
+export interface StoryRecord {
+  readonly done: boolean;
+  readonly honest: boolean;
+  readonly marks: readonly string[];
 }
 
 export function newProgress(nowMs: number): Progress {

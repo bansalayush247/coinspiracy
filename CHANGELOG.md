@@ -2,6 +2,17 @@
 
 ## 25 November 2026
 
+### Act one: The Dump (the first story mission)
+- A new "The Dump" tile on the menu plays act one of "The Cold Key" in a private night-time Port Concord: Mr Pell's
+  deadline, Dani at the hospital, Mags at the Gullmoor gatehouse, a dig past Ivor's torch and Duncan the dog, the
+  crushed wallet, and Dani's paper backup. The lesson: the device was never the treasure; the twelve words were.
+- Conversations type out line by line, with choices on a clock (silence is an answer), notes when someone will
+  remember what you did, and clues written into the HUD. The end card lists what each character remembers.
+- The server runs the whole story: choices, clocks, digs, catches. Where the wallet is buried never reaches the
+  browser. The first finish pays 250 play sats once; replays save your choices only.
+- Buildings in front of your guardian now fade, so you are never lost behind a tower.
+- `npm run story` plays the act in headless Brave with the keyboard, on desktop and phone.
+
 ### The Mint vault (milestone 3 of the open world)
 - Carry your pocket to the gold VAULT ring at the Mint Hall door and press E (or "Vault my pocket"): the coins become
   play sats in your wallet, where no punch can reach them. That is the custody lesson as gameplay.

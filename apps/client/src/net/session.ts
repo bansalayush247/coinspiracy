@@ -3,7 +3,7 @@ import { ACADEMY_ROOM } from '@byzantine-council/shared/progression';
 import { ROOM_LOOKUP_PATH, ROOM_NAME, RoomLookupSchema, normalizeRoomCode } from '@byzantine-council/shared';
 import { CitadelState } from '@byzantine-council/shared/state';
 import { BEACH_ROOM, HubState } from '@byzantine-council/shared/hub';
-import { CITY_ROOM, CityState } from '@byzantine-council/shared/city';
+import { CITY_ROOM, CityState, MISSION_ROOM, MissionState } from '@byzantine-council/shared/city';
 import type { ServerEndpoint } from '../serverUrl.js';
 import { PlayerFacingError } from './errors.js';
 
@@ -97,6 +97,11 @@ export class Session {
   // Port Concord: the open city, one region room shared by everyone in it.
   city(nickname: string) {
     return withTimeout(this.#client.joinOrCreate<CityState>(CITY_ROOM, { nickname }, CityState));
+  }
+
+  // A story mission: a private night in Port Concord for one player.
+  mission(nickname: string) {
+    return withTimeout(this.#client.create<MissionState>(MISSION_ROOM, { nickname }, MissionState));
   }
 
   resume(token: string): Promise<GameRoom> {

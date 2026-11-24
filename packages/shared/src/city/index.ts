@@ -4,3 +4,6 @@ export * from './protocol.js';
 export * from './state.js';
 export * from './combat.js';
 export * from './vault.js';
+export * from './script.js';
+export * from './dump.js';
+export * from './mission.js';
