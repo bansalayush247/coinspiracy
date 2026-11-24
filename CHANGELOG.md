@@ -2,6 +2,25 @@
 
 ## 25 November 2026
 
+### A living city: traffic, ships, more people, and someone to fight
+- Cars drive every road, keeping left. They take turns at traffic lights, keep their distance, stop for anyone in
+  the road, and fade in and out where roads meet the sea. A ferry, a cargo ship, sailboats and fishing boats sail
+  the harbour and the open sea. Twice as many townsfolk walk the streets.
+- Street toughs (Knuckles, Big Sal, Rivet and friends) roam the rough districts, two per district. Most only swing
+  back once you start it; bullies go for anyone carrying 50 coins or more. Four punches knock one out and it drops
+  a small purse, then limps off and comes back later. The server decides every punch, as for players.
+- Pressing Punch on safe streets now says where brawls happen, and the rough districts are tinted red on the
+  minimap. Toughs are red dots and don't count as people nearby.
+- Fixed: townsfolk sank into the fronts of wide buildings, and anyone walking round a building's front corner was
+  cut in half by the wall. Any guardian the camera can't see behind a building now shows as an outline.
+
+### You see what your guardian sees
+- Your guardian is never lost behind the city: buildings, trees, crates and tip heaps in front of you fade, and a
+  gold outline shows you through anything still in the way.
+- Buildings block sight like they would for a real person. Players and coin piles behind a building are not sent to
+  you at all (so no client can peek), story characters round a corner are hidden, and the ground you cannot see is
+  shaded. Someone right beside you, or half a body past a corner, still counts as seen. Market stalls don't block.
+
 ### Act one: The Dump (the first story mission)
 - A new "The Dump" tile on the menu plays act one of "The Cold Key" in a private night-time Port Concord: Mr Pell's
   deadline, Dani at the hospital, Mags at the Gullmoor gatehouse, a dig past Ivor's torch and Duncan the dog, the

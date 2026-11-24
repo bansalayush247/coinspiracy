@@ -1,5 +1,7 @@
 export * from './map.js';
 export * from './interest.js';
+export * from './sight.js';
+export * from './traffic.js';
 export * from './protocol.js';
 export * from './state.js';
 export * from './combat.js';

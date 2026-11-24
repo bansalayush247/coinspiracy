@@ -36,6 +36,7 @@ async function enter(cookie: string | null) {
   const client = await sdk(PORT, cookie === null ? {} : { cookie }).joinOrCreate<CityState>(CITY_ROOM, { nickname: 'Saver' }, CityState);
   await waitFor(() => client.state.players.has(client.sessionId), 'joined');
   const room = colyseus.getRoomById<CityRoom>(client.roomId);
+  room.toughsOff();
   room.random = { int: () => 0 };
   const me = room.state.players.get(client.sessionId);
   if (me === undefined) throw new Error('me');

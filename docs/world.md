@@ -152,6 +152,18 @@ Act one of "The Cold Key", The Dump, is the first story mission (`packages/share
 - The server walks the script, times every clock, checks digs by reach and stillness, catches players in the torch
   cone (heaps block it) or by Duncan, and keeps which heap holds the device to itself. The first finish pays 250 play
   sats once per profile; replays save what the characters remember without paying again.
-- Buildings between the camera and your guardian fade, in the open city as well as in the story.
+- Buildings between the camera and your guardian fade, in the open city as well as in the story; trees, crates and
+  heaps too, and a gold outline shows through anything left over.
+- Line of sight (`packages/shared/src/city/sight.ts`): buildings (not market stalls) block sight. The city room
+  only sends players and piles a guardian can see, within 1.2 tiles always, with a 600 ms grace at corners; the
+  client shades the ground out of sight and hides townsfolk and story characters there.
+
+Ambient life and street toughs:
+- `packages/shared/src/city/traffic.ts` derives car lanes from the road grid (left-hand traffic, crossings with
+  alternating lights) and fixes ship routes over open water; tests check every lane is road and every route water.
+  The client (`apps/client/src/city/traffic.ts`) animates them per screen; they carry no game state.
+- Street toughs are server-run `CityPlayer`s with `npc: true`, two per rough district (`TOUGH_*` in `combat.ts`).
+  They are hit and seen through the same punch and line-of-sight rules as players, chase only on rough streets,
+  drop a purse of 8 to 20 coins when knocked out, and respawn after 30 seconds. Population counts people only.
 
 Next: co-op story instances (friends join by code), then act two, The Ransom Call.

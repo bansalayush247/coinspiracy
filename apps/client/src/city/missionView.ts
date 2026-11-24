@@ -2,7 +2,7 @@
 // a marker for where to go next. Drawn on top of the city scene; it keeps no game state of its own.
 import Phaser from 'phaser';
 import type { Vec2 } from '@byzantine-council/shared';
-import { HEAPS, TORCH_HALF_ANGLE, TORCH_RANGE, heapCentre, type NpcKind } from '@byzantine-council/shared/city';
+import { HEAPS, TORCH_HALF_ANGLE, TORCH_RANGE, heapCentre, inSight, type NpcKind } from '@byzantine-council/shared/city';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
 import { sceneDpr } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer } from '../game/interpolation.js';
@@ -27,6 +27,7 @@ interface Figure {
   facing: number;
   side: 1 | -1;
   chasing: boolean;
+  shown: boolean;
 }
 
 export interface NpcView {
@@ -67,7 +68,7 @@ export class MissionView {
       const sign = scene.add
         .text(s.x, s.y - 40 * ART_SCALE, h.label, { fontFamily: FONT, fontSize: '15px', fontStyle: '800', color: h.winter ? '#cfe8ff' : '#fff1de', backgroundColor: '#2a1a33cc', padding: { x: 6, y: 3 } })
         .setOrigin(0.5, 1)
-        .setDepth(19);
+        .setDepth(-1);
       this.names.add(sign);
       this.#signs.push(sign);
       const mark = new Phaser.GameObjects.Graphics(scene).setPosition(s.x, s.y).setDepth(depthOf(c.x, c.y) + 0.1).setVisible(false);
@@ -91,7 +92,7 @@ export class MissionView {
         fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffe3a8', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this.scene)),
       }).setOrigin(0.5, 1);
       this.names.add(label);
-      f = { kind, root, body, label, buffer: new InterpBuffer(), pos: { x: npc.x, y: npc.y }, facing: npc.facing, side: 1, chasing: false };
+      f = { kind, root, body, label, buffer: new InterpBuffer(), pos: { x: npc.x, y: npc.y }, facing: npc.facing, side: 1, chasing: false, shown: npc.shown };
       this.#draw(f);
       this.#figures.set(id, f);
     }
@@ -103,8 +104,7 @@ export class MissionView {
       f.chasing = npc.chasing;
       this.#draw(f);
     }
-    f.root.setVisible(npc.shown);
-    f.label.setVisible(npc.shown);
+    f.shown = npc.shown;
   }
 
   setHeap(index: number, dug: boolean): void {
@@ -133,6 +133,9 @@ export class MissionView {
       }
       const s = worldToScreen(f.pos.x, f.pos.y);
       const trot = f.kind === 'duncan' && f.chasing && !this.reduced ? Math.abs(Math.sin(time / 70)) * 3 * ART_SCALE : 0;
+      const seen = f.shown && (me === null || inSight(me, f.pos));
+      f.root.setVisible(seen);
+      f.label.setVisible(seen);
       f.root.setPosition(s.x, s.y).setDepth(this.depthOf(f.pos.x, f.pos.y));
       f.body.y = -trot;
       f.label.setScale(1 / zoom).setPosition(s.x, s.y - (f.kind === 'duncan' ? 24 : GUARDIAN_HEIGHT / ART_SCALE + 8) * ART_SCALE);
@@ -174,7 +177,7 @@ export class MissionView {
     const g = this.#torch;
     g.clear();
     const guard = [...this.#figures.values()].find((f) => f.kind === 'guard');
-    if (guard === undefined || !guard.root.visible) return;
+    if (guard === undefined || !guard.shown) return;
     const steps = 10;
     const points: Phaser.Math.Vector2[] = [];
     const o = worldToScreen(guard.pos.x, guard.pos.y);

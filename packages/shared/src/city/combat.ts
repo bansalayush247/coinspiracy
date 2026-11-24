@@ -68,8 +68,8 @@ export function pickTarget<K>(attacker: Fighter, others: Iterable<readonly [K, F
   return best;
 }
 
-export function afterPunch(health: number): { readonly health: number; readonly knockedOut: boolean } {
-  const next = Math.max(0, health - PUNCH_DAMAGE);
+export function afterPunch(health: number, damage = PUNCH_DAMAGE): { readonly health: number; readonly knockedOut: boolean } {
+  const next = Math.max(0, health - damage);
   return { health: next, knockedOut: next === 0 };
 }
 
@@ -87,3 +87,19 @@ export function takeFromPile(pocket: number, pile: number): { readonly pocket: n
   const taken = Math.min(room, pile);
   return { pocket: pocket + taken, left: pile - taken };
 }
+
+// Street toughs: server-run brawlers on the rough streets, so there is always someone to fight. Most only swing
+// back once you start it; bullies go for anyone carrying a fat pocket. Knocked out, they drop a small purse.
+export const TOUGH_NAMES: readonly string[] = Object.freeze(['Knuckles', 'Big Sal', 'Rivet', 'Moth', 'Lefty', 'Gus', 'Tinny', 'Brick', 'Pike', 'Dot']);
+export const TOUGHS_PER_DISTRICT = 2;
+export const TOUGH_DAMAGE = 12;
+export const TOUGH_COOLDOWN_MS = 1_100;
+export const TOUGH_ANGRY_MS = 12_000;
+export const TOUGH_CHASE = 9;
+export const TOUGH_PURSE_MIN = 8;
+export const TOUGH_PURSE_MAX = 20;
+export const TOUGH_RESPAWN_MS = 30_000;
+export const BULLY_POCKET = 50;
+export const BULLY_RANGE = 2.5;
+export const TOUGH_CHASE_SPEED = 0.75;
+export const TOUGH_WANDER_SPEED = 0.35;

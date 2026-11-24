@@ -1,6 +1,6 @@
 import type { ColyseusTestServer } from '@colyseus/testing';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { CITY_MESSAGES, CITY_ROOM, CITY_SPAWNS, CityState, KNOCKOUT_MS, MAX_HEALTH, PUNCH_COOLDOWN_MS, PunchLineSchema, ROUGH_STREETS, districtAt, type PunchLine } from '@byzantine-council/shared/city';
+import { CITY_BUILDINGS, CITY_MESSAGES, CITY_ROOM, CITY_SPAWNS, CityState, KNOCKOUT_MS, MAX_HEALTH, PUNCH_COOLDOWN_MS, PunchLineSchema, ROUGH_STREETS, districtAt, inSight, isRough, TOUGH_PURSE_MIN, type PunchLine } from '@byzantine-council/shared/city';
 import { EmoteLineSchema } from '@byzantine-council/shared/hub';
 import type { CityRoom } from '../src/city/CityRoom.js';
 import { sdk, startServer, waitFor } from './helpers.js';
@@ -18,7 +18,11 @@ afterAll(async () => {
   await colyseus.shutdown();
 });
 
-const join = (nickname: string) => sdk(PORT).joinOrCreate<CityState>(CITY_ROOM, { nickname }, CityState);
+async function join(nickname: string, toughs = false) {
+  const client = await sdk(PORT).joinOrCreate<CityState>(CITY_ROOM, { nickname }, CityState);
+  if (!toughs) colyseus.getRoomById<CityRoom>(client.roomId).toughsOff();
+  return client;
+}
 
 describe('Port Concord', () => {
   it('puts guardians in one city, near each other at the spawn', async () => {
@@ -53,6 +57,27 @@ describe('Port Concord', () => {
     far.y = spawn.y;
     await waitFor(() => a.state.players.size === 2, 'returns to the view');
     expect(a.state.players.get(b.sessionId)?.x).toBeCloseTo(spawn.x);
+  });
+
+  it('never sends a player hidden behind a building, however close', async () => {
+    const a = await join('Here');
+    const b = await join('Hidden');
+    await waitFor(() => a.state.players.size === 2, 'together at first');
+    const room = colyseus.getRoomById<CityRoom>(a.roomId);
+    const tower = CITY_BUILDINGS.find((x) => x.kind === 'gateTower');
+    const me = room.state.players.get(a.sessionId);
+    const other = room.state.players.get(b.sessionId);
+    if (tower === undefined || me === undefined || other === undefined) throw new Error('setup');
+    const midX = (tower.box.c0 + tower.box.c1 + 1) / 2;
+    me.x = midX;
+    me.y = tower.box.r0 - 1.5;
+    other.x = midX;
+    other.y = tower.box.r1 + 2.5;
+    expect(inSight(me, other)).toBe(false);
+    await waitFor(() => a.state.players.size === 1 && b.state.players.size === 1, 'out of sight both ways');
+    other.x = midX + 3;
+    other.y = me.y;
+    await waitFor(() => a.state.players.size === 2, 'in sight again');
   });
 
   it('keeps guardians out of the river and the sea', async () => {
@@ -92,6 +117,64 @@ describe('Port Concord', () => {
 
   it('refuses a bad nickname', async () => {
     await expect(join('')).rejects.toThrow();
+  });
+
+  describe('street toughs', () => {
+    it('roam only the rough streets and are not counted as people', async () => {
+      const a = await join('Visitor', true);
+      const room = colyseus.getRoomById<CityRoom>(a.roomId);
+      const toughs = room.toughs();
+      expect(toughs.length).toBe(8);
+      for (const t of toughs) expect(isRough(t)).toBe(true);
+      expect(toughs.some((t) => t.bully)).toBe(true);
+      await waitFor(() => a.state.population === 1, 'population counts people only');
+      expect(a.state.population).toBe(1);
+    });
+
+    it('a tough goes down after four punches, drops a purse, and swings back while it lasts', async () => {
+      const a = await join('Solo', true);
+      const room = colyseus.getRoomById<CityRoom>(a.roomId);
+      room.random = { int: () => 0 };
+      const tough = room.toughs().find((t) => !t.bully);
+      const me = room.state.players.get(a.sessionId);
+      if (tough === undefined || me === undefined) throw new Error('setup');
+      const body = room.state.players.get(tough.id);
+      if (body === undefined) throw new Error('tough');
+      me.x = body.x;
+      me.y = body.y + 0.6;
+      room.shieldOff(a.sessionId);
+      await waitFor(() => a.state.players.has(tough.id), 'the tough is in view');
+      const lines: PunchLine[] = [];
+      a.onMessage(CITY_MESSAGES.PUNCH, (m: unknown) => lines.push(PunchLineSchema.parse(m)));
+      a.send('punch');
+      await waitFor(() => lines.some((l) => l.from === tough.id), 'the tough swings back', 4000);
+      for (let i = 0; i < 3; i++) {
+        await new Promise((r) => setTimeout(r, PUNCH_COOLDOWN_MS + 30));
+        me.x = body.x;
+        me.y = body.y + 0.6;
+        a.send('punch');
+      }
+      await waitFor(() => lines.some((l) => l.from === a.sessionId && l.knockedOut), 'knocked out', 4000);
+      expect(body.down).toBe(true);
+      await waitFor(() => (me.pocket ?? 0) >= TOUGH_PURSE_MIN, 'grabs the purse');
+      expect(me.health).toBeLessThan(MAX_HEALTH);
+      await waitFor(() => !a.state.players.has(tough.id), 'the tough limps off', KNOCKOUT_MS + 2000);
+    }, 15_000);
+
+    it('a bully goes for a fat pocket without being hit first', async () => {
+      const a = await join('Rich', true);
+      const room = colyseus.getRoomById<CityRoom>(a.roomId);
+      const bully = room.toughs().find((t) => t.bully);
+      const me = room.state.players.get(a.sessionId);
+      if (bully === undefined || me === undefined) throw new Error('setup');
+      const body = room.state.players.get(bully.id);
+      if (body === undefined) throw new Error('bully');
+      me.x = body.x;
+      me.y = body.y + 0.6;
+      me.pocket = 200;
+      room.shieldOff(a.sessionId);
+      await waitFor(() => me.health < MAX_HEALTH, 'the bully swings', 5000);
+    }, 10_000);
   });
 
   describe('street fights', () => {

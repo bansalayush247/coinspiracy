@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { StateView } from '@colyseus/schema';
 import { ErrorCode, Room, ServerError, validate, type AuthContext, type Client } from '@colyseus/core';
 import { CLOSE_CODES, MovePayloadSchema, NoPayloadSchema, SERVER_TICK_HZ, TICK_SECONDS, cryptoRandom, stepMovement, uniqueNickname, type RandomSource } from '@byzantine-council/shared';
+import { findPath } from '@byzantine-council/shared/pathfinding';
 import { credit, isCosmeticId } from '@byzantine-council/shared/economy';
 import { dayFor } from '@byzantine-council/shared/progression';
 import {
@@ -16,6 +17,8 @@ import {
   CityJoinSchema,
   CityPlayer,
   CityState,
+  BULLY_POCKET,
+  BULLY_RANGE,
   DROP_LIFETIME_MS,
   KNOCKOUT_MS,
   LOOSE_COINS_EVERY_MS,
@@ -26,18 +29,38 @@ import {
   MAX_HEALTH,
   MAX_POCKET,
   PUNCH_COOLDOWN_MS,
+  PUNCH_DAMAGE,
+  PUNCH_RANGE,
+  ROUGH_DISTRICTS,
+  TOUGHS_PER_DISTRICT,
+  TOUGH_ANGRY_MS,
+  TOUGH_CHASE,
+  TOUGH_CHASE_SPEED,
+  TOUGH_COOLDOWN_MS,
+  TOUGH_DAMAGE,
+  TOUGH_NAMES,
+  TOUGH_PURSE_MAX,
+  TOUGH_PURSE_MIN,
+  TOUGH_RESPAWN_MS,
+  TOUGH_WANDER_SPEED,
   VAULT_DAILY_LIMIT,
   ROUGH_STREETS,
   SHIELD_MS,
+  SIGHT_GRACE_MS,
   afterPunch,
   atVault,
+  canHit,
   canPickUp,
   depositable,
+  districtAt,
+  inSight,
+  isRough,
   keepsInView,
   pickTarget,
   regenerate,
   takeFromPile,
   type DepositReason,
+  type DistrictId,
   type DepositResult,
   type Fighter,
   type PunchLine,
@@ -58,6 +81,33 @@ interface Auth {
 }
 type CityClient = Client<{ auth: Auth }>;
 
+interface FightState {
+  health: number;
+  knockedOutUntil: number;
+  shieldUntil: number;
+  lastHitMs: number;
+  lastPunchMs: number;
+}
+
+interface Tough extends FightState {
+  readonly district: DistrictId;
+  readonly n: number;
+  readonly home: { readonly x: number; readonly y: number };
+  readonly bully: boolean;
+  foe: string | null;
+  angryUntil: number;
+  path: { x: number; y: number }[];
+  repathAt: number;
+  waitUntil: number;
+}
+
+// Rough street tiles by district, where each district's toughs live and wander.
+const ROUGH_BY_DISTRICT = new Map<DistrictId, { x: number; y: number }[]>();
+for (const p of ROUGH_STREETS) {
+  const d = districtAt(p)?.id;
+  if (d !== undefined) ROUGH_BY_DISTRICT.set(d, [...(ROUGH_BY_DISTRICT.get(d) ?? []), p]);
+}
+
 interface Sim {
   readonly client: CityClient;
   readonly view: StateView;
@@ -66,6 +116,8 @@ interface Sim {
   // Session ids and coin piles this client is currently sent.
   readonly sees: Set<string>;
   readonly seesDrops: Set<string>;
+  // When each player or pile was last in this guardian's line of sight.
+  readonly lastSeen: Map<string, number>;
   readonly home: { readonly x: number; readonly y: number };
   health: number;
   knockedOutUntil: number;
@@ -98,6 +150,9 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
   override seatReservationTimeout = 8;
   readonly #sims = new Map<string, Sim>();
   readonly #drops = new Map<string, Drop>();
+  readonly #toughs = new Map<string, Tough>();
+  #nextTough = 0;
+  #toughsOn = true;
   #nextDrop = 0;
   #lastLooseMs = 0;
   #tick = 0;
@@ -151,6 +206,8 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       this.#step();
     }, SERVER_TICK_HZ);
     this.patchRate = null;
+    let n = 0;
+    for (const district of ROUGH_DISTRICTS) for (let i = 0; i < TOUGHS_PER_DISTRICT; i++) this.#spawnTough(district, n++);
     this.clock.setInterval(() => {
       const cutoff = Date.now() - IDLE_MS;
       for (const sim of this.#sims.values()) if (sim.lastActiveMs < cutoff) sim.client.leave(CLOSE_CODES.IDLE, 'Removed for being idle too long.');
@@ -192,6 +249,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       profileId: auth.profileId,
       sees: new Set([client.sessionId]),
       seesDrops: new Set(),
+      lastSeen: new Map(),
       home: spawn,
       health: MAX_HEALTH,
       knockedOutUntil: 0,
@@ -203,7 +261,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       lastEmoteMs: 0,
       lastLookMs: 0,
     });
-    this.state.population = this.state.players.size;
+    this.state.population = this.#sims.size;
     this.#refreshInterest();
     if (auth.profileId !== null) void this.#wearLook(client.sessionId, auth.profileId);
   }
@@ -214,10 +272,11 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     if (player !== undefined && leaving !== undefined && Date.now() - leaving.lastHitMs < COMBAT_LOG_MS) this.#dropPocket(player, Date.now());
     for (const sim of this.#sims.values()) {
       if (player !== undefined && sim.sees.delete(client.sessionId) && sim.client !== client) sim.view.remove(player);
+      sim.lastSeen.delete(client.sessionId);
     }
     this.state.players.delete(client.sessionId);
     this.#sims.delete(client.sessionId);
-    this.state.population = this.state.players.size;
+    this.state.population = this.#sims.size;
     client.view?.dispose();
   }
 
@@ -238,21 +297,31 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       if (player.ack !== sim.inputs.ack) player.ack = sim.inputs.ack;
       if (!down) this.#collect(player);
     }
+    for (const [id, t] of this.#toughs) this.#brawl(id, t, wall);
     this.#tidyDrops(wall);
     this.#tick = (this.#tick + 1) % INTEREST_EVERY_TICKS;
     if (this.#tick === 0) this.#refreshInterest();
     this.broadcastPatch();
   }
 
-  // Adds the players that came near each guardian to their view, and drops the ones that went far away.
+  // Adds what each guardian can see to their view: near enough, and not behind a building. The rest is never sent.
   #refreshInterest(): void {
+    const wall = Date.now();
+    const visible = (sim: Sim, me: CityPlayer, key: string, at: { x: number; y: number }, now: boolean): boolean => {
+      if (!keepsInView(me, at, now)) return false;
+      if (inSight(me, at)) {
+        sim.lastSeen.set(key, wall);
+        return true;
+      }
+      return now && wall - (sim.lastSeen.get(key) ?? 0) < SIGHT_GRACE_MS;
+    };
     for (const [id, sim] of this.#sims) {
       const me = this.state.players.get(id);
       if (me === undefined) continue;
       for (const [otherId, other] of this.state.players) {
         if (otherId === id) continue;
         const now = sim.sees.has(otherId);
-        const next = keepsInView(me, other, now);
+        const next = visible(sim, me, otherId, other, now);
         if (next === now) continue;
         if (next) {
           sim.view.add(other);
@@ -264,7 +333,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       }
       for (const [dropId, drop] of this.#drops) {
         const now = sim.seesDrops.has(dropId);
-        const next = keepsInView(me, drop.state, now);
+        const next = visible(sim, me, dropId, drop.state, now);
         if (next === now) continue;
         if (next) {
           sim.view.add(drop.state);
@@ -277,11 +346,16 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     }
   }
 
-  #fighter(player: CityPlayer, sim: Sim): Fighter {
-    return { x: player.x, y: player.y, health: sim.health, knockedOutUntil: sim.knockedOutUntil, shieldUntil: sim.shieldUntil };
+  #fighter(body: CityPlayer, f: FightState): Fighter {
+    return { x: body.x, y: body.y, health: f.health, knockedOutUntil: f.knockedOutUntil, shieldUntil: f.shieldUntil };
   }
 
-  // One swing per cooldown. The server picks the nearest guardian it can legally hit, or records a miss.
+  // A guardian or a street tough: whoever can be hit.
+  #fight(id: string): FightState | undefined {
+    return this.#sims.get(id) ?? this.#toughs.get(id);
+  }
+
+  // One swing per cooldown. The server picks the nearest guardian or tough it can legally hit, or records a miss.
   #punch(sessionId: string, now: number): void {
     const sim = this.#sims.get(sessionId);
     const me = this.state.players.get(sessionId);
@@ -292,30 +366,147 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     const nearby: (readonly [string, Fighter])[] = [];
     for (const id of sim.sees) {
       const other = this.state.players.get(id);
-      const otherSim = this.#sims.get(id);
-      if (id !== sessionId && other !== undefined && otherSim !== undefined) nearby.push([id, this.#fighter(other, otherSim)]);
+      const f = this.#fight(id);
+      if (id !== sessionId && other !== undefined && f !== undefined) nearby.push([id, this.#fighter(other, f)]);
     }
     const targetId = pickTarget(attacker, nearby, now);
-    const line: PunchLine = { from: sessionId, to: targetId, knockedOut: false };
-    if (targetId !== null) {
-      const target = this.state.players.get(targetId);
-      const targetSim = this.#sims.get(targetId);
-      if (target !== undefined && targetSim !== undefined) {
-        sim.shieldUntil = 0;
-        me.shielded = false;
-        const hit = afterPunch(targetSim.health);
-        targetSim.health = hit.health;
-        targetSim.lastHitMs = now;
-        target.health = Math.round(hit.health);
-        if (hit.knockedOut) {
-          line.knockedOut = true;
-          targetSim.knockedOutUntil = now + KNOCKOUT_MS;
-          target.down = true;
-          this.#dropPocket(target, now);
-        }
+    this.#swing(sessionId, me, sim, targetId, PUNCH_DAMAGE, now);
+  }
+
+  // Lands (or misses) a punch and shows it to everyone who can see the attacker.
+  #swing(attackerId: string, attacker: CityPlayer, f: FightState, targetId: string | null, damage: number, now: number): void {
+    const line: PunchLine = { from: attackerId, to: targetId, knockedOut: false };
+    const target = targetId === null ? undefined : this.state.players.get(targetId);
+    const tf = targetId === null ? undefined : this.#fight(targetId);
+    if (targetId !== null && target !== undefined && tf !== undefined) {
+      f.shieldUntil = 0;
+      attacker.shielded = false;
+      const hit = afterPunch(tf.health, damage);
+      tf.health = hit.health;
+      tf.lastHitMs = now;
+      target.health = Math.round(hit.health);
+      const tough = this.#toughs.get(targetId);
+      if (tough !== undefined && this.#sims.has(attackerId)) {
+        tough.foe = attackerId;
+        tough.angryUntil = now + TOUGH_ANGRY_MS;
+      }
+      if (hit.knockedOut) {
+        line.knockedOut = true;
+        tf.knockedOutUntil = now + KNOCKOUT_MS;
+        target.down = true;
+        if (tough !== undefined) this.#addDrop(target.x, target.y, TOUGH_PURSE_MIN + this.random.int(TOUGH_PURSE_MAX - TOUGH_PURSE_MIN + 1), now, false);
+        else this.#dropPocket(target, now);
       }
     }
-    for (const other of this.#sims.values()) if (other.sees.has(sessionId)) other.client.send(CITY_MESSAGES.PUNCH, line);
+    for (const other of this.#sims.values()) if (other.sees.has(attackerId)) other.client.send(CITY_MESSAGES.PUNCH, line);
+  }
+
+  #spawnTough(district: DistrictId, n: number): void {
+    if (!this.#toughsOn) return;
+    const streets = ROUGH_BY_DISTRICT.get(district) ?? [];
+    const home = streets[this.random.int(streets.length)];
+    if (home === undefined) return;
+    const id = `tough${String(this.#nextTough++)}`;
+    const body = new CityPlayer({ name: TOUGH_NAMES[n % TOUGH_NAMES.length] ?? 'Tough', seat: 8 + (n % 2), x: home.x, y: home.y, health: MAX_HEALTH, npc: true });
+    this.state.players.set(id, body);
+    this.#toughs.set(id, {
+      district, n, home, bully: n % 3 === 2, health: MAX_HEALTH, knockedOutUntil: 0, shieldUntil: 0, lastHitMs: 0, lastPunchMs: 0,
+      foe: null, angryUntil: 0, path: [], repathAt: 0, waitUntil: 0,
+    });
+  }
+
+  // Takes a tough off the street after a knockout; another turns up in the same district later.
+  #retire(id: string): void {
+    const tough = this.#toughs.get(id);
+    const body = this.state.players.get(id);
+    if (tough === undefined || body === undefined) return;
+    for (const sim of this.#sims.values()) {
+      if (sim.sees.delete(id)) sim.view.remove(body);
+      sim.lastSeen.delete(id);
+    }
+    this.state.players.delete(id);
+    this.#toughs.delete(id);
+    this.clock.setTimeout(() => {
+      this.#spawnTough(tough.district, tough.n);
+    }, TOUGH_RESPAWN_MS);
+  }
+
+  // Each tick a tough heals, picks or drops a fight, swings when in reach, and otherwise walks: after a foe, or about.
+  #brawl(id: string, t: Tough, now: number): void {
+    const body = this.state.players.get(id);
+    if (body === undefined) return;
+    if (body.down) {
+      if (t.knockedOutUntil <= now) this.#retire(id);
+      return;
+    }
+    t.health = regenerate(t.health, t.lastHitMs, now, TICK_SECONDS);
+    const shown = Math.round(t.health);
+    if (body.health !== shown) body.health = shown;
+    const reach = (p: CityPlayer): number => Math.hypot(p.x - body.x, p.y - body.y);
+    if (t.foe !== null) {
+      const foe = this.state.players.get(t.foe);
+      const fs = this.#sims.get(t.foe);
+      if (foe === undefined || fs === undefined || now > t.angryUntil || fs.knockedOutUntil > now || !isRough(foe) || reach(foe) > TOUGH_CHASE) t.foe = null;
+    }
+    if (t.foe === null && t.bully) {
+      for (const [pid, sim] of this.#sims) {
+        const p = this.state.players.get(pid);
+        if (p === undefined || (p.pocket ?? 0) < BULLY_POCKET || reach(p) > BULLY_RANGE || sim.shieldUntil > now || sim.knockedOutUntil > now || !isRough(p) || !inSight(body, p)) continue;
+        t.foe = pid;
+        t.angryUntil = now + TOUGH_ANGRY_MS;
+        break;
+      }
+    }
+    const foe = t.foe === null ? undefined : this.state.players.get(t.foe);
+    const fs = t.foe === null ? undefined : this.#sims.get(t.foe);
+    if (t.foe !== null && foe !== undefined && fs !== undefined) {
+      if (reach(foe) <= PUNCH_RANGE * 0.85) {
+        t.path = [];
+        if (now - t.lastPunchMs >= TOUGH_COOLDOWN_MS) {
+          t.lastPunchMs = now;
+          this.#swing(id, body, t, canHit(this.#fighter(body, t), this.#fighter(foe, fs), now) ? t.foe : null, TOUGH_DAMAGE, now);
+        }
+        return;
+      }
+      if (now >= t.repathAt) {
+        t.repathAt = now + 500;
+        const path = findPath(CITY_MAP, body, foe);
+        t.path = path.ok ? path.value : [];
+      }
+      this.#walk(body, t, TOUGH_CHASE_SPEED);
+      return;
+    }
+    if (t.path.length === 0) {
+      if (now < t.waitUntil) return;
+      const streets = ROUGH_BY_DISTRICT.get(t.district) ?? [];
+      const goal = streets[this.random.int(streets.length)];
+      if (goal !== undefined && Math.hypot(goal.x - t.home.x, goal.y - t.home.y) <= 8) {
+        const path = findPath(CITY_MAP, body, goal);
+        t.path = path.ok ? path.value : [];
+      }
+      t.waitUntil = now + 2_000 + this.random.int(3_000);
+      return;
+    }
+    this.#walk(body, t, TOUGH_WANDER_SPEED);
+  }
+
+  #walk(body: CityPlayer, t: Tough, speed: number): void {
+    const next = t.path[0];
+    if (next === undefined) return;
+    const dx = next.x - body.x;
+    const dy = next.y - body.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.15) {
+      t.path.shift();
+      return;
+    }
+    const moved = stepMovement({ x: body.x, y: body.y }, { x: (dx / dist) * speed, y: (dy / dist) * speed }, TICK_SECONDS, CITY_MAP);
+    if (!isRough(moved)) {
+      t.path = [];
+      return;
+    }
+    body.x = moved.x;
+    body.y = moved.y;
   }
 
   // Wakes knocked-out guardians at home with full health and a shield, regenerates health, ends shields.
@@ -356,7 +547,10 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
   #removeDrop(id: string): void {
     const drop = this.#drops.get(id);
     if (drop === undefined) return;
-    for (const sim of this.#sims.values()) if (sim.seesDrops.delete(id)) sim.view.remove(drop.state);
+    for (const sim of this.#sims.values()) {
+      if (sim.seesDrops.delete(id)) sim.view.remove(drop.state);
+      sim.lastSeen.delete(id);
+    }
     this.#drops.delete(id);
     this.state.drops.delete(id);
   }
@@ -440,6 +634,25 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     still.pocket = (still.pocket ?? 0) + fits;
     if (back > fits) this.#addDrop(still.x, still.y, back - fits, Date.now(), false);
     answer(reason, paid, back, today);
+  }
+
+  // For tests: clear the street toughs away and keep them away.
+  toughsOff(): void {
+    this.#toughsOn = false;
+    for (const id of [...this.#toughs.keys()]) {
+      const body = this.state.players.get(id);
+      for (const sim of this.#sims.values()) if (body !== undefined && sim.sees.delete(id)) sim.view.remove(body);
+      this.state.players.delete(id);
+      this.#toughs.delete(id);
+    }
+  }
+
+  // For tests: the street toughs and where they stand.
+  toughs(): { id: string; x: number; y: number; bully: boolean }[] {
+    return [...this.#toughs].flatMap(([id, t]) => {
+      const body = this.state.players.get(id);
+      return body === undefined ? [] : [{ id, x: body.x, y: body.y, bully: t.bully }];
+    });
   }
 
   // For tests: end a guardian's spawn protection early.

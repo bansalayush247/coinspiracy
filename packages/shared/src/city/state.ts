@@ -14,6 +14,8 @@ export const CityPlayer = schema(
     health: t.uint8().default(100),
     down: t.boolean().default(false),
     shielded: t.boolean().default(false),
+    // A street tough run by the server, not a person.
+    npc: t.boolean().default(false),
     pocket: t.uint32().view(VIEW_TAGS.OWNER).optional(),
     ack: t.uint32().view(VIEW_TAGS.OWNER).optional(),
   },

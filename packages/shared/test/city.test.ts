@@ -21,7 +21,16 @@ import {
   ROUGH_STREETS,
   VAULT_DAILY_LIMIT,
   VAULT_DOOR,
+  CAR_LANES,
+  LIGHT_CYCLE_MS,
+  SHIP_ROUTES,
+  SIGHT_TOUCH,
+  greenFor,
+  lanePoint,
   afterPunch,
+  clearLine,
+  inSight,
+  sightDistance,
   atVault,
   canHit,
   canPickUp,
@@ -232,5 +241,81 @@ describe('the Mint vault', () => {
     expect(depositable(120, VAULT_DAILY_LIMIT - 20)).toBe(20);
     expect(depositable(120, VAULT_DAILY_LIMIT)).toBe(0);
     expect(depositable(0, 0)).toBe(0);
+  });
+});
+
+describe('line of sight', () => {
+  const tower = CITY_BUILDINGS.find((b) => b.kind === 'gateTower');
+  if (tower === undefined) throw new Error('tower');
+  const { c0, r0, c1, r1 } = tower.box;
+  const midX = (c0 + c1 + 1) / 2;
+  const north = { x: midX, y: r0 - 1.5 };
+  const south = { x: midX, y: r1 + 2.5 };
+
+  it('stops at buildings and nowhere else', () => {
+    expect(clearLine(north, south)).toBe(false);
+    expect(inSight(north, south)).toBe(false);
+    expect(inSight(north, { x: midX + 3, y: north.y })).toBe(true);
+    expect(sightDistance(north, Math.PI / 2, 30)).toBeCloseTo(r0 - north.y, 5);
+    expect(sightDistance(north, -Math.PI / 2, 2)).toBe(2);
+    let tree: { c: number; r: number } | undefined;
+    for (let r = 0; r < CITY_HEIGHT && tree === undefined; r++) for (let c = 1; c < CITY_WIDTH - 1 && tree === undefined; c++) if (tileAt(CITY_MAP, c, r) === 'T' && walkable(c - 1, r) && walkable(c + 1, r)) tree = { c, r };
+    if (tree === undefined) throw new Error('tree');
+    expect(clearLine({ x: tree.c - 0.5, y: tree.r + 0.5 }, { x: tree.c + 1.5, y: tree.r + 0.5 })).toBe(true);
+  });
+
+  it('looks past open market stalls', () => {
+    const stall = CITY_BUILDINGS.find((b) => b.kind === 'stall');
+    if (stall === undefined) throw new Error('stall');
+    const y = (stall.box.r0 + stall.box.r1 + 1) / 2;
+    expect(clearLine({ x: stall.box.c0 - 1.5, y }, { x: stall.box.c1 + 2.5, y })).toBe(true);
+  });
+
+  it('sees someone right beside you even round a corner, and half a body past one', () => {
+    const corner = { x: c0 - 0.5, y: r0 - 0.5 };
+    expect(inSight(corner, { x: c0 - 0.5 + SIGHT_TOUCH * 0.7, y: r0 - 0.5 + SIGHT_TOUCH * 0.7 })).toBe(true);
+    const eye = { x: c0 - 3, y: r0 + 1.5 };
+    const peeking = { x: c0 + 1.5, y: r0 - 0.6 };
+    expect(clearLine(eye, peeking)).toBe(false);
+    expect(inSight(eye, peeking)).toBe(true);
+  });
+});
+
+describe('traffic', () => {
+  it('runs every car lane down the middle of a road, both ways on every road', () => {
+    expect(CAR_LANES.length).toBeGreaterThan(20);
+    for (const lane of CAR_LANES) {
+      const lo = Math.min(lane.from, lane.to);
+      const hi = Math.max(lane.from, lane.to);
+      for (let s = lo + 0.25; s < hi; s += 0.5) {
+        const p = lanePoint(lane, s);
+        expect([':', '='], `${lane.axis} ${String(lane.at)} at ${String(s)}`).toContain(tileAt(CITY_MAP, Math.floor(p.x), Math.floor(p.y)));
+      }
+      for (const [a, b] of lane.crossings) expect(b - a).toBe(2);
+    }
+    expect(new Set(CAR_LANES.map((l) => l.dir))).toEqual(new Set([1, -1]));
+  });
+
+  it('never shows green both ways at a crossing', () => {
+    for (let t = 0; t < LIGHT_CYCLE_MS; t += 100) expect(greenFor('col', t) && greenFor('row', t)).toBe(false);
+    expect(greenFor('col', 1000)).toBe(true);
+    expect(greenFor('row', 9000)).toBe(true);
+  });
+
+  it('sails every ship route on open water, clear of piers and the shore', () => {
+    for (const route of SHIP_ROUTES) {
+      const pts = route.points;
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        if (a === undefined || b === undefined) throw new Error('route');
+        const steps = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * 4);
+        for (let k = 0; k <= steps; k++) {
+          const x = a.x + ((b.x - a.x) * k) / steps;
+          const y = a.y + ((b.y - a.y) * k) / steps;
+          for (const [dx, dy] of [[0, 0], [0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]] as const) expect(tileAt(CITY_MAP, Math.floor(x + dx), Math.floor(y + dy)), `${route.kind} ${String(x)},${String(y)}`).toBe('~');
+        }
+      }
+    }
   });
 });

@@ -944,6 +944,7 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .city-punch { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(64px, calc(env(safe-area-inset-bottom) + 64px)); width: 84px; height: 84px; border-radius: 50%; display: grid; place-content: center; gap: 2px; font-weight: 800; font-size: 16px; background: #ff6b4a; color: #2a1a33; border: 3px solid #2a1a33; box-shadow: 0 6px 0 #2a1a33; touch-action: manipulation; }
 .city-punch small { font-size: 11px; opacity: 0.7; }
 .city-punch:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 #2a1a33; }
+.city-punch.off { background: #5a5462; color: #cfc4b6; opacity: 0.65; }
 .city-punch:disabled { background: #5a5462; color: #cfc4b6; box-shadow: 0 6px 0 #2a1a33; opacity: 0.65; }
 .city-deposit { position: absolute; left: 50%; bottom: max(86px, calc(env(safe-area-inset-bottom) + 86px)); transform: translateX(-50%); display: grid; gap: 2px; padding: 12px 20px; font-weight: 800; font-size: 16px; background: #ffd27a; color: #2a1a33; border: 3px solid #2a1a33; border-radius: 14px; box-shadow: 0 5px 0 #2a1a33; touch-action: manipulation; }
 .city-deposit small { font-size: 11px; font-weight: 600; opacity: 0.7; }

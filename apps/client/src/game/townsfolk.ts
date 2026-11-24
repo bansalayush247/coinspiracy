@@ -29,7 +29,7 @@ export class Townsfolk {
   readonly #walkers: Walker[] = [];
   #visible = true;
 
-  constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, map: CitadelMap, spots: readonly Vec2[], count: number) {
+  constructor(scene: Phaser.Scene, layer: Phaser.GameObjects.Layer, map: CitadelMap, spots: readonly Vec2[], count: number, private readonly depthOf: (x: number, y: number) => number = isoDepth) {
     this.#scene = scene;
     this.#map = map;
     this.#spots = spots;
@@ -49,6 +49,20 @@ export class Townsfolk {
   setVisible(visible: boolean): void {
     this.#visible = visible;
     for (const w of this.#walkers) w.root.setVisible(visible);
+  }
+
+  // Where the walkers are, so traffic can stop for them.
+  positions(): Vec2[] {
+    return this.#visible ? this.#walkers.map((w) => w.pos) : [];
+  }
+
+  // Hides the walkers a viewer cannot see, such as those behind a building.
+  cull(sees: (pos: Vec2) => boolean): void {
+    if (!this.#visible) return;
+    for (const w of this.#walkers) {
+      const shown = sees(w.pos);
+      if (w.root.visible !== shown) w.root.setVisible(shown);
+    }
   }
 
   update(time: number, delta: number, reducedMotion: boolean): void {
@@ -79,7 +93,7 @@ export class Townsfolk {
         }
       }
       const s = worldToScreen(w.pos.x, w.pos.y);
-      w.root.setPosition(s.x, s.y).setDepth(isoDepth(w.pos.x, w.pos.y));
+      w.root.setPosition(s.x, s.y).setDepth(this.depthOf(w.pos.x, w.pos.y));
       w.body.y = moving ? Math.sin(time / 90 + w.phase) * 1.6 * ART_SCALE : 0;
     }
   }

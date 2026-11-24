@@ -1,6 +1,6 @@
 // Runs a visit to Port Concord: the city room, the HUD, the minimap and district arrivals.
 import { Callbacks } from '@colyseus/sdk';
-import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WIDTH, DepositResultSchema, PunchLineSchema, VAULT_DOOR, atVault, districtAt, isRough, type CityDrop, type CityPlayer, type DepositResult, type DistrictId } from '@byzantine-council/shared/city';
+import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, PunchLineSchema, VAULT_DOOR, atVault, districtAt, isRough, type CityDrop, type CityPlayer, type DepositResult, type DistrictId } from '@byzantine-council/shared/city';
 import { EMOTES, EMOTE_GLYPHS, EmoteLineSchema, type Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import type { PlayerInput } from '../game/input.js';
@@ -30,6 +30,7 @@ export class CityController {
   #atVault = false;
   #rough: boolean | null = null;
   #coins = 0;
+  #safeToastAt = 0;
   #room: CityRoom | null = null;
   #here: DistrictId | null = null;
   #poll = 0;
@@ -170,7 +171,7 @@ export class CityController {
     const room = this.#room;
     const pos = this.scene.predictedPosition();
     if (room === null || pos === null) return;
-    const near = this.scene.others().length;
+    const near = this.scene.others().filter((o) => !o.npc).length;
     const total = room.state.population;
     this.#pop.textContent = `${String(total)} in the city · ${String(near)} nearby`;
     const d = districtAt(pos);
@@ -192,7 +193,9 @@ export class CityController {
       this.#zone.replaceChildren(rough ? 'Rough streets' : 'Safe streets', h('span', 'city-zone-more', rough ? ' · fights allowed' : ''));
       if (announce) this.onToast(rough ? 'Rough streets: anyone can knock you out and take your pocket' : 'Safe streets: nobody can fight here');
     }
-    this.#punch.disabled = !rough || this.scene.meDown;
+    this.#punch.disabled = this.scene.meDown;
+    this.#punch.classList.toggle('off', !rough);
+    this.#punch.setAttribute('aria-disabled', String(!rough));
     const vaultHere = atVault(pos) && !this.scene.meDown;
     if (vaultHere !== this.#atVault) {
       this.#atVault = vaultHere;
@@ -249,6 +252,14 @@ export class CityController {
 
   #swing(): void {
     if (this.#punch.disabled) return;
+    if (this.#rough !== true) {
+      const now = Date.now();
+      if (now - this.#safeToastAt > 2500) {
+        this.#safeToastAt = now;
+        this.onToast('Safe streets: no fighting here. Brawls happen in Low Tide, the Reef Docks, Gullmoor and the Shallows (red on the map).');
+      }
+      return;
+    }
     this.#room?.send('punch');
   }
 
@@ -271,6 +282,10 @@ export function paintMinimap(canvas: HTMLCanvasElement): void {
     for (let c = 0; c < CITY_WIDTH; c++) {
       ctx.fillStyle = MAP_COLORS[row[c] ?? '#'] ?? '#cfc4b6';
       ctx.fillRect(mapX(c, r) - 1, mapY(c, r), 2, 1);
+      if (CITY_WALKABLE.includes(row[c] ?? '#') && isRough({ x: c + 0.5, y: r + 0.5 })) {
+        ctx.fillStyle = 'rgba(255, 90, 60, 0.35)';
+        ctx.fillRect(mapX(c, r) - 1, mapY(c, r), 2, 1);
+      }
     }
   }
   ctx.fillStyle = '#2a1a33';
@@ -293,13 +308,15 @@ export function drawMapDot(ctx: CanvasRenderingContext2D, p: { x: number; y: num
   ctx.fill();
 }
 
-function drawDots(canvas: HTMLCanvasElement, me: { x: number; y: number }, others: readonly { x: number; y: number }[]): void {
+function drawDots(canvas: HTMLCanvasElement, me: { x: number; y: number }, others: readonly { x: number; y: number; npc?: boolean }[]): void {
   canvas.width = CITY_WIDTH + CITY_HEIGHT;
   canvas.height = (CITY_WIDTH + CITY_HEIGHT) / 2;
   const ctx = canvas.getContext('2d');
   if (ctx === null) return;
-  ctx.fillStyle = '#fff1de';
-  for (const o of others) ctx.fillRect(mapX(o.x, o.y) - 1.5, mapY(o.x, o.y) - 1.5, 3, 3);
+  for (const o of others) {
+    ctx.fillStyle = o.npc === true ? '#ff6b4a' : '#fff1de';
+    ctx.fillRect(mapX(o.x, o.y) - 1.5, mapY(o.x, o.y) - 1.5, 3, 3);
+  }
   ctx.fillStyle = '#2a1a33';
   ctx.beginPath();
   ctx.arc(mapX(me.x, me.y), mapY(me.x, me.y), 4.5, 0, Math.PI * 2);

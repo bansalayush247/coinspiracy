@@ -9,7 +9,8 @@ import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
 import { createGameServer } from '../apps/server/src/app.js';
 import type { CityRoom } from '../apps/server/src/city/CityRoom.js';
-import { PUNCH_COOLDOWN_MS, ROUGH_STREETS, VAULT_DOOR, districtAt } from '@byzantine-council/shared/city';
+import { CITY_MAP, PUNCH_COOLDOWN_MS, ROUGH_STREETS, VAULT_DOOR, districtAt } from '@byzantine-council/shared/city';
+import { canStand } from '@byzantine-council/shared/pathfinding';
 import { MemoryProfileStore } from '../apps/server/src/profile/store.js';
 import { matchMaker } from '@colyseus/core';
 
@@ -66,7 +67,10 @@ async function main(): Promise<void> {
     check(true, `both guardians arrive together (${await population(rook)})`);
     check(((await rook.textContent('#city-district')) ?? '') === 'Saltmarket', 'arrival is on the Saltmarket seafront');
     check((await chunks(rook)) >= 4, `map chunks streamed in around the camera (${String(await chunks(rook))})`);
-    check(((await rook.textContent('#city-zone')) ?? '') === 'Safe streets' && (await rook.isDisabled('#city-punch')), 'the seafront is safe: no punching');
+    check(((await rook.textContent('#city-zone')) ?? '') === 'Safe streets' && (await rook.getAttribute('#city-punch', 'aria-disabled')) === 'true', 'the seafront is safe: no punching');
+    await rook.keyboard.press('f');
+    const told = await rook.waitForFunction(() => document.body.textContent.includes('Safe streets: no fighting here'), undefined, { timeout: 5_000 }).then(() => true).catch(() => false);
+    check(told, 'punching on safe streets says where brawls happen');
     await rook.screenshot({ path: `${shots}city-arrive.png` });
     await dani.screenshot({ path: `${shots}city-phone.png` });
     // Walk north into the city for a few seconds.
@@ -79,6 +83,26 @@ async function main(): Promise<void> {
     const moved = before !== null && after !== null ? Math.hypot(after.x - before.x, after.y - before.y) : 0;
     check(moved > 4, `walking moves the guardian through the streets (${moved.toFixed(1)} tiles)`);
     await rook.screenshot({ path: `${shots}city-walk.png` });
+    const harbourRoom = matchMaker.getLocalRoomById((await matchMaker.query({ name: 'city' }))[0]?.roomId ?? '') as CityRoom | undefined;
+    const walker = [...(harbourRoom?.state.players.values() ?? [])].find((p) => p.name === 'Rook');
+    type Snap = { ships: { kind: string; x: number; y: number; shown: boolean }[]; carsShown: number; carsMoving: number } | null;
+    const traffic = (): Promise<Snap> => rook.evaluate(() => (window as unknown as { __bcTraffic?: () => Snap }).__bcTraffic?.() ?? null);
+    const first = await traffic();
+    check((first?.carsMoving ?? 0) > 10, `cars drive the roads (${String(first?.carsMoving ?? 0)} moving)`);
+    const ferry = first?.ships.find((sh) => sh.kind === 'ferry');
+    if (walker !== undefined && ferry !== undefined) {
+      const x = Math.min(118, Math.max(46, Math.floor(ferry.x))) + 0.5;
+      const shore = [102, 101, 100, 99, 98, 97, 96, 95, 94].map((y) => ({ x, y: y + 0.5 })).find((p) => canStand(CITY_MAP, p)) ?? { x: 61.5, y: 96.5 };
+      walker.x = shore.x;
+      walker.y = shore.y;
+      await rook.waitForTimeout(2500);
+      const later = (await traffic())?.ships.find((sh) => sh.kind === 'ferry');
+      check(later !== undefined && later.shown && Math.hypot(later.x - ferry.x, later.y - ferry.y) > 1, 'the ferry sails past the seafront');
+      await rook.screenshot({ path: `${shots}city-harbour.png` });
+      walker.x = 61.5;
+      walker.y = 96.5;
+      await rook.waitForTimeout(1500);
+    }
     // Send Dani across the city on the server: Rook's client must stop receiving her.
     const listing = await matchMaker.query({ name: 'city' });
     const roomId = listing[0]?.roomId ?? '';
@@ -95,6 +119,27 @@ async function main(): Promise<void> {
     check(((await dani.textContent('#city-district')) ?? '') === 'The Heights', 'the HUD names the district you are in');
     await dani.waitForTimeout(1500);
     await dani.screenshot({ path: `${shots}city-heights.png` });
+    const soloId = [...(room?.state.players.entries() ?? [])].find(([, p]) => p.name === 'Rook')?.[0];
+    const solo = soloId === undefined ? undefined : room?.state.players.get(soloId);
+    const tough = room?.toughs().find((t) => !t.bully);
+    const toughBody = tough === undefined ? undefined : room?.state.players.get(tough.id);
+    if (solo !== undefined && soloId !== undefined && toughBody !== undefined) {
+      solo.x = toughBody.x;
+      solo.y = toughBody.y + 0.6;
+      room?.shieldOff(soloId);
+      await rook.waitForTimeout(1200);
+      for (let i = 0; i < 4; i++) {
+        solo.x = toughBody.x;
+        solo.y = toughBody.y + 0.6;
+        await rook.keyboard.press('f');
+        if (i === 2) await rook.screenshot({ path: `${shots}city-tough.png` });
+        await rook.waitForTimeout(PUNCH_COOLDOWN_MS + 80);
+      }
+    }
+    const purse = await rook.waitForFunction(() => Number(document.getElementById('city-pocket')?.textContent ?? '0') > 0, undefined, { timeout: 5_000 }).then(() => true).catch(() => false);
+    check(purse && toughBody?.down === true, `alone on the rough streets, a street tough goes down and drops a purse (${(await rook.textContent('#city-pocket')) ?? ''})`);
+    room?.toughsOff();
+    if (solo !== undefined) solo.pocket = 0;
     // Both meet on a Low Tide street, where fights are allowed.
     const street = ROUGH_STREETS.find((p) => districtAt(p)?.id === 'lowtide' && ROUGH_STREETS.some((q) => q.x === p.x + 1 && q.y === p.y));
     const rookId = [...(room?.state.players.entries() ?? [])].find(([, p]) => p.name === 'Rook')?.[0];
@@ -110,7 +155,7 @@ async function main(): Promise<void> {
       if (nearby !== undefined) room?.dropCoins(nearby.x, nearby.y, 260);
     }
     await rook.waitForFunction(() => document.getElementById('city-zone')?.dataset['rough'] === 'true', undefined, { timeout: 10_000 }).catch(() => undefined);
-    check(!(await rook.isDisabled('#city-punch')), `rough streets enable punching (${(await rook.textContent('#city-zone')) ?? ''})`);
+    check((await rook.getAttribute('#city-punch', 'aria-disabled')) === 'false', `rough streets enable punching (${(await rook.textContent('#city-zone')) ?? ''})`);
     await rook.waitForTimeout(800);
     for (let i = 0; i < 4; i++) {
       await rook.keyboard.press('f');
