@@ -255,6 +255,9 @@ class Controller {
     el('open-overflow', HTMLButtonElement).addEventListener('click', () => {
       void this.#playStory({ act: 'overflow' });
     });
+    el('open-split', HTMLButtonElement).addEventListener('click', () => {
+      void this.#playStory({ act: 'split' });
+    });
     el('open-cases', HTMLButtonElement).addEventListener('click', () => {
       this.#casebook.open();
     });

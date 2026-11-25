@@ -55,6 +55,7 @@ import { OverflowRules } from './acts/overflowRules.js';
 import { PasswordRules } from './acts/passwordRules.js';
 import { PizzaRules } from './acts/pizzaRules.js';
 import { PopcornRules } from './acts/popcornRules.js';
+import { SplitRules } from './acts/splitRules.js';
 import { RansomRules } from './acts/ransomRules.js';
 import { near, type ActContext, type ActRules } from './acts/rules.js';
 
@@ -108,6 +109,7 @@ const RULES: Readonly<Record<ActId, () => ActRules>> = {
   insider: () => new InsiderRules(),
   founder: () => new FounderRules(),
   overflow: () => new OverflowRules(),
+  split: () => new SplitRules(),
   popcorn: () => new PopcornRules(),
   number: () => new NumberRules(),
   coins: () => new CoinsRules(),

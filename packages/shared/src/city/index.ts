@@ -15,6 +15,7 @@ export * from './ransom.js';
 export * from './insider.js';
 export * from './founder.js';
 export * from './overflow.js';
+export * from './split.js';
 export * from './popcorn.js';
 export * from './number.js';
 export * from './coins.js';

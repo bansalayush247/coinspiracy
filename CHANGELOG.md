@@ -2,6 +2,14 @@
 
 ## 25 November 2026
 
+### Season two, act two: The Split
+- After the overflow, everyone wants an upgrade, just not the same one. Rex Bigsby, with a megaphone, wants notes
+  ten times the size; Ivy says then only the rich could afford to check the maths.
+- Guardians can't force rules on anyone, so the shopkeepers who take the Mint's notes decide. Win five of the six
+  round Council Hill while Rex walks over to talk back anyone left alone for long. Stay with them, or split up.
+- Hear Rex out or heckle him; at the count he forks off with his own coin, and a faint voice on the Mint channel
+  says "Told you." Pays 350 play sats once. Inspired by the years the city argued over an upgrade.
+
 ### Season two, act one: The Overflow
 - A new story tile opens season two. Rook asks Mags about the voicemail and gets "wrong number". Then Ivy calls:
   overnight, two notes worth ninety-two billion coins each were minted at the Concord Mint.

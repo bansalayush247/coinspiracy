@@ -43,6 +43,12 @@ import {
   OVERFLOW_ACT,
   OVERFLOW_REWARD_SATS,
   OZZY_LOOP,
+  HALL_STEPS,
+  SHOPKEEPERS,
+  SIGNALS_NEEDED,
+  SPLIT_ACT,
+  SPLIT_REWARD_SATS,
+  WON_FIRM_MS,
   visibleChoices,
   type ActId,
   type CaughtLine,
@@ -52,6 +58,7 @@ import {
 import type { MissionRoom } from '../src/city/MissionRoom.js';
 import { OverflowRules } from '../src/city/acts/overflowRules.js';
 import { PopcornRules } from '../src/city/acts/popcornRules.js';
+import { SplitRules } from '../src/city/acts/splitRules.js';
 import type { ActContext, CrewMember } from '../src/city/acts/rules.js';
 import { MemoryProfileStore } from '../src/profile/store.js';
 import { COOKIE_NAME, type SessionKeys } from '../src/profile/session.js';
@@ -396,5 +403,52 @@ describe('season two, act one: The Overflow', () => {
     expect(o?.chasing).toBe(true);
     expect(o?.y).toBe(start.y);
     expect(o?.x ?? 0).toBeGreaterThan(start.x);
+  });
+});
+
+describe('season two, act two: The Split', () => {
+  it('wins five shopkeepers round and lets Rex fork off', async () => {
+    const run = await begin('split');
+    await drive(run, {}, atStep('toHall'));
+    await arrive(run, HALL_STEPS, 'hall');
+    await drive(run, { hall: 'hear' }, atStep('canvass'));
+    for (let i = 0; i < SIGNALS_NEEDED; i++) {
+      expect(run.client.state.step).toBe('canvass');
+      await work(run, i);
+    }
+    await waitFor(() => run.client.state.step === 'count', 'the count');
+    await finish(run, { count: 'luck' }, SPLIT_REWARD_SATS);
+    expect([...run.client.state.marks]).toEqual(expect.arrayContaining(['clueRules', 'heardBoth', 'wishedRex']));
+  });
+
+  function canvass(crewAt: { x: number; y: number } | null) {
+    const state = new MissionState();
+    for (let i = 0; i < SPLIT_ACT.spots.length; i++) state.spots.push(new MissionSpot());
+    const crew = crewAt === null ? [] : ([{ id: 'rook', player: crewAt, caughtUntil: 0 }] as unknown as CrewMember[]);
+    const ctx = { ...fakeContext(state, crew), act: SPLIT_ACT };
+    const rules = new SplitRules();
+    rules.setup(ctx);
+    state.step = 'canvass';
+    const spot = state.spots[0];
+    if (spot === undefined) throw new Error('spot');
+    spot.done = true;
+    rules.worked(ctx, 0, crew[0] as CrewMember, 0);
+    let flippedAt = -1;
+    for (let now = 0; now < 90_000 && flippedAt < 0; now += 50) {
+      rules.tick(ctx, now);
+      if (state.spots[0]?.done === false) flippedAt = now;
+    }
+    return { flippedAt, spot };
+  }
+
+  it('has Rex talk back a shopkeeper left alone, but only once they have had time to waver', () => {
+    const { flippedAt, spot } = canvass(null);
+    expect(flippedAt).toBeGreaterThanOrEqual(WON_FIRM_MS);
+    expect(spot.note).toContain('Rex talked the baker round');
+  });
+
+  it('never lets Rex talk round a shopkeeper someone is standing with', () => {
+    const at = SHOPKEEPERS[0]?.at ?? HALL_STEPS;
+    expect(canvass({ x: at.x, y: at.y }).flippedAt).toBe(-1);
   });
 });

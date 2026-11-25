@@ -963,6 +963,7 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .insider-open { background: rgba(224, 87, 75, 0.14); color: #ffab9f; }
 .founder-open { background: rgba(255, 210, 122, 0.14); color: #ffe3a8; }
 .overflow-open { background: rgba(88, 201, 106, 0.14); color: #b4efbe; }
+.split-open { background: rgba(224, 80, 60, 0.14); color: #f6a99c; }
 .cases-open { background: rgba(159, 180, 199, 0.14); color: #d8e4ef; }
 .modal.cases { width: min(620px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; gap: 10px; }
 .cases-intro { margin: 0; color: var(--muted); font-size: 14px; }

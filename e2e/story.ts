@@ -2,7 +2,7 @@
 // menu, answers Mr Pell, Dani and Mags with the keyboard, digs the right heap at Gullmoor tip at night, asks Dani
 // nicely, and reaches the end card with the reward. Then a friend joins a crew from its invite link and the two
 // split a vote, act two is played from the call to the lighthouse, and act three from the leak to Teo's confession
-// and the council finale, act four to the season's end, season two's first act, and two side cases from the casebook. The server is only
+// and the council finale, act four to the season's end, season two's first two acts, and two side cases from the casebook. The server is only
 // used to skip the walks.
 // Run: npx tsx --conditions=source e2e/story.ts
 import { randomBytes } from 'node:crypto';
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { matchMaker } from '@colyseus/core';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
-import { MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
+import { HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
 import { canStand } from '@byzantine-council/shared/pathfinding';
 import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
@@ -513,6 +513,37 @@ async function main(): Promise<void> {
     check(((await s2.page.textContent('#story-end-title')) ?? '') === 'The Overflow', 'catching Ozzy and fixing the Mint ends season two’s first act');
     check(((await s2.page.textContent('#story-reward')) ?? '').includes('+300 play sats'), `it pays its first finish (${(await s2.page.textContent('#story-reward')) ?? ''})`);
     await s2.page.screenshot({ path: `${shots}overflow-end.png` });
+
+    const split = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-split');
+    check(split.room.state.act === 'split', 'the next tile opens The Split');
+    await read(split.page, split.room, 'radio');
+    await until(() => split.room.state.step === 'toHall', 'off to City Hall');
+    split.room.teleport(HALL_STEPS.x, HALL_STEPS.y);
+    await answer(split.page, split.room, 'hall', 1);
+    await read(split.page, split.room, 'hallHear');
+    await read(split.page, split.room, 'hallEnd');
+    await until(() => split.room.state.step === 'canvass', 'the canvass');
+    split.room.quietNight();
+    for (const i of [3, 2, 1, 0, 5]) {
+      const shop = SHOPKEEPERS[i];
+      if (shop === undefined) throw new Error('shopkeeper');
+      split.room.teleport(shop.at.x, shop.at.y);
+      await split.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Talk to ${label}`) === true, shop.label, { timeout: 10_000 }).catch(() => undefined);
+      await split.page.keyboard.press('e');
+      await until(() => split.room.state.spots[i]?.done === true || split.room.state.step !== 'canvass', `won ${shop.label}`);
+      if (i === 2) {
+        await split.page.waitForTimeout(800);
+        await split.page.screenshot({ path: `${shots}split-canvass.png` });
+      }
+    }
+    await until(() => split.room.state.step === 'count', 'the count');
+    check(split.room.state.step === 'count', 'five shopkeepers at once settle it');
+    await answer(split.page, split.room, 'count', 1);
+    await read(split.page, split.room, 'countLuck');
+    await read(split.page, split.room, 'countEnd');
+    await split.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await split.page.textContent('#story-end-title')) ?? '') === 'The Split', 'Rex forks off and season two’s second act ends');
+    check(((await split.page.textContent('#story-reward')) ?? '').includes('+350 play sats'), `it pays its first finish (${(await split.page.textContent('#story-reward')) ?? ''})`);
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

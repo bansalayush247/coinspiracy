@@ -264,4 +264,9 @@ Season two, act one, The Overflow (`packages/shared/src/city/overflow.ts`; rules
   first if they're ahead of him), then rests for 3 s. Anyone within a tile catches him; the crew is cut to that spot
   for the last scenes. Tests replay a lone runner catching him, and the turn.
 
+Season two, act two, The Split (`split.ts`; rules `acts/splitRules.ts`): six shopkeepers on Council Hill
+(`SHOPKEEPERS`, badges read "With us"). A won shopkeeper can be lost again: Rex heads for the nearest one the crew
+won more than `WON_FIRM_MS` ago and nobody stands within `GUARD_RANGE` of (`rexTarget`), and talks them round. Five
+at once (`SIGNALS_NEEDED`) starts the count. A test races a lone player against Rex at full and at 60% speed.
+
 Not built yet: the rest of season two.
