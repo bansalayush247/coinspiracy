@@ -48,6 +48,7 @@ export class MissionController {
   readonly #invite = el('story-invite', HTMLButtonElement);
   readonly #crewList = el('story-crew', HTMLElement);
   readonly #goal = el('story-goal', HTMLElement);
+  readonly #clock = el('story-clock', HTMLElement);
   readonly #dialogue = new Dialogue();
   #room: MissionRoom | null = null;
   #marks = new Set<string>();
@@ -185,6 +186,9 @@ export class MissionController {
         }
       });
     });
+    callbacks.listen('clock', (seconds: number) => {
+      this.#renderClock(seconds);
+    });
     callbacks.listen('step', (step: string) => {
       this.#setStep(step);
     });
@@ -261,6 +265,7 @@ export class MissionController {
     this.#step = 'call';
     this.#actShown = false;
     this.#goal.textContent = '';
+    this.#clock.textContent = '';
     this.#near = -1;
     this.#clues.replaceChildren();
     this.#crewList.replaceChildren();
@@ -399,6 +404,17 @@ export class MissionController {
   }
 
   // Progress on the act's work, when it has a goal: "Signatures: 2 of 3".
+  // The act's clock, if one is running: what it counts down to, in minutes and seconds.
+  #renderClock(seconds: number): void {
+    const label = this.#act.clockLabel;
+    if (seconds <= 0 || label === undefined) {
+      this.#clock.textContent = '';
+      return;
+    }
+    this.#clock.textContent = `${label} ${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`;
+    this.#clock.classList.toggle('short', seconds <= 30);
+  }
+
   #renderGoal(): void {
     const room = this.#room;
     const goal = this.#act.workGoal;

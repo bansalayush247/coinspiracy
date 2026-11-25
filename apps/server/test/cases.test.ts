@@ -49,6 +49,14 @@ import {
   SPLIT_ACT,
   SPLIT_REWARD_SATS,
   WON_FIRM_MS,
+  BOATS,
+  COOP_YARD,
+  HARBOUR_OFFICE,
+  JETTY_MARKS,
+  RECEIPT_ACT,
+  RECEIPT_FOUND,
+  RECEIPT_REWARD_SATS,
+  TIDE_MS,
   visibleChoices,
   type ActId,
   type CaughtLine,
@@ -59,6 +67,7 @@ import type { MissionRoom } from '../src/city/MissionRoom.js';
 import { OverflowRules } from '../src/city/acts/overflowRules.js';
 import { PopcornRules } from '../src/city/acts/popcornRules.js';
 import { SplitRules } from '../src/city/acts/splitRules.js';
+import { ReceiptRules } from '../src/city/acts/receiptRules.js';
 import type { ActContext, CrewMember } from '../src/city/acts/rules.js';
 import { MemoryProfileStore } from '../src/profile/store.js';
 import { COOKIE_NAME, type SessionKeys } from '../src/profile/session.js';
@@ -450,5 +459,52 @@ describe('season two, act two: The Split', () => {
   it('never lets Rex talk round a shopkeeper someone is standing with', () => {
     const at = SHOPKEEPERS[0]?.at ?? HALL_STEPS;
     expect(canvass({ x: at.x, y: at.y }).flippedAt).toBe(-1);
+  });
+});
+
+describe('season two, act three: The Old Receipt', () => {
+  it('narrows the search to the right jetty for a kind crew, and beats the tide to the office', async () => {
+    const run = await begin('receipt');
+    await drive(run, { tower: 'thanks' }, atStep('toDocks'));
+    await arrive(run, COOP_YARD, 'coop');
+    await drive(run, { coop: 'calm' }, atStep('search'));
+    const secret = run.room.secretSpot;
+    const boat = BOATS[secret];
+    if (boat === undefined) throw new Error('boat');
+    const told = JETTY_MARKS.filter((m) => run.client.state.marks.includes(m));
+    expect(told).toEqual([JETTY_MARKS[boat.jetty]]);
+    expect(run.client.state.clock).toBe(TIDE_MS / 1000);
+    await work(run, secret);
+    expect(run.client.state.spots[secret]?.note).toBe(RECEIPT_FOUND);
+    await waitFor(() => run.client.state.step === 'deliver', 'off to the office');
+    await arrive(run, HARBOUR_OFFICE, 'office');
+    await finish(run, { office: 'mercy' }, RECEIPT_REWARD_SATS);
+    expect(run.client.state.clock).toBe(0);
+    expect([...run.client.state.marks]).toEqual(expect.arrayContaining(['clueTab', 'thankedOzzy', 'calmedNell', 'beatTide', 'askedMercy']));
+  });
+
+  it('never tells a crew that rushed Nell which jetty it is', async () => {
+    const run = await begin('receipt');
+    await drive(run, {}, atStep('toDocks'));
+    await arrive(run, COOP_YARD, 'coop');
+    await drive(run, { coop: 'rush' }, atStep('search'));
+    expect(JETTY_MARKS.filter((m) => run.client.state.marks.includes(m))).toEqual([]);
+  });
+
+  it('counts the tide down and lets the old receipt stand if it runs out', () => {
+    const state = new MissionState();
+    for (let i = 0; i < RECEIPT_ACT.spots.length; i++) state.spots.push(new MissionSpot());
+    const ctx = { ...fakeContext(state), act: RECEIPT_ACT };
+    const rules = new ReceiptRules();
+    rules.setup(ctx);
+    state.step = 'search';
+    rules.onStep(ctx, 'search', 0);
+    rules.tick(ctx, 10_000);
+    expect(state.clock).toBe(TIDE_MS / 1000 - 10);
+    let now = 10_000;
+    for (; now <= TIDE_MS + 1000 && state.step === 'search'; now += 50) rules.tick(ctx, now);
+    expect(state.step).toBe('missed');
+    expect(now).toBeGreaterThanOrEqual(TIDE_MS);
+    expect(state.clock).toBe(0);
   });
 });

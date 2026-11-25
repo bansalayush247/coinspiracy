@@ -37,6 +37,8 @@ export const NPC_KINDS = [
   'gull',
   'ozzy',
   'rex',
+  'nell',
+  'silas',
 ] as const;
 export type NpcKind = (typeof NPC_KINDS)[number];
 // The kinds that carry a torch, drawn as a cone the server uses to catch the crew.
@@ -90,6 +92,8 @@ export const MissionState = schema(
     ready: t.uint8().default(0),
     // The choice that settled the last choice node, '' when the crew said nothing.
     said: t.string().default(''),
+    // Seconds left on the act's clock, such as the turning tide; 0 when nothing is ticking.
+    clock: t.uint16().default(0),
   },
   'MissionState',
 );

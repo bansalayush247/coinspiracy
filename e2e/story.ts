@@ -2,7 +2,7 @@
 // menu, answers Mr Pell, Dani and Mags with the keyboard, digs the right heap at Gullmoor tip at night, asks Dani
 // nicely, and reaches the end card with the reward. Then a friend joins a crew from its invite link and the two
 // split a vote, act two is played from the call to the lighthouse, and act three from the leak to Teo's confession
-// and the council finale, act four to the season's end, season two's first two acts, and two side cases from the casebook. The server is only
+// and the council finale, act four to the season's end, season two's first three acts, and two side cases from the casebook. The server is only
 // used to skip the walks.
 // Run: npx tsx --conditions=source e2e/story.ts
 import { randomBytes } from 'node:crypto';
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { matchMaker } from '@colyseus/core';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
-import { HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
+import { BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
 import { canStand } from '@byzantine-council/shared/pathfinding';
 import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
@@ -250,6 +250,7 @@ async function main(): Promise<void> {
     await lead.page.click('#story-leave');
     await lead.page.locator('#menu').waitFor({ state: 'visible', timeout: 10_000 });
 
+    await Promise.all([page.close(), phone.page.close(), lead.page.close(), friend.close()]);
     const two = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-ransom');
     await until(() => two.room.state.node === 'ransom', 'the ransom call');
     check(two.room.state.act === 'ransom', 'the act two tile opens The Ransom Call');
@@ -363,6 +364,7 @@ async function main(): Promise<void> {
     await three.page.locator('.toast').first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
     check(((await three.page.textContent('#toasts')) ?? '').includes('signing ceremony'), 'the ceremony briefs everyone who joins');
 
+    await Promise.all([two.page.close(), three.page.close()]);
     const four = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-founder');
     await until(() => four.room.state.node === 'stick', 'the stick');
     check(four.room.state.act === 'founder', 'the act four tile opens The Founder’s Coins');
@@ -408,6 +410,7 @@ async function main(): Promise<void> {
     check(((await four.page.textContent('#story-reward')) ?? '').includes('+500 play sats'), `the season finale pays its first finish (${(await four.page.textContent('#story-reward')) ?? ''})`);
     await four.page.screenshot({ path: `${shots}founder-end.png` });
 
+    await four.page.close();
     const tin = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-cases', 'The Popcorn Tin');
     check(tin.room.state.act === 'popcorn', 'the casebook opens The Popcorn Tin');
     check((await tin.page.textContent('#story-eyebrow'))?.startsWith('Ripped from the ledger') === true, 'a side case is labelled as one');
@@ -447,6 +450,7 @@ async function main(): Promise<void> {
     check(((await tin.page.locator('.cases-list .case.solved').first().textContent()) ?? '').includes('The Popcorn Tin'), 'the casebook marks the case solved');
     check((await tin.page.locator('.cases-list .case').count()) === 6, 'the casebook lists six side cases');
 
+    await tin.page.close();
     const pizza = await open(browser, 'Rook', { width: 390, height: 844 }, errors, '#open-cases', 'Pizza Night');
     await answer(pizza.page, pizza.room, 'notice', 1);
     await read(pizza.page, pizza.room, 'noticeDeal');
@@ -477,6 +481,7 @@ async function main(): Promise<void> {
     check(((await pizza.page.textContent('#story-end-title')) ?? '') === 'Pizza Night', 'Pizza Night plays to its end card on a phone');
     await pizza.page.screenshot({ path: `${shots}pizza-end.png` });
 
+    await pizza.page.close();
     const s2 = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-overflow');
     check(s2.room.state.act === 'overflow', 'the season two tile opens The Overflow');
     await answer(s2.page, s2.room, 'hatch', 2);
@@ -514,6 +519,7 @@ async function main(): Promise<void> {
     check(((await s2.page.textContent('#story-reward')) ?? '').includes('+300 play sats'), `it pays its first finish (${(await s2.page.textContent('#story-reward')) ?? ''})`);
     await s2.page.screenshot({ path: `${shots}overflow-end.png` });
 
+    await s2.page.close();
     const split = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-split');
     check(split.room.state.act === 'split', 'the next tile opens The Split');
     await read(split.page, split.room, 'radio');
@@ -544,6 +550,40 @@ async function main(): Promise<void> {
     await split.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
     check(((await split.page.textContent('#story-end-title')) ?? '') === 'The Split', 'Rex forks off and season two’s second act ends');
     check(((await split.page.textContent('#story-reward')) ?? '').includes('+350 play sats'), `it pays its first finish (${(await split.page.textContent('#story-reward')) ?? ''})`);
+
+    await split.page.close();
+    const tide = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-receipt');
+    check(tide.room.state.act === 'receipt', 'the next tile opens The Old Receipt');
+    await answer(tide.page, tide.room, 'tower', 1);
+    await read(tide.page, tide.room, 'towerThanks');
+    await until(() => tide.room.state.step === 'toDocks', 'off to the docks');
+    tide.room.teleport(COOP_YARD.x, COOP_YARD.y);
+    await answer(tide.page, tide.room, 'coop', 1);
+    for (let i = 0; i < 200 && tide.room.state.step !== 'search'; i++) {
+      await tide.page.keyboard.press(' ');
+      await tide.page.waitForTimeout(150);
+    }
+    await until(() => tide.room.state.step === 'search', 'the search');
+    await tide.page.waitForFunction(() => document.getElementById('story-clock')?.textContent.startsWith('Tide turns in') === true, undefined, { timeout: 5_000 }).catch(() => undefined);
+    check(((await tide.page.textContent('#story-clock')) ?? '').startsWith('Tide turns in'), 'the tide clock is counting down');
+    tide.room.teleport(BOATS[1]?.at.x ?? COOP_YARD.x, (BOATS[1]?.at.y ?? COOP_YARD.y) + 1.5);
+    await tide.page.waitForTimeout(1500);
+    await tide.page.screenshot({ path: `${shots}receipt-jetty.png` });
+    tide.room.quietNight();
+    const boat = BOATS[tide.room.secretSpot];
+    if (boat === undefined) throw new Error('boat');
+    tide.room.teleport(boat.at.x, boat.at.y);
+    await tide.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Search the ${label}`) === true, boat.label, { timeout: 10_000 }).catch(() => undefined);
+    await tide.page.keyboard.press('e');
+    await until(() => tide.room.state.step === 'deliver', 'the receipt');
+    tide.room.teleport(HARBOUR_OFFICE.x, HARBOUR_OFFICE.y);
+    await answer(tide.page, tide.room, 'office', 1);
+    await read(tide.page, tide.room, 'officeMercy');
+    await read(tide.page, tide.room, 'officeEnd');
+    await tide.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await tide.page.textContent('#story-end-title')) ?? '') === 'The Old Receipt', 'the newer receipt beats the tide and ends season two’s third act');
+    check(((await tide.page.textContent('#story-clock')) ?? '') === '', 'the tide clock is gone once it’s settled');
+    await tide.page.close();
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

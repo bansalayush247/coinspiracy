@@ -258,6 +258,9 @@ class Controller {
     el('open-split', HTMLButtonElement).addEventListener('click', () => {
       void this.#playStory({ act: 'split' });
     });
+    el('open-receipt', HTMLButtonElement).addEventListener('click', () => {
+      void this.#playStory({ act: 'receipt' });
+    });
     el('open-cases', HTMLButtonElement).addEventListener('click', () => {
       this.#casebook.open();
     });

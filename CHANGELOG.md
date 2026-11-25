@@ -2,6 +2,15 @@
 
 ## 25 November 2026
 
+### Season two, act three: The Old Receipt
+- Ozzy now runs the Mint's watchtower, and tonight its alarm goes off: Silas the ferryman is closing his tab with
+  the fishermen's co-op using a month-old receipt that says they owe him, not the other way round.
+- Until the tide turns, anyone can show a newer receipt, and a cheat who is caught loses the whole tab. Help Nell
+  remember which jetty her boat was on (rush her and she won't), search her boats past the deckhands' lanterns,
+  and run the receipt to the harbour office. A clock on the story bar counts down to the tide.
+- Miss the tide and Silas gets away with it; either way the act ends. Pays 400 play sats once. Inspired by how
+  payment channels punish anyone who closes one with an old state, and why watchtowers watch all night.
+
 ### Season two, act two: The Split
 - After the overflow, everyone wants an upgrade, just not the same one. Rex Bigsby, with a megaphone, wants notes
   ten times the size; Ivy says then only the rich could afford to check the maths.

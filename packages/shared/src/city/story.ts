@@ -5,7 +5,7 @@
 import type { Vec2 } from '../map.js';
 import type { Mark, Script } from './script.js';
 
-export const ACT_IDS = ['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza'] as const;
+export const ACT_IDS = ['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza'] as const;
 export type ActId = (typeof ACT_IDS)[number];
 
 // Everyone who can catch a crew member and send them back.
@@ -61,6 +61,8 @@ export interface StoryAct {
   readonly workGoal: number;
   // What the goal counts, e.g. "Signatures: 2 of 3".
   readonly goalLabel?: string;
+  // What the clock counts down to, e.g. "Tide turns in", for acts whose rules run one.
+  readonly clockLabel?: string;
   readonly workVerb: string;
   // Told to the crew when the work starts.
   readonly hint: string;

@@ -269,4 +269,11 @@ Season two, act two, The Split (`split.ts`; rules `acts/splitRules.ts`): six sho
 won more than `WON_FIRM_MS` ago and nobody stands within `GUARD_RANGE` of (`rexTarget`), and talks them round. Five
 at once (`SIGNALS_NEEDED`) starts the count. A test races a lone player against Rex at full and at 60% speed.
 
-Not built yet: the rest of season two.
+Season two, act three, The Old Receipt (`receipt.ts`; rules `acts/receiptRules.ts`): acts can now run a clock
+(`MissionState.clock`, seconds left; `StoryAct.clockLabel` says what it counts down to). The tide starts with the
+search (`TIDE_MS`); running out goes to `missed`, which still ends the act. The boat with the receipt is picked by
+the server; helping Nell remember marks the jetty (`JETTY_MARKS`) only as she says it. Deckhands walk the three
+jetties (`DECKHAND_ROUTES`); tests check every boat has time out of their lanterns and that a lone player searching
+all six still makes the office with half the tide to spare.
+
+Not built yet: the season two finale.

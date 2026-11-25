@@ -57,6 +57,7 @@ import { PizzaRules } from './acts/pizzaRules.js';
 import { PopcornRules } from './acts/popcornRules.js';
 import { SplitRules } from './acts/splitRules.js';
 import { RansomRules } from './acts/ransomRules.js';
+import { ReceiptRules } from './acts/receiptRules.js';
 import { near, type ActContext, type ActRules } from './acts/rules.js';
 
 interface Auth {
@@ -110,6 +111,7 @@ const RULES: Readonly<Record<ActId, () => ActRules>> = {
   founder: () => new FounderRules(),
   overflow: () => new OverflowRules(),
   split: () => new SplitRules(),
+  receipt: () => new ReceiptRules(),
   popcorn: () => new PopcornRules(),
   number: () => new NumberRules(),
   coins: () => new CoinsRules(),

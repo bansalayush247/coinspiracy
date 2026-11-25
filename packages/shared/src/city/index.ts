@@ -16,6 +16,7 @@ export * from './insider.js';
 export * from './founder.js';
 export * from './overflow.js';
 export * from './split.js';
+export * from './receipt.js';
 export * from './popcorn.js';
 export * from './number.js';
 export * from './coins.js';

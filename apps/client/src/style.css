@@ -964,6 +964,7 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .founder-open { background: rgba(255, 210, 122, 0.14); color: #ffe3a8; }
 .overflow-open { background: rgba(88, 201, 106, 0.14); color: #b4efbe; }
 .split-open { background: rgba(224, 80, 60, 0.14); color: #f6a99c; }
+.receipt-open { background: rgba(47, 95, 138, 0.2); color: #9fd8ff; }
 .cases-open { background: rgba(159, 180, 199, 0.14); color: #d8e4ef; }
 .modal.cases { width: min(620px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; gap: 10px; }
 .cases-intro { margin: 0; color: var(--muted); font-size: 14px; }
@@ -981,7 +982,9 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .story-bar { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); display: grid; gap: 6px; padding: 10px 14px; width: min(360px, calc(100% - 24px - 260px)); }
 .story-objective { margin: 0; font-weight: 700; font-size: 15px; }
 .story-clues { margin: 0; padding: 0 0 0 16px; font-size: 12px; color: #cfe8ff; display: grid; gap: 2px; }
-.story-clues:empty, .story-caught:empty, .story-goal:empty { display: none; }
+.story-clues:empty, .story-caught:empty, .story-goal:empty, .story-clock:empty { display: none; }
+.story-clock { margin: 0; font-size: 15px; font-weight: 800; color: #9fd8ff; font-variant-numeric: tabular-nums; }
+.story-clock.short { color: #ff9c85; }
 .story-goal { margin: 0; font-size: 13px; font-weight: 700; color: var(--gold); }
 .story-caught { margin: 0; font-size: 12px; color: #ff9c85; font-weight: 700; }
 .story-bar > button { justify-self: start; }

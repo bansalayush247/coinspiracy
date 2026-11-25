@@ -11,6 +11,7 @@ import { PIZZA_ACT } from './pizza.js';
 import { POPCORN_ACT } from './popcorn.js';
 import { SPLIT_ACT } from './split.js';
 import { RANSOM_ACT } from './ransom.js';
+import { RECEIPT_ACT } from './receipt.js';
 import type { ActId, StoryAct } from './story.js';
 
 export const STORY_ACTS: Readonly<Record<ActId, StoryAct>> = Object.freeze({
@@ -20,6 +21,7 @@ export const STORY_ACTS: Readonly<Record<ActId, StoryAct>> = Object.freeze({
   founder: FOUNDER_ACT,
   overflow: OVERFLOW_ACT,
   split: SPLIT_ACT,
+  receipt: RECEIPT_ACT,
   popcorn: POPCORN_ACT,
   number: NUMBER_ACT,
   coins: COINS_ACT,
