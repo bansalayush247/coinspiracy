@@ -2,7 +2,7 @@
 // menu, answers Mr Pell, Dani and Mags with the keyboard, digs the right heap at Gullmoor tip at night, asks Dani
 // nicely, and reaches the end card with the reward. Then a friend joins a crew from its invite link and the two
 // split a vote, act two is played from the call to the lighthouse, and act three from the leak to Teo's confession
-// and the council finale, act four to the season's end, and two side cases from the casebook. The server is only
+// and the council finale, act four to the season's end, season two's first act, and two side cases from the casebook. The server is only
 // used to skip the walks.
 // Run: npx tsx --conditions=source e2e/story.ts
 import { randomBytes } from 'node:crypto';
@@ -11,11 +11,12 @@ import { fileURLToPath } from 'node:url';
 import { matchMaker } from '@colyseus/core';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
-import { BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
+import { MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
 import { canStand } from '@byzantine-council/shared/pathfinding';
 import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
 import type { MissionRoom } from '../apps/server/src/city/MissionRoom.js';
+import { OverflowRules } from '../apps/server/src/city/acts/overflowRules.js';
 import { MemoryProfileStore } from '../apps/server/src/profile/store.js';
 
 const clientRoot = fileURLToPath(new URL('../apps/client', import.meta.url));
@@ -464,7 +465,8 @@ async function main(): Promise<void> {
     await read(pizza.page, pizza.room, 'oven');
     await until(() => pizza.room.state.step === 'deliver', 'the delivery');
     pizza.room.quietNight();
-    pizza.room.teleport(67, 65);
+    const gull = pizza.room.state.npcs.get('gull0');
+    pizza.room.teleport(gull?.x ?? 70, (gull?.y ?? 60.5) < 61.5 ? 62.6 : 60.5);
     await pizza.page.waitForTimeout(1500);
     await pizza.page.screenshot({ path: `${shots}pizza-gulls.png` });
     pizza.room.teleport(BENNY_DOOR.x, BENNY_DOOR.y);
@@ -474,6 +476,43 @@ async function main(): Promise<void> {
     await pizza.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
     check(((await pizza.page.textContent('#story-end-title')) ?? '') === 'Pizza Night', 'Pizza Night plays to its end card on a phone');
     await pizza.page.screenshot({ path: `${shots}pizza-end.png` });
+
+    const s2 = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-overflow');
+    check(s2.room.state.act === 'overflow', 'the season two tile opens The Overflow');
+    await answer(s2.page, s2.room, 'hatch', 2);
+    await read(s2.page, s2.room, 'hatchLeave');
+    await read(s2.page, s2.room, 'hatchPhone');
+    await until(() => s2.room.state.step === 'toMint', 'off to the Mint');
+    s2.room.teleport(IVY_SPOT.x, IVY_SPOT.y);
+    await answer(s2.page, s2.room, 'mint', 3);
+    await read(s2.page, s2.room, 'mintDoubt');
+    await read(s2.page, s2.room, 'mintEnd');
+    await until(() => s2.room.state.step === 'verify', 'the stalls');
+    const overflow = s2.room.rules;
+    if (!(overflow instanceof OverflowRules)) throw new Error('not The Overflow');
+    for (const i of overflow.bad) {
+      const stall = STALLS[i];
+      if (stall === undefined) throw new Error('stall');
+      s2.room.teleport(stall.at.x, stall.at.y);
+      await s2.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Check the notes at the ${label}`) === true, stall.label, { timeout: 10_000 }).catch(() => undefined);
+      await s2.page.keyboard.press('e');
+      await until(() => s2.room.state.spots[i]?.done === true, `checked ${stall.label}`);
+    }
+    await until(() => s2.room.state.step === 'chase', 'the chase');
+    check(s2.room.state.step === 'chase', 'three bad notes set Ozzy running');
+    s2.room.teleport(MARKET_MIDDLE.x + 4, MARKET_MIDDLE.y);
+    await s2.page.waitForTimeout(1500);
+    await s2.page.screenshot({ path: `${shots}overflow-chase.png` });
+    const ozzy = s2.room.state.npcs.get('ozzy');
+    s2.room.teleport(ozzy?.x ?? MARKET_MIDDLE.x, ozzy?.y ?? MARKET_MIDDLE.y);
+    await until(() => s2.room.state.step === 'caught', 'caught up with Ozzy');
+    await answer(s2.page, s2.room, 'caught', 1);
+    await read(s2.page, s2.room, 'caughtReport');
+    await read(s2.page, s2.room, 'fixed');
+    await s2.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await s2.page.textContent('#story-end-title')) ?? '') === 'The Overflow', 'catching Ozzy and fixing the Mint ends season two’s first act');
+    check(((await s2.page.textContent('#story-reward')) ?? '').includes('+300 play sats'), `it pays its first finish (${(await s2.page.textContent('#story-reward')) ?? ''})`);
+    await s2.page.screenshot({ path: `${shots}overflow-end.png` });
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

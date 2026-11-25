@@ -256,4 +256,12 @@ the acts. The profile view's `stories` lists every finished story so the caseboo
 - Pizza Night (`pizza.ts`): five topping stalls (anchovies refuse), then three gulls circling the road east, out
   along the road and back over the lane beside it; a test walks the delivery at every start time to prove a gap.
 
-Not built yet from the story bible: season two.
+Season two, act one, The Overflow (`packages/shared/src/city/overflow.ts`; rules `acts/overflowRules.ts`):
+- Opens at the tip hatch with Mags (carries `pastHonest`), then Ivy at Mint Hall explains the overflow (`clueOverflow`).
+- The server picks three of five Saltmarket stalls that took a bad note (`OverflowRules.bad`, never sent until
+  checked). The third one found starts the chase.
+- Ozzy laps the market stalls (`OZZY_LOOP`): walks, sprints for 4 s when anyone is within 5 tiles (turning back
+  first if they're ahead of him), then rests for 3 s. Anyone within a tile catches him; the crew is cut to that spot
+  for the last scenes. Tests replay a lone runner catching him, and the turn.
+
+Not built yet: the rest of season two.

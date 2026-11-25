@@ -252,6 +252,9 @@ class Controller {
     el('open-founder', HTMLButtonElement).addEventListener('click', () => {
       void this.#playStory({ act: 'founder' });
     });
+    el('open-overflow', HTMLButtonElement).addEventListener('click', () => {
+      void this.#playStory({ act: 'overflow' });
+    });
     el('open-cases', HTMLButtonElement).addEventListener('click', () => {
       this.#casebook.open();
     });

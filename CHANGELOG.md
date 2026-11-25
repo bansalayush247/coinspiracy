@@ -2,6 +2,17 @@
 
 ## 25 November 2026
 
+### Season two, act one: The Overflow
+- A new story tile opens season two. Rook asks Mags about the voicemail and gets "wrong number". Then Ivy calls:
+  overnight, two notes worth ninety-two billion coins each were minted at the Concord Mint.
+- At Mint Hall, Ivy explains how: the numbers were so big the sum ran out of room and wrapped round to something
+  tiny, so the check passed. Check the notes at the Saltmarket stalls to find the three that took a bad one.
+- Then a chase: Ozzy, sixteen, in a green hoodie, laps the market stalls. He sprints when you get close, turns
+  back if you come at him from ahead, and runs out of puff. Catch up with him, decide what he deserves, and watch
+  the guardians agree on a fix within the hour. Inspired by the night a bug minted billions of coins.
+- Remembers whether you were honest at the tip in season one. Finishing pays 300 play sats once; up to four can
+  play it together.
+
 ### The casebook: six side cases
 - A new Casebook tile on the menu opens six one-night side cases, "ripped from the ledger": each inspired by a real
   event and retold with invented people. Play them in any order, alone or with a crew of up to four. The casebook

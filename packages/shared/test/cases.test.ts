@@ -74,8 +74,8 @@ function darkestStretch(spot: Vec2, routes: readonly { route: readonly Vec2[]; s
 const everLit = (spot: Vec2, routes: readonly { route: readonly Vec2[]; speed: number }[]): boolean => darkestStretch(spot, routes) < 59.9;
 
 describe('the side cases', () => {
-  it('are every story of the case kind, after the four acts', () => {
-    expect(Object.keys(STORY_ACTS)).toEqual(['dump', 'ransom', 'insider', 'founder', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza']);
+  it('are every story of the case kind, after the acts', () => {
+    expect(Object.keys(STORY_ACTS)).toEqual(['dump', 'ransom', 'insider', 'founder', 'overflow', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza']);
     expect(SIDE_CASES.map((c) => c.id)).toEqual(['popcorn', 'number', 'coins', 'deadman', 'password', 'pizza']);
     for (const act of Object.values(STORY_ACTS)) expect(act.kind === 'case', act.id).toBe(SIDE_CASES.includes(act));
   });

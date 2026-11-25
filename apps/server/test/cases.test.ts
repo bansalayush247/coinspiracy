@@ -37,7 +37,12 @@ import {
   TIP_JARS,
   TOPPINGS,
   BENNY_DOOR,
+  CLEAN_NOTE,
   COINS_REWARD_SATS,
+  IVY_SPOT,
+  OVERFLOW_ACT,
+  OVERFLOW_REWARD_SATS,
+  OZZY_LOOP,
   visibleChoices,
   type ActId,
   type CaughtLine,
@@ -45,6 +50,7 @@ import {
   type MissionResult,
 } from '@byzantine-council/shared/city';
 import type { MissionRoom } from '../src/city/MissionRoom.js';
+import { OverflowRules } from '../src/city/acts/overflowRules.js';
 import { PopcornRules } from '../src/city/acts/popcornRules.js';
 import type { ActContext, CrewMember } from '../src/city/acts/rules.js';
 import { MemoryProfileStore } from '../src/profile/store.js';
@@ -142,6 +148,26 @@ async function caughtOn(run: Run, npcId: string, by: CaughtLine['by'], back: Vec
   expect(Math.hypot((me?.x ?? 0) - back.x, (me?.y ?? 0) - back.y)).toBeLessThan(2.5);
 }
 
+// An act's rules on their own, against a clock the test runs: no room, no network.
+function fakeContext(state: MissionState, crew: CrewMember[] = []): ActContext {
+  return {
+    act: POPCORN_ACT,
+    state,
+    random: cryptoRandom,
+    marks: new Set(),
+    crew: () => crew,
+    anchor: () => null,
+    inScene: () => false,
+    setStep: (step) => {
+      state.step = step;
+    },
+    mark: () => undefined,
+    catchMember: () => undefined,
+    broadcast: () => undefined,
+    moveCrew: () => undefined,
+  };
+}
+
 describe('The Popcorn Tin', () => {
   it('keeps Biscuit on the kennel until the bins are rattled, then gives the tin to whoever searches it', async () => {
     const run = await begin('popcorn');
@@ -167,20 +193,9 @@ describe('The Popcorn Tin', () => {
     state.step = 'search';
     const notes: string[] = [];
     const ctx: ActContext = {
+      ...fakeContext(state),
       act: POPCORN_ACT,
-      state,
-      random: cryptoRandom,
-      marks: new Set(),
-      crew: () => [] as CrewMember[],
-      anchor: () => null,
-      inScene: () => false,
-      setStep: (step) => {
-        state.step = step;
-      },
-      mark: () => undefined,
-      catchMember: () => undefined,
       broadcast: (_type, payload) => notes.push((payload as { text: string }).text),
-      moveCrew: () => undefined,
     };
     const rules = new PopcornRules();
     rules.setup(ctx);
@@ -315,5 +330,71 @@ describe('Pizza Night', () => {
     await arrive(run, MARCO_DOOR, 'oven');
     await drive(run, {}, atStep('deliver'));
     await caughtOn(run, 'gull0', 'gull', GULLS[0]?.back ?? MARCO_DOOR);
+  });
+});
+
+describe('season two, act one: The Overflow', () => {
+  it('finds the three stalls that took a bad note, catches Ozzy, and fixes the Mint', async () => {
+    const run = await begin('overflow', false);
+    await drive(run, { hatch: 'leave' }, atStep('toMint'));
+    await arrive(run, IVY_SPOT, 'mint');
+    await drive(run, { mint: 'doubt' }, atStep('verify'));
+    const rules = run.room.rules;
+    if (!(rules instanceof OverflowRules)) throw new Error('not The Overflow');
+    const bad = [...rules.bad];
+    expect(bad).toHaveLength(3);
+    const clean = OVERFLOW_ACT.spots.findIndex((_, i) => !rules.bad.has(i));
+    await work(run, clean);
+    expect(run.client.state.spots[clean]?.note).toBe(CLEAN_NOTE);
+    expect(run.client.state.npcs.get('ozzy')?.shown).toBe(false);
+    for (const i of bad) await work(run, i);
+    await waitFor(() => run.client.state.step === 'chase', 'the chase');
+    await waitFor(() => run.client.state.npcs.get('ozzy')?.shown === true, 'Ozzy shows up');
+    const ozzy = run.client.state.npcs.get('ozzy');
+    run.room.teleport(ozzy?.x ?? 0, ozzy?.y ?? 0);
+    await waitFor(() => run.client.state.step === 'caught', 'caught up with Ozzy', 4000);
+    await finish(run, { caught: 'report' }, OVERFLOW_REWARD_SATS);
+    expect([...run.client.state.marks]).toEqual(expect.arrayContaining(['leftMags', 'clueOverflow', 'doubtedIvy', 'clueHoodie', 'reportedBug']));
+  });
+
+  it('lets one runner catch Ozzy once he runs out of puff', () => {
+    const state = new MissionState();
+    for (let i = 0; i < OVERFLOW_ACT.spots.length; i++) state.spots.push(new MissionSpot());
+    const start = OZZY_LOOP[0] ?? IVY_SPOT;
+    const runner = { x: start.x, y: start.y - 7 };
+    const crew = [{ id: 'rook', player: runner, caughtUntil: 0 }] as unknown as CrewMember[];
+    const ctx = { ...fakeContext(state, crew), act: OVERFLOW_ACT };
+    const rules = new OverflowRules();
+    rules.setup(ctx);
+    state.step = 'chase';
+    rules.onStep(ctx, 'chase');
+    let now = 0;
+    for (; now < 60_000 && state.step === 'chase'; now += 50) {
+      rules.tick(ctx, now);
+      const o = state.npcs.get('ozzy');
+      if (o === undefined) break;
+      const d = Math.hypot(o.x - runner.x, o.y - runner.y);
+      const step = Math.min(d, 3.5 * 0.05);
+      runner.x += ((o.x - runner.x) / d) * step;
+      runner.y += ((o.y - runner.y) / d) * step;
+    }
+    expect(state.step).toBe('caught');
+    expect(now).toBeLessThan(30_000);
+  });
+
+  it('turns Ozzy back the other way from anyone coming at him from ahead', () => {
+    const state = new MissionState();
+    const start = OZZY_LOOP[0] ?? IVY_SPOT;
+    const crew = [{ id: 'rook', player: { x: start.x, y: start.y + 3 }, caughtUntil: 0 }] as unknown as CrewMember[];
+    const ctx = { ...fakeContext(state, crew), act: OVERFLOW_ACT };
+    const rules = new OverflowRules();
+    rules.setup(ctx);
+    state.step = 'chase';
+    rules.tick(ctx, 0);
+    rules.tick(ctx, 50);
+    const o = state.npcs.get('ozzy');
+    expect(o?.chasing).toBe(true);
+    expect(o?.y).toBe(start.y);
+    expect(o?.x ?? 0).toBeGreaterThan(start.x);
   });
 });

@@ -51,6 +51,7 @@ import { DumpRules } from './acts/dumpRules.js';
 import { FounderRules } from './acts/founderRules.js';
 import { InsiderRules } from './acts/insiderRules.js';
 import { NumberRules } from './acts/numberRules.js';
+import { OverflowRules } from './acts/overflowRules.js';
 import { PasswordRules } from './acts/passwordRules.js';
 import { PizzaRules } from './acts/pizzaRules.js';
 import { PopcornRules } from './acts/popcornRules.js';
@@ -106,6 +107,7 @@ const RULES: Readonly<Record<ActId, () => ActRules>> = {
   ransom: () => new RansomRules(),
   insider: () => new InsiderRules(),
   founder: () => new FounderRules(),
+  overflow: () => new OverflowRules(),
   popcorn: () => new PopcornRules(),
   number: () => new NumberRules(),
   coins: () => new CoinsRules(),

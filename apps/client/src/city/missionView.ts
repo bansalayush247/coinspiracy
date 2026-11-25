@@ -36,6 +36,7 @@ const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan' | 'gull'>, { name: string
   kit: { name: 'Kit', colors: { lit: 0x7f9be0, shadow: 0x435899, highlight: 0xc6d3f5 }, wear: PLAIN },
   marco: { name: 'Marco', colors: { lit: 0xf2f2ee, shadow: 0x9a9a92, highlight: 0xffffff }, wear: PLAIN },
   benny: { name: 'Benny', colors: { lit: 0x5c8a6e, shadow: 0x2f4a3a, highlight: 0xa8d1b8 }, wear: PLAIN },
+  ozzy: { name: 'Ozzy', colors: { lit: 0x58c96a, shadow: 0x2c7a3a, highlight: 0xb4efbe }, wear: PLAIN },
 };
 const ANIMAL_NAMES: Readonly<Record<'duncan' | 'gull', string>> = { duncan: 'Duncan', gull: 'Gull' };
 
