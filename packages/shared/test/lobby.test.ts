@@ -184,16 +184,17 @@ describe('uniqueNickname', () => {
 
 describe('RoomLookupSchema', () => {
   it('accepts a well-formed lookup reply', () => {
-    const reply = { roomId: 'aB3_x-9Qz', players: 3, maxPlayers: MAX_PLAYERS };
+    const reply = { kind: 'council', roomId: 'aB3_x-9Qz', players: 3, maxPlayers: MAX_PLAYERS };
     expect(RoomLookupSchema.parse(reply)).toStrictEqual(reply);
   });
 
   it.each([
-    { label: 'a roomId with a slash', reply: { roomId: 'a/b', players: 1, maxPlayers: 9 } },
-    { label: 'a roomId with a query', reply: { roomId: 'abc?x=1', players: 1, maxPlayers: 9 } },
-    { label: 'an empty roomId', reply: { roomId: '', players: 1, maxPlayers: 9 } },
-    { label: 'too many players', reply: { roomId: 'abc', players: MAX_PLAYERS + 1, maxPlayers: 9 } },
-    { label: 'an extra key', reply: { roomId: 'abc', players: 1, maxPlayers: 9, admin: true } },
+    { label: 'a roomId with a slash', reply: { kind: 'council', roomId: 'a/b', players: 1, maxPlayers: 9 } },
+    { label: 'a roomId with a query', reply: { kind: 'council', roomId: 'abc?x=1', players: 1, maxPlayers: 9 } },
+    { label: 'an empty roomId', reply: { kind: 'council', roomId: '', players: 1, maxPlayers: 9 } },
+    { label: 'too many players', reply: { kind: 'council', roomId: 'abc', players: MAX_PLAYERS + 1, maxPlayers: 9 } },
+    { label: 'an unknown kind', reply: { kind: 'beach', roomId: 'abc', players: 1, maxPlayers: 9 } },
+    { label: 'an extra key', reply: { kind: 'council', roomId: 'abc', players: 1, maxPlayers: 9, admin: true } },
   ])('rejects $label', ({ reply }) => {
     expect(RoomLookupSchema.safeParse(reply).success).toBe(false);
   });

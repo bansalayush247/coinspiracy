@@ -1,53 +1,39 @@
-// Act one, The Dump: a private story instance of Port Concord for one player. The server walks the script, moves
-// Ivor and Duncan, judges every dig and every catch, and pays the first finish once. The device's heap never
-// leaves the server.
+// A story mission: a private instance of Port Concord where a crew of one to four, joined by code, plays one act of
+// "The Cold Key". The room walks the act's script, counts the crew's votes, brings stragglers to scenes, times
+// every dig or signature, sends caught players back, and pays each crew member's first finish once. What only the
+// act knows (where the device is, how the guards walk) lives in its rules and never in the state.
 import { StateView } from '@colyseus/schema';
 import { ErrorCode, Room, ServerError, validate, type AuthContext, type Client } from '@colyseus/core';
-import { CLOSE_CODES, MovePayloadSchema, SERVER_TICK_HZ, TICK_SECONDS, cryptoRandom, stepMovement, type RandomSource, type Vec2 } from '@byzantine-council/shared';
-import { findPath } from '@byzantine-council/shared/pathfinding';
+import { CLOSE_CODES, MovePayloadSchema, SERVER_TICK_HZ, TICK_SECONDS, cryptoRandom, stepMovement, uniqueNickname, type RandomSource, type Vec2 } from '@byzantine-council/shared';
 import { credit } from '@byzantine-council/shared/economy';
 import {
   AdvancePayloadSchema,
-  ARRIVE_RANGE,
   CAUGHT_MS,
   CITY_MAP,
+  CREW_GATHER,
+  CREW_MAX,
+  CREW_VOTE_MS,
   ChoosePayloadSchema,
-  CityJoinSchema,
   CityPlayer,
-  DANI_SPOT,
-  DEVICE_HEAPS,
-  DIG_MS,
-  DIG_WOBBLE,
-  DUMP_REWARD_SATS,
-  DUMP_SCENES,
-  DUMP_SCRIPT,
-  DUMP_START,
-  DUNCAN_CATCH,
-  DUNCAN_SMELL,
-  DUNCAN_SPEED_SCALE,
-  DUNCAN_WRONG_HEAPS,
-  DigPayloadSchema,
-  GATE_SPOT,
-  GUITAR,
-  HEAPS,
-  JUNK,
-  KENNEL,
   MISSION_MESSAGES,
-  MissionHeap,
-  MissionNpc,
+  MissionJoinSchema,
+  MissionSpot,
   MissionState,
-  PATROL,
-  PATROL_SPEED,
-  SKIP_HEAP,
-  canDig,
-  inTorch,
-  inYard,
-  isHonest,
+  STORY_ACTS,
+  WorkPayloadSchema,
+  besideSpot,
+  canWork,
+  crewChoice,
+  carriedMarks,
+  honestIn,
+  nextOf,
   readMs,
+  visibleChoices,
+  type ActId,
   type CaughtLine,
-  type DumpStep,
   type MissionResult,
   type ScriptNode,
+  type StoryAct,
 } from '@byzantine-council/shared/city';
 import { VIEW_TAGS } from '@byzantine-council/shared/state';
 import { ipKey } from '../clientIp.js';
@@ -55,7 +41,14 @@ import { InputQueue, type MoveInput } from '../inputQueue.js';
 import { log } from '../logger.js';
 import { roomPolicy } from '../policy.js';
 import { profileIdFromCookieHeader } from '../profile/session.js';
+import type { ProfileData, ProfileStore } from '../profile/store.js';
+import { claimRoomCode, releaseRoomCode } from '../roomCodes.js';
 import { holdSeat } from '../scaling/index.js';
+import { DumpRules } from './acts/dumpRules.js';
+import { FounderRules } from './acts/founderRules.js';
+import { InsiderRules } from './acts/insiderRules.js';
+import { RansomRules } from './acts/ransomRules.js';
+import { near, type ActContext, type ActRules } from './acts/rules.js';
 
 interface Auth {
   readonly nickname: string;
@@ -69,75 +62,75 @@ interface Scene {
   readonly enteredAt: number;
   readonly deadline: number | null;
   readonly autoAt: number | null;
+  readonly voteBy: number | null;
 }
 
-interface Dig {
-  readonly heap: number;
+interface Work {
+  readonly spot: number;
   readonly at: Vec2;
   readonly until: number;
 }
 
-interface Dog {
-  out: boolean;
-  path: Vec2[];
-  repathAt: number;
-  restUntil: number;
+interface Member {
+  readonly id: string;
+  readonly client: MissionClient;
+  readonly player: CityPlayer;
+  readonly inputs: InputQueue;
+  readonly profileId: string | null;
+  lastActiveMs: number;
+  caughtUntil: number;
+  work: Work | null;
 }
 
 const IDLE_MS = 10 * 60_000;
 const IDLE_CHECK_MS = 30_000;
 const LIFETIME_MS = 60 * 60_000;
-// The first scene waits a moment so the city has drawn before Mr Pell rings.
+// The first scene waits a moment so the city has drawn before the phone rings.
 const OPENING_MS = 1_200;
-// Choices stay open a little past the clock the player sees, so a last-moment click still counts.
+// Choices stay open a little past the clock the crew sees, so a last-moment click still counts.
 const CHOICE_GRACE_MS = 1_500;
 const AUTO_PAUSE_MS = 900;
 const MIN_SKIP_MS = 300;
-const DUNCAN_REPATH_MS = 400;
-const DUNCAN_REST_MS = 4_000;
+// Moving further than this from where you started working a spot stops the work.
+const WORK_WOBBLE = 0.35;
 
-const near = (a: Vec2, b: Vec2, range: number): boolean => Math.hypot(a.x - b.x, a.y - b.y) <= range;
+const RULES: Readonly<Record<ActId, () => ActRules>> = { dump: () => new DumpRules(), ransom: () => new RansomRules(), insider: () => new InsiderRules(), founder: () => new FounderRules() };
 
 export class MissionRoom extends Room<{ state: MissionState; client: MissionClient }> {
-  override maxClients = 1;
+  override maxClients = CREW_MAX;
   override state = new MissionState();
   override maxMessagesPerSecond = 40;
   override seatReservationTimeout = 8;
   // Swapped in tests for a fixed sequence.
   random: RandomSource = cryptoRandom;
-  #id: string | null = null;
-  #inputs = new InputQueue();
-  #profileId: string | null = null;
-  #lastActiveMs = Date.now();
-  #device = -1;
+  act: StoryAct = STORY_ACTS.dump;
+  rules: ActRules = new DumpRules();
+  readonly #crew = new Map<string, Member>();
+  #code = '';
   #scene: Scene | null = null;
+  readonly #votes = new Map<string, string>();
+  readonly #ready = new Set<string>();
   readonly #marks = new Set<string>();
-  #dig: Dig | null = null;
-  #caughtUntil = 0;
-  #wrong = 0;
-  #junk = 0;
-  #guitar = false;
-  #leg = 0;
-  readonly #dog: Dog = { out: false, path: [], repathAt: 0, restUntil: 0 };
+  // Whoever the story is happening to right now: the one who arrived first, or dug the device up.
+  #hero: string | null = null;
+  #opened = false;
   #finished = false;
   #quiet = false;
+  #ctx: ActContext = this.#context();
 
   override messages = {
-    move: validate(MovePayloadSchema, (_client: MissionClient, input: MoveInput) => {
-      this.#lastActiveMs = Date.now();
-      this.#inputs.push(input);
+    move: validate(MovePayloadSchema, (client: MissionClient, input: MoveInput) => {
+      this.#active(client)?.inputs.push(input);
     }),
-    advance: validate(AdvancePayloadSchema, (_client: MissionClient, payload: { node: string }) => {
-      this.#lastActiveMs = Date.now();
-      this.#advance(payload.node, Date.now());
+    advance: validate(AdvancePayloadSchema, (client: MissionClient, payload: { node: string }) => {
+      if (this.#active(client) !== undefined) this.#advance(client.sessionId, payload.node, Date.now());
     }),
-    choose: validate(ChoosePayloadSchema, (_client: MissionClient, payload: { node: string; choice: string }) => {
-      this.#lastActiveMs = Date.now();
-      this.#choose(payload.node, payload.choice, Date.now());
+    choose: validate(ChoosePayloadSchema, (client: MissionClient, payload: { node: string; choice: string }) => {
+      if (this.#active(client) !== undefined) this.#choose(client.sessionId, payload.node, payload.choice, Date.now());
     }),
-    dig: validate(DigPayloadSchema, (_client: MissionClient, payload: { heap: number }) => {
-      this.#lastActiveMs = Date.now();
-      this.#startDig(payload.heap, Date.now());
+    work: validate(WorkPayloadSchema, (client: MissionClient, payload: { spot: number }) => {
+      const m = this.#active(client);
+      if (m !== undefined) this.#startWork(m, payload.spot, Date.now());
     }),
   };
 
@@ -147,25 +140,29 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
     if (!(await policy.matchmake.take(key)) || !(await policy.reservations.take(key))) {
       throw new ServerError(CLOSE_CODES.RATE_LIMITED, 'Too many attempts. Wait a moment and try again.');
     }
-    if (!CityJoinSchema.safeParse(options).success) throw new ServerError(ErrorCode.AUTH_FAILED, 'Invalid nickname.');
+    if (!MissionJoinSchema.safeParse(options).success) throw new ServerError(ErrorCode.AUTH_FAILED, 'Invalid nickname.');
     return true;
   }
 
-  override async onCreate(): Promise<void> {
+  override async onCreate(options: unknown): Promise<void> {
+    const parsed = MissionJoinSchema.safeParse(options);
+    const actId: ActId = parsed.success ? (parsed.data.act ?? 'dump') : 'dump';
+    this.act = STORY_ACTS[actId];
+    this.rules = RULES[actId]();
+    this.#ctx = this.#context();
+    this.state.act = actId;
     await this.setPrivate(true);
-    this.#device = DEVICE_HEAPS[this.random.int(DEVICE_HEAPS.length)] ?? 0;
-    for (let i = 0; i < HEAPS.length; i++) this.state.heaps.push(new MissionHeap());
-    this.state.npcs.set('dani', new MissionNpc({ kind: 'dani', x: DANI_SPOT.x, y: DANI_SPOT.y - 0.8 }));
-    this.state.npcs.set('mags', new MissionNpc({ kind: 'mags', x: GATE_SPOT.x, y: GATE_SPOT.y - 0.9 }));
-    const first = PATROL[0] ?? GATE_SPOT;
-    this.state.npcs.set('guard', new MissionNpc({ kind: 'guard', x: first.x, y: first.y }));
-    this.state.npcs.set('duncan', new MissionNpc({ kind: 'duncan', x: KENNEL.x, y: KENNEL.y }));
+    this.#code = await claimRoomCode(this.presence, this.roomId);
+    this.state.code = this.#code;
+    for (let i = 0; i < this.act.spots.length; i++) this.state.spots.push(new MissionSpot());
+    this.rules.setup(this.#ctx);
     this.setFixedTimestep(() => {
       this.#step();
     }, SERVER_TICK_HZ);
     this.patchRate = null;
     this.clock.setInterval(() => {
-      if (Date.now() - this.#lastActiveMs > IDLE_MS) for (const c of this.clients) c.leave(CLOSE_CODES.IDLE, 'Removed for being idle too long.');
+      const now = Date.now();
+      for (const m of this.#crew.values()) if (now - m.lastActiveMs > IDLE_MS) m.client.leave(CLOSE_CODES.IDLE, 'Removed for being idle too long.');
     }, IDLE_CHECK_MS);
     this.clock.setTimeout(() => {
       void this.disconnect();
@@ -173,8 +170,9 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
   }
 
   override async onAuth(client: MissionClient, options: unknown, context: AuthContext): Promise<Auth> {
-    const parsed = CityJoinSchema.safeParse(options);
+    const parsed = MissionJoinSchema.safeParse(options);
     if (!parsed.success) throw new ServerError(ErrorCode.AUTH_FAILED, 'Invalid nickname.');
+    if (this.#closed()) throw new ServerError(ErrorCode.MATCHMAKE_INVALID_ROOM_ID, 'That night is nearly over.');
     if (!(await holdSeat(roomPolicy().ipSlots, ipKey(context.ip), client.ref))) {
       throw new ServerError(CLOSE_CODES.TOO_MANY_CONNECTIONS, 'Too many players from your network.');
     }
@@ -186,73 +184,185 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
   override onJoin(client: MissionClient): void {
     const auth = client.auth;
     if (auth === undefined) throw new ServerError(ErrorCode.APPLICATION_ERROR, 'Not authorised.');
-    const player = new CityPlayer({ name: auth.nickname, seat: 0, x: DUMP_START.x, y: DUMP_START.y });
+    const name = uniqueNickname(auth.nickname, [...this.#crew.values()].map((m) => m.player.name));
+    const taken = new Set([...this.#crew.values()].map((m) => m.player.seat));
+    let seat = 0;
+    while (taken.has(seat)) seat++;
+    const anchor = this.#anchor();
+    const spot = anchor === null ? this.act.start : besideSpot(anchor, this.#positions());
+    const player = new CityPlayer({ name, seat, x: spot.x, y: spot.y });
     player.ack = 0;
     player.pocket = 0;
     this.state.players.set(client.sessionId, player);
     const view = new StateView();
+    for (const m of this.#crew.values()) {
+      view.add(m.player);
+      m.client.view?.add(player);
+    }
     view.add(player);
     view.add(player, VIEW_TAGS.OWNER);
     client.view = view;
-    this.#id = client.sessionId;
-    this.#profileId = auth.profileId;
-    this.#lastActiveMs = Date.now();
-    this.clock.setTimeout(() => {
-      this.#setStep('call', Date.now());
-    }, OPENING_MS);
+    const now = Date.now();
+    this.#crew.set(client.sessionId, { id: client.sessionId, client, player, inputs: new InputQueue(), profileId: auth.profileId, lastActiveMs: now, caughtUntil: 0, work: null });
+    if (this.state.lead === '') this.state.lead = client.sessionId;
+    if (!this.#opened) {
+      this.#opened = true;
+      if (this.act.carries === true) void this.#carry(auth.profileId);
+      this.clock.setTimeout(() => {
+        this.#setStep(this.act.steps[0] ?? 'call', Date.now());
+      }, OPENING_MS);
+    }
   }
 
   override onLeave(client: MissionClient): void {
+    const m = this.#crew.get(client.sessionId);
+    if (m !== undefined) {
+      if (m.work !== null) this.#stopWork(m);
+      for (const other of this.#crew.values()) if (other !== m) other.client.view?.remove(m.player);
+    }
+    this.#crew.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
-    if (this.#id === client.sessionId) this.#id = null;
+    if (this.#hero === client.sessionId) this.#hero = null;
+    if (this.state.lead === client.sessionId) this.state.lead = this.#crew.keys().next().value ?? '';
     client.view?.dispose();
+    this.#votes.delete(client.sessionId);
+    this.state.votes.delete(client.sessionId);
+    this.#ready.delete(client.sessionId);
+    this.state.ready = this.#ready.size;
+    if (this.#crew.size > 0) this.#settle(Date.now());
   }
 
-  get #player(): CityPlayer | undefined {
-    return this.#id === null ? undefined : this.state.players.get(this.#id);
+  override async onDispose(): Promise<void> {
+    if (this.#code !== '') await releaseRoomCode(this.presence, this.#code, this.roomId);
+  }
+
+  // What the act's rules may see and touch, fixed once the act is chosen.
+  #context(): ActContext {
+    return {
+      act: this.act,
+      state: this.state,
+      random: this.random,
+      marks: this.#marks,
+      crew: () => this.#crew.values(),
+      anchor: () => this.#anchor(),
+      inScene: () => this.#scene !== null,
+      setStep: (step, now) => {
+        this.#setStep(step, now);
+      },
+      mark: (mark) => {
+        this.#mark(mark);
+      },
+      catchMember: (m, by, to, now) => {
+        const member = this.#crew.get(m.id);
+        if (member !== undefined) this.#caught(member, by, to, now);
+      },
+      broadcast: (type, payload) => {
+        this.broadcast(type, payload);
+      },
+      moveCrew: (to) => {
+        const placed: Vec2[] = [];
+        for (const m of this.#crew.values()) {
+          if (m.work !== null) this.#stopWork(m);
+          const spot = besideSpot(to, placed);
+          m.player.x = spot.x;
+          m.player.y = spot.y;
+          placed.push(spot);
+        }
+      },
+    };
+  }
+
+  // Brings in what the lead's earlier acts and the ceremony left behind, before the first scene opens.
+  async #carry(profileId: string | null): Promise<void> {
+    const profiles = roomPolicy().profiles;
+    if (profiles === null || profileId === null) return;
+    try {
+      let story: ProfileData['progress']['story'];
+      await profiles.store.change(profileId, null, Date.now(), (data) => {
+        story = data.progress.story;
+        return null;
+      });
+      for (const mark of carriedMarks(story)) this.#mark(mark);
+    } catch (error) {
+      log.error('story history load failed', error, { roomId: this.roomId });
+    }
+  }
+
+  #closed(): boolean {
+    return this.act.closed.includes(this.state.step);
+  }
+
+  #active(client: MissionClient): Member | undefined {
+    const m = this.#crew.get(client.sessionId);
+    if (m !== undefined) m.lastActiveMs = Date.now();
+    return m;
+  }
+
+  // Where a newcomer or a straggler is brought: beside the hero, else beside the lead.
+  #anchor(): Vec2 | null {
+    const hero = this.#hero === null ? undefined : this.#crew.get(this.#hero);
+    return hero?.player ?? this.#crew.get(this.state.lead)?.player ?? null;
+  }
+
+  #positions(): Vec2[] {
+    return [...this.#crew.values()].map((m) => m.player);
+  }
+
+  #gather(): void {
+    const anchor = this.#anchor();
+    if (anchor === null) return;
+    for (const m of this.#crew.values()) {
+      if (m.player === anchor || near(m.player, anchor, CREW_GATHER)) continue;
+      const spot = besideSpot(anchor, this.#positions().filter((p) => p !== m.player));
+      if (m.work !== null) this.#stopWork(m);
+      m.player.x = spot.x;
+      m.player.y = spot.y;
+    }
   }
 
   #step(): void {
     const now = Date.now();
-    const player = this.#player;
-    if (player !== undefined) {
-      const frozen = this.#scene !== null || now < this.#caughtUntil || this.state.step === 'done' || this.state.step === 'found';
-      this.#inputs.drain(performance.now(), (input) => {
+    const sceneFrozen = this.#scene !== null || this.#closed();
+    for (const m of this.#crew.values()) {
+      const frozen = sceneFrozen || now < m.caughtUntil;
+      const player = m.player;
+      m.inputs.drain(performance.now(), (input) => {
         if (frozen) return;
         const next = stepMovement({ x: player.x, y: player.y }, { x: input.dx, y: input.dy }, TICK_SECONDS, CITY_MAP);
         if (next.x !== player.x) player.x = next.x;
         if (next.y !== player.y) player.y = next.y;
       });
-      if (player.ack !== this.#inputs.ack) player.ack = this.#inputs.ack;
-      if (this.#scene === null) {
-        if (this.state.step === 'toDani' && near(player, DANI_SPOT, ARRIVE_RANGE)) this.#setStep('dani', now);
-        else if (this.state.step === 'toTip' && near(player, GATE_SPOT, ARRIVE_RANGE)) this.#setStep('mags', now);
-      }
-      this.#digging(player, now);
+      if (player.ack !== m.inputs.ack) player.ack = m.inputs.ack;
     }
+    if (this.#scene === null) this.#arrivals(now);
+    for (const m of this.#crew.values()) this.#working(m, now);
     this.#sceneClock(now);
-    if (!this.#quiet) this.#patrol();
-    if (player !== undefined && !this.#quiet) {
-      this.#walkDog(player, now);
-      this.#catch(player, now);
-    }
+    if (!this.#quiet) this.rules.tick(this.#ctx, now);
     this.broadcastPatch();
   }
 
-  #setStep(step: DumpStep, now: number): void {
-    this.state.step = step;
-    if (step === 'toTip') this.#npc('dani', (n) => {
-      n.shown = false;
-    });
-    if (step === 'dig' && this.#marks.has('bluffedMags')) this.#dog.out = true;
-    if (step === 'done') void this.#complete();
-    const scene = DUMP_SCENES[step];
-    if (scene !== undefined) this.#enter(scene, now);
+  #arrivals(now: number): void {
+    const arrival = this.act.arrivals[this.state.step];
+    if (arrival === undefined) return;
+    for (const [id, m] of this.#crew) {
+      if (now < m.caughtUntil || !near(m.player, arrival.at, arrival.range)) continue;
+      this.#hero = id;
+      this.#gather();
+      this.#setStep(arrival.to, now);
+      return;
+    }
   }
 
-  #npc(id: string, fn: (n: MissionNpc) => void): void {
-    const n = this.state.npcs.get(id);
-    if (n !== undefined) fn(n);
+  #setStep(step: string, now: number): void {
+    this.state.step = step;
+    if (this.#closed()) {
+      void this.lock();
+      this.#gather();
+    }
+    this.rules.onStep?.(this.#ctx, step, now);
+    if (step === 'done') this.#complete();
+    const scene = this.act.scenes[step];
+    if (scene !== undefined) this.#enter(scene, now);
   }
 
   #mark(mark: string | undefined): void {
@@ -262,7 +372,7 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
   }
 
   #enter(id: string, now: number): void {
-    const node = DUMP_SCRIPT[id];
+    const node = this.act.script[id];
     if (node === undefined) return;
     this.#mark(node.mark);
     const read = readMs(node, this.#marks);
@@ -273,218 +383,185 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
       enteredAt: now,
       deadline: choices && node.seconds !== undefined ? now + read + node.seconds * 1000 + CHOICE_GRACE_MS : null,
       autoAt: choices ? null : now + read + AUTO_PAUSE_MS,
+      voteBy: null,
     };
+    this.#votes.clear();
+    this.state.votes.clear();
+    this.#ready.clear();
+    this.state.ready = 0;
     this.state.node = id;
     this.state.seq = (this.state.seq + 1) % 65_536;
-    const player = this.#player;
-    if (id === 'slip' && player !== undefined) this.#npc('dani', (n) => {
-      n.x = player.x + 1;
-      n.y = player.y + 0.4;
-      n.shown = true;
-    });
-    if (id === 'selfie' && player !== undefined) {
-      this.#dog.out = false;
-      this.#npc('duncan', (n) => {
-        n.x = player.x - 0.9;
-        n.y = player.y + 0.5;
-        n.chasing = false;
-      });
-    }
+    this.rules.onScene?.(this.#ctx, id);
   }
 
   #finish(now: number): void {
     const scene = this.#scene;
     if (scene === null) return;
-    if (scene.node.next !== undefined) {
-      this.#enter(scene.node.next, now);
+    const next = nextOf(scene.node, this.#marks);
+    if (next !== undefined) {
+      this.#enter(next, now);
       return;
     }
     this.#scene = null;
     this.state.node = '';
-    if (scene.node.then !== undefined) this.#setStep(scene.node.then as DumpStep, now);
+    if (scene.node.then !== undefined) this.#setStep(scene.node.then, now);
   }
 
   #sceneClock(now: number): void {
     const scene = this.#scene;
     if (scene === null) return;
-    if (scene.deadline !== null && now >= scene.deadline && scene.node.timeout !== undefined) this.#enter(scene.node.timeout, now);
-    else if (scene.autoAt !== null && now >= scene.autoAt) this.#finish(now);
+    if (scene.voteBy !== null && now >= scene.voteBy) this.#decide(now);
+    else if (scene.deadline !== null && now >= scene.deadline) {
+      if (this.#votes.size > 0) this.#decide(now);
+      else if (scene.node.timeout !== undefined) {
+        this.state.said = '';
+        this.#enter(scene.node.timeout, now);
+      }
+    } else if (scene.autoAt !== null && now >= scene.autoAt) this.#finish(now);
   }
 
-  #advance(id: string, now: number): void {
+  // Moves on as soon as the whole crew has voted, or has read the scene through.
+  #settle(now: number): void {
     const scene = this.#scene;
-    if (scene === null || scene.id !== id || scene.autoAt === null || now - scene.enteredAt < MIN_SKIP_MS) return;
-    this.#finish(now);
+    if (scene === null) return;
+    if (scene.autoAt === null) {
+      if (this.#votes.size > 0 && this.#votes.size >= this.#crew.size) this.#decide(now);
+    } else if (this.#ready.size > 0 && this.#ready.size >= this.#crew.size) this.#finish(now);
   }
 
-  #choose(id: string, choiceId: string, now: number): void {
-    const scene = this.#scene;
-    if (scene === null || scene.id !== id) return;
-    const choice = scene.node.choices?.find((c) => c.id === choiceId);
+  #decide(now: number): void {
+    const winner = crewChoice(this.#votes, this.state.lead);
+    const node = this.#scene?.node;
+    const choice = node === undefined ? undefined : visibleChoices(node, this.#marks).find((c) => c.id === winner);
     if (choice === undefined) return;
+    this.state.said = choice.id;
     this.#mark(choice.mark);
     this.#enter(choice.go, now);
   }
 
-  #startDig(heap: number, now: number): void {
-    const player = this.#player;
-    const def = HEAPS[heap];
-    const state = this.state.heaps[heap];
-    if (player === undefined || def === undefined || state === undefined) return;
-    if (this.state.step !== 'dig' || this.#scene !== null || now < this.#caughtUntil || this.#dig !== null || state.dug || !canDig(player, def)) return;
-    this.#dig = { heap, at: { x: player.x, y: player.y }, until: now + DIG_MS };
-    this.state.digging = heap;
+  #advance(id: string, node: string, now: number): void {
+    const scene = this.#scene;
+    if (scene === null || scene.id !== node || scene.autoAt === null || now - scene.enteredAt < MIN_SKIP_MS) return;
+    this.#ready.add(id);
+    this.state.ready = this.#ready.size;
+    this.#settle(now);
   }
 
-  #digging(player: CityPlayer, now: number): void {
-    const dig = this.#dig;
-    if (dig === null) return;
-    if (this.state.step !== 'dig' || now < this.#caughtUntil || !near(player, dig.at, DIG_WOBBLE)) {
-      this.#stopDig();
+  #choose(id: string, node: string, choiceId: string, now: number): void {
+    const scene = this.#scene;
+    if (scene === null || scene.id !== node) return;
+    if (!visibleChoices(scene.node, this.#marks).some((c) => c.id === choiceId)) return;
+    this.#votes.set(id, choiceId);
+    this.state.votes.set(id, choiceId);
+    if (scene.voteBy === null) this.#scene = { ...scene, voteBy: now + CREW_VOTE_MS };
+    this.#settle(now);
+  }
+
+  #startWork(m: Member, index: number, now: number): void {
+    const def = this.act.spots[index];
+    const spot = this.state.spots[index];
+    if (def === undefined || spot === undefined) return;
+    if (this.state.step !== this.act.workStep || this.#scene !== null || now < m.caughtUntil || m.work !== null) return;
+    if (spot.done || spot.worker !== '' || !canWork(m.player, def, this.act.workReach)) return;
+    m.work = { spot: index, at: { x: m.player.x, y: m.player.y }, until: now + this.act.workMs };
+    spot.worker = m.id;
+  }
+
+  #working(m: Member, now: number): void {
+    const work = m.work;
+    if (work === null) return;
+    if (this.state.step !== this.act.workStep || now < m.caughtUntil || !near(m.player, work.at, WORK_WOBBLE)) {
+      this.#stopWork(m);
       return;
     }
-    if (now < dig.until) return;
-    this.#stopDig();
-    const state = this.state.heaps[dig.heap];
-    const def = HEAPS[dig.heap];
-    if (state === undefined || def === undefined) return;
-    state.dug = true;
-    if (dig.heap === this.#device) {
-      state.found = 'A small black device, flat as a coaster.';
-      this.#setStep('found', now);
-      return;
-    }
-    if (def.bySkip) state.found = SKIP_HEAP;
-    else if (def.winter && !this.#guitar) {
-      this.#guitar = true;
-      state.found = GUITAR;
-    } else state.found = JUNK[this.#junk++ % JUNK.length] ?? '';
-    this.#wrong++;
-    if (this.#wrong >= DUNCAN_WRONG_HEAPS && !this.#dog.out) {
-      this.#dog.out = true;
-      this.clients[0]?.send(MISSION_MESSAGES.DUNCAN, {});
+    if (now < work.until) return;
+    this.#stopWork(m);
+    const spot = this.state.spots[work.spot];
+    if (spot === undefined) return;
+    spot.done = true;
+    const step = this.state.step;
+    const note = this.rules.worked(this.#ctx, work.spot, m, now);
+    spot.note = note;
+    if (this.state.step !== step) {
+      this.#hero = m.id;
+      for (const other of this.#crew.values()) if (other.work !== null) this.#stopWork(other);
+      this.#gather();
     }
   }
 
-  #stopDig(): void {
-    this.#dig = null;
-    this.state.digging = -1;
+  #stopWork(m: Member): void {
+    const work = m.work;
+    m.work = null;
+    const spot = work === null ? undefined : this.state.spots[work.spot];
+    if (spot !== undefined && spot.worker === m.id) spot.worker = '';
   }
 
-  // Ivor walks his rounds at a steady pace, his torch pointing the way he walks.
-  #patrol(): void {
-    const guard = this.state.npcs.get('guard');
-    if (guard === undefined || PATROL.length < 2) return;
-    let budget = PATROL_SPEED * TICK_SECONDS;
-    while (budget > 0) {
-      const target = PATROL[(this.#leg + 1) % PATROL.length] ?? guard;
-      const dx = target.x - guard.x;
-      const dy = target.y - guard.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist <= budget) {
-        guard.x = target.x;
-        guard.y = target.y;
-        budget -= dist;
-        this.#leg = (this.#leg + 1) % PATROL.length;
-        continue;
-      }
-      guard.x += (dx / dist) * budget;
-      guard.y += (dy / dist) * budget;
-      guard.facing = Math.atan2(dy, dx);
-      budget = 0;
-    }
-  }
-
-  // Duncan chases anyone he can smell in his yard, gives up at the fence, and goes home after a catch.
-  #walkDog(player: CityPlayer, now: number): void {
-    const dog = this.state.npcs.get('duncan');
-    if (dog === undefined || !this.#dog.out) return;
-    const hunting = this.state.step === 'dig' && this.#scene === null && now >= this.#dog.restUntil && now >= this.#caughtUntil && inYard(player) && near(dog, player, DUNCAN_SMELL);
-    const goal: Vec2 = hunting ? player : KENNEL;
-    if (dog.chasing !== hunting) dog.chasing = hunting;
-    if (near(dog, goal, 0.2)) return;
-    if (now >= this.#dog.repathAt) {
-      this.#dog.repathAt = now + DUNCAN_REPATH_MS;
-      const path = findPath(CITY_MAP, dog, goal);
-      this.#dog.path = path.ok ? path.value : [];
-    }
-    const next = this.#dog.path[0];
-    if (next === undefined) return;
-    const dx = next.x - dog.x;
-    const dy = next.y - dog.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist < 0.15) {
-      this.#dog.path.shift();
-      return;
-    }
-    const moved = stepMovement({ x: dog.x, y: dog.y }, { x: (dx / dist) * DUNCAN_SPEED_SCALE, y: (dy / dist) * DUNCAN_SPEED_SCALE }, TICK_SECONDS, CITY_MAP);
-    dog.x = moved.x;
-    dog.y = moved.y;
-    dog.facing = Math.atan2(dy, dx);
-  }
-
-  #catch(player: CityPlayer, now: number): void {
-    if (this.state.step !== 'dig' || this.#scene !== null || now < this.#caughtUntil) return;
-    const guard = this.state.npcs.get('guard');
-    const dog = this.state.npcs.get('duncan');
-    const by: CaughtLine['by'] | null =
-      guard !== undefined && inTorch(guard, guard.facing, player) ? 'guard' : dog !== undefined && this.#dog.out && dog.chasing && near(dog, player, DUNCAN_CATCH) ? 'duncan' : null;
-    if (by === null) return;
-    this.#stopDig();
-    this.#caughtUntil = now + CAUGHT_MS;
-    this.#dog.restUntil = now + DUNCAN_REST_MS;
-    this.#dog.path = [];
+  #caught(m: Member, by: CaughtLine['by'], to: Vec2, now: number): void {
+    this.#stopWork(m);
+    m.caughtUntil = now + CAUGHT_MS;
     this.state.caught = Math.min(255, this.state.caught + 1);
-    player.x = GATE_SPOT.x;
-    player.y = GATE_SPOT.y;
+    const spot = besideSpot(to, this.#positions().filter((p) => p !== m.player));
+    m.player.x = spot.x;
+    m.player.y = spot.y;
     const line: CaughtLine = { by, count: this.state.caught };
-    this.clients[0]?.send(MISSION_MESSAGES.CAUGHT, line);
+    for (const other of this.#crew.values()) other.client.send(MISSION_MESSAGES.CAUGHT, other === m ? line : { ...line, name: m.player.name });
   }
 
-  // Saves what the characters remember and pays the first finish only; a replay changes the memory, never the wallet.
-  async #complete(): Promise<void> {
+  // Saves what the characters remember and pays each crew member's first finish only; a replay changes the memory,
+  // never the wallet. Two seats on one profile share one save.
+  #complete(): void {
     if (this.#finished) return;
     this.#finished = true;
-    const honest = isHonest(this.#marks);
+    const honest = honestIn(this.act, this.#marks);
     const marks = [...this.#marks].slice(0, 32);
-    const send = (result: MissionResult): void => {
-      this.clients[0]?.send(MISSION_MESSAGES.RESULT, result);
-    };
     const profiles = roomPolicy().profiles;
-    if (profiles === null || this.#profileId === null) {
-      send({ reason: 'noProfile', paid: 0, honest });
-      return;
+    const saves = new Map<string, Promise<MissionResult>>();
+    for (const m of this.#crew.values()) {
+      const id = m.profileId;
+      let save: Promise<MissionResult>;
+      if (profiles === null || id === null) save = Promise.resolve({ reason: 'noProfile', paid: 0, honest });
+      else {
+        save = saves.get(id) ?? this.#save(profiles.store, id, honest, marks);
+        saves.set(id, save);
+      }
+      void save.then((result) => {
+        if (this.#crew.get(m.id) === m) m.client.send(MISSION_MESSAGES.RESULT, result);
+      });
     }
+  }
+
+  async #save(store: ProfileStore, profileId: string, honest: boolean, marks: string[]): Promise<MissionResult> {
+    const act = this.act;
     try {
-      const out = await profiles.store.change<{ paid: number; first: boolean }>(this.#profileId, `story:dump:${this.roomId}`, Date.now(), (data) => {
-        const before = data.progress.story?.dump;
+      const out = await store.change<{ paid: number; first: boolean }>(profileId, `story:${act.id}:${this.roomId}:${profileId}`, Date.now(), (data) => {
+        const before = data.progress.story?.[act.id];
         const first = before?.done !== true;
         let wallet = data.wallet;
         let paid = 0;
         if (first) {
-          const fee = credit(wallet, DUMP_REWARD_SATS);
+          const fee = credit(wallet, act.rewardSats);
           if (fee.ok) {
             wallet = fee.value.wallet;
-            paid = DUMP_REWARD_SATS;
+            paid = act.rewardSats;
           }
         }
-        const dump = { done: true, honest: honest || before?.honest === true, marks };
-        const progress = { ...data.progress, story: { ...data.progress.story, dump } };
+        const record = { done: true, honest: honest || before?.honest === true, marks };
+        const progress = { ...data.progress, story: { ...data.progress.story, [act.id]: record } };
         return { data: { ...data, wallet, progress }, result: { paid, first } };
       });
-      send(out.ok ? { reason: out.result.first ? 'paid' : 'replay', paid: out.result.paid, honest } : { reason: 'error', paid: 0, honest });
+      return out.ok ? { reason: out.result.first ? 'paid' : 'replay', paid: out.result.paid, honest } : { reason: 'error', paid: 0, honest };
     } catch (error) {
-      log.error('story save failed', error, { roomId: this.roomId });
-      send({ reason: 'error', paid: 0, honest });
+      log.error('story save failed', error, { roomId: this.roomId, act: act.id });
+      return { reason: 'error', paid: 0, honest };
     }
   }
 
-  // For tests: the heap holding the device, which clients are never told.
-  get deviceHeap(): number {
-    return this.#device;
+  // For tests: the spot only the server knows (the device's heap, the buyer's terminal), or -1.
+  get secretSpot(): number {
+    return this.rules.secret ?? -1;
   }
 
-  // For tests: no patrol and no dog.
+  // For tests: no patrols, no dog, no catches.
   quietNight(): void {
     this.#quiet = true;
   }
@@ -492,12 +569,12 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
   // For tests: run the clock out on the scene on screen.
   runOutClock(): void {
     const scene = this.#scene;
-    if (scene !== null) this.#scene = { ...scene, deadline: scene.deadline === null ? null : 0, autoAt: scene.autoAt === null ? null : 0 };
+    if (scene !== null) this.#scene = { ...scene, deadline: scene.deadline === null ? null : 0, autoAt: scene.autoAt === null ? null : 0, voteBy: scene.voteBy === null ? null : 0 };
   }
 
-  // For tests: put the player somewhere.
-  teleport(x: number, y: number): void {
-    const p = this.#player;
+  // For tests: put a crew member (the lead by default) somewhere.
+  teleport(x: number, y: number, sessionId = this.state.lead): void {
+    const p = this.#crew.get(sessionId)?.player;
     if (p === undefined) return;
     p.x = x;
     p.y = y;

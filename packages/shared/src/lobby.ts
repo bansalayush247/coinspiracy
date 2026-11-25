@@ -70,6 +70,8 @@ export const NicknameSchema = z
 export const JoinOptionsSchema = z.strictObject({
   nickname: NicknameSchema,
   private: z.boolean().optional(),
+  // A private room opened from the end of act three: the story's signing ceremony.
+  ceremony: z.boolean().optional(),
 });
 export type JoinOptions = z.infer<typeof JoinOptionsSchema>;
 
@@ -87,7 +89,11 @@ export function uniqueNickname(name: string, taken: Iterable<string>): string {
 
 // Room-code lookup route; the client validates the reply before putting roomId in a URL.
 export const ROOM_LOOKUP_PATH = '/api/rooms';
+// What a code opens: a council match, or a story crew.
+export const ROOM_KINDS = ['council', 'story'] as const;
+export type RoomKind = (typeof ROOM_KINDS)[number];
 export const RoomLookupSchema = z.strictObject({
+  kind: z.enum(ROOM_KINDS),
   roomId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
   players: z.number().int().min(0).max(MAX_PLAYERS),
   maxPlayers: z.number().int().min(1).max(MAX_PLAYERS),

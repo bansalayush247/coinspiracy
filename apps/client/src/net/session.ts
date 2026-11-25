@@ -1,9 +1,9 @@
 import { Client, type Room } from '@colyseus/sdk';
 import { ACADEMY_ROOM } from '@byzantine-council/shared/progression';
-import { ROOM_LOOKUP_PATH, ROOM_NAME, RoomLookupSchema, normalizeRoomCode } from '@byzantine-council/shared';
+import { ROOM_LOOKUP_PATH, ROOM_NAME, RoomLookupSchema, normalizeRoomCode, type RoomLookup } from '@byzantine-council/shared';
 import { CitadelState } from '@byzantine-council/shared/state';
 import { BEACH_ROOM, HubState } from '@byzantine-council/shared/hub';
-import { CITY_ROOM, CityState, MISSION_ROOM, MissionState } from '@byzantine-council/shared/city';
+import { CITY_ROOM, CityState, MISSION_ROOM, MissionState, type ActId } from '@byzantine-council/shared/city';
 import type { ServerEndpoint } from '../serverUrl.js';
 import { PlayerFacingError } from './errors.js';
 
@@ -75,12 +75,13 @@ export class Session {
     return withTimeout(openRoom(this.#client, nickname));
   }
 
-  createPrivate(nickname: string): Promise<GameRoom> {
-    return withTimeout(this.#client.create<CitadelState>(ROOM_NAME, { nickname, private: true }, CitadelState));
+  // A private council room; `ceremony` marks it as the story's signing ceremony, opened from the end of act three.
+  createPrivate(nickname: string, ceremony = false): Promise<GameRoom> {
+    return withTimeout(this.#client.create<CitadelState>(ROOM_NAME, ceremony ? { nickname, private: true, ceremony } : { nickname, private: true }, CitadelState));
   }
 
-  async joinByCode(rawCode: string, nickname: string): Promise<GameRoom> {
-    const roomId = await this.lookup(rawCode);
+  // Joins a council room found by its code; a story crew's code goes to mission() instead.
+  joinCouncil(roomId: string, nickname: string): Promise<GameRoom> {
     return withTimeout(this.#client.joinById<CitadelState>(roomId, { nickname }, CitadelState));
   }
 
@@ -99,17 +100,22 @@ export class Session {
     return withTimeout(this.#client.joinOrCreate<CityState>(CITY_ROOM, { nickname }, CityState));
   }
 
-  // A story mission: a private night in Port Concord for one player.
-  mission(nickname: string) {
-    return withTimeout(this.#client.create<MissionState>(MISSION_ROOM, { nickname }, MissionState));
+  // A story mission: a private night in Port Concord, a fresh one of the given act or a crew joined by room id.
+  mission(nickname: string, start: { readonly act?: ActId; readonly roomId?: string }) {
+    const { act, roomId } = start;
+    return withTimeout(
+      roomId === undefined
+        ? this.#client.create<MissionState>(MISSION_ROOM, act === undefined ? { nickname } : { nickname, act }, MissionState)
+        : this.#client.joinById<MissionState>(roomId, { nickname }, MissionState),
+    );
   }
 
   resume(token: string): Promise<GameRoom> {
     return withTimeout(this.#client.reconnect<CitadelState>(token, CitadelState));
   }
 
-  // Resolves a typed code to a room id through the server's rate-limited lookup.
-  async lookup(rawCode: string): Promise<string> {
+  // Resolves a typed code to a room through the server's rate-limited lookup.
+  async lookup(rawCode: string): Promise<RoomLookup> {
     const code = normalizeRoomCode(rawCode);
     if (code === null) throw new PlayerFacingError('Room codes are 6 letters and numbers, like K7Q-X9M.');
     let res: Response;
@@ -123,11 +129,11 @@ export class Session {
       throw new PlayerFacingError('Can’t reach the game server. Check your connection and try again.');
     }
     if (res.status === 404) throw new PlayerFacingError('No room has that code. Check it and try again.');
-    if (res.status === 409) throw new PlayerFacingError('That room is full, or a match is already underway there.');
+    if (res.status === 409) throw new PlayerFacingError('That room is full, or its match or story is already underway.');
     if (res.status === 429) throw new PlayerFacingError('Too many attempts. Wait a minute, then try again.');
     if (!res.ok) throw new PlayerFacingError('Couldn’t look up that room. Try again.');
     const parsed = RoomLookupSchema.safeParse(await res.json().catch(() => null));
     if (!parsed.success) throw new PlayerFacingError('Couldn’t look up that room. Try again.');
-    return parsed.data.roomId;
+    return parsed.data;
   }
 }

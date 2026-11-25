@@ -2,6 +2,48 @@
 
 ## 25 November 2026
 
+### Act four: The Founder's Coins, and the signing ceremony
+- The finale of season one. The little stick from pizza night holds a message signed with the Founder's key. Ellis
+  Quint wants to buy it, Dr Sharpe goes on air to claim he is the Founder, and the Choir blacks out the whole city.
+- Restart three of the four generators round the radio mast while Choir runners comb the dark with phone lights,
+  then go live: Sharpe can't sign one sentence, and you can.
+- Choose the ending as a crew: Guardian, Burn, or Byzantine, which is only offered if you once asked Teo for a cut.
+  Every ending closes at Gullmoor tip at dawn, with Mags, Duncan, a mug, and a voicemail from 2009. Pays 500 once.
+- Act three's "Start the signing ceremony" now opens a real ceremony room: everyone who joins is briefed, and how
+  the match ends is saved and changes what Ivy says in act four.
+
+### Act three: The Insider
+- A third story tile. Brannigan has found the pattern: every family the Locksmith rang bought a wallet from the
+  same shop, and its customer list leaked. Nonce, a kid hacker in the Docks, knows where the buyer logged in, if
+  you ask him the right way.
+- Search the dead Gate exchange's lobby terminals for the buyer's login while Gus the watchman walks the tower
+  with his torch. What you find there changes everything: Teo staged his own kidnapping.
+- Talk him down, hand him over, or ask what your cut would have been. Then Ivy calls: a signing ceremony, tonight.
+- The end card's "Start the signing ceremony" opens a private Council room for the finale. Finishing pays 350 play
+  sats once. Up to four can play it together.
+- Fixed: story markers (heap signs, signed badges) could be drawn for the wrong act when a night started.
+
+### Act two: The Ransom Call
+- A new story tile on the menu. A warm voice on Teo's phone wants your twelve words by midnight. Ask for proof
+  twice and listen: the ferry horn sounds at exactly the same moment both times.
+- Take the words to Ivy at the Concord Mint, then get three of the five guardians round Mint Hall to sign them into
+  the federation, so nobody (you included) can hand them over alone. One guardian won't sign.
+- Catch the recording and you work out where Teo is yourself and beat the second lookout; miss it and Detective
+  Brannigan points the way. Creep along the old breakwater behind the lookouts' torches to the lighthouse door.
+- Up to four can play it together, like act one. Finishing pays 300 play sats once.
+- Dawn and morning scenes are lighter than the night; the end card shows each act's own lesson.
+
+### Play the story with friends
+- Act one, The Dump, now takes a crew of up to four. The story bar shows a crew code and an "Invite friends" button
+  that copies a link; friends open it (or type the code in the menu's Join box) and drop into the same night beside
+  you, any time until the device is found.
+- Every choice is a crew vote: you see who picked what, and can change your vote. Most votes win, a tie goes to the
+  crew lead, and if time runs out the votes cast so far decide. Scenes move on once everyone has read them.
+- Whoever reaches Dani or the gatehouse first starts the scene and the crew is brought to it. Everyone can dig their
+  own heap; Ivor and Duncan catch players one at a time, and the crew is told who was caught.
+- Everyone who finishes is paid their own first finish. Crew mates show as coloured dots on the minimap. Streamer
+  mode hides the crew code on screen.
+
 ### Drive anywhere in Port Concord
 - Cars are parked kerbside in every district and by the arrival point. Walk up and press E (or "Get in"); point
   where you want to go with the keys or the touch stick and the car steers there, and points behind reverse it.

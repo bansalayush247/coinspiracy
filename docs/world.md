@@ -142,7 +142,7 @@ Milestone 3 is the Mint vault (`packages/shared/src/city/vault.ts`):
 
 Act one of "The Cold Key", The Dump, is the first story mission (`packages/shared/src/city/dump.ts`, `script.ts`,
 `mission.ts`; server `apps/server/src/city/MissionRoom.ts`):
-- "The Dump" on the menu opens a private, solo `mission` room on the Port Concord map at night. Mr Pell calls,
+- "The Dump" on the menu opens a private `mission` room on the Port Concord map at night, for one to four players. Mr Pell calls,
   Rook finds Dani at St Brigid's Hospital, talks past Mags at the Gullmoor gatehouse, digs the tip while Ivor patrols
   with a torch and Duncan the dog roams, finds the wallet crushed, and gets the twelve words from Dani on paper.
 - Scenes are data: nodes of lines, choices (some on a clock, where silence is an answer), and marks that characters
@@ -171,4 +171,66 @@ road, two per district and two by the arrival point) synced as `CityCar` with th
 `ride` message gets in or out; `drive` sends the direction the driver points. `controls` turns that into pedal and
 wheel, and `stepCar` moves the car on the server, sliding along glancing walls and stopping head-on.
 
-Next: co-op story instances (friends join by code), then act two, The Ransom Call.
+Story crews (`packages/shared/src/city/crew.ts`): every story room claims a room code like a council room, and the
+room lookup now says which kind a code opens (`kind: 'council' | 'story'`), so the one Join box and the `#join=`
+invite link work for both. Up to four join (`CREW_MAX`) until the device is found; then the room locks.
+- Choices are votes, shown on each choice with the voters' names. The scene moves on once everyone has voted, or 15
+  seconds after the first vote (`CREW_VOTE_MS`), or when the clock runs out. The most votes win; a tie goes to the
+  lead's vote, then to the choice picked first (`crewChoice`). `said` tells every client which line Rook said.
+- A scene without choices moves on when the whole crew has read it, or on its own clock as before.
+- Whoever reaches Dani or the gatehouse starts the scene, and anyone more than 3 tiles away is brought beside them;
+  the same happens when the device is found. Newcomers start beside the crew.
+- Digs and catches are per player: each can dig a different heap, and a catch sends only that player to the gate
+  (the crew sees who). Duncan chases the nearest crew member in his yard.
+- Everyone in the crew at the end is paid their own first finish (250 play sats once per profile, keyed by room and
+  profile); two seats on one profile share one save.
+
+Act two, The Ransom Call (`packages/shared/src/city/ransom.ts`; server rules `apps/server/src/city/acts/ransomRules.ts`):
+- The voice on Teo's phone wants the twelve words by midnight. Asking for proof twice plays Teo's line again with
+  the same ferry horn at the same moment; calling it a recording is the clue (`clueRecording`).
+- Ivy, on the Mint Hall steps, explains why the words must go into the federation. Five guardians stand round the
+  Hall; three signatures (`SIGNATURES_NEEDED`) lock it in, and Wren never signs (a seed for act three). A crew can
+  split up to ask them at once.
+- With the clue, Rook works out the lighthouse alone (`jump` in the script) and arrives before the second lookout.
+  Without it, Detective Brannigan tells them, and two lookouts walk the breakwater. Lookouts catch with the same
+  torch cone as Ivor and send you back to the breakwater; a test replays their routes to prove the door can be
+  reached with one or two of them.
+- Inside: Teo, unbound, eating chips, holding the remote. Brannigan: "Funny kind of kidnapping." First finish pays
+  300 play sats once per profile (`progress.story.ransom`).
+
+Story engine: each act is a `StoryAct` (`story.ts`, registry `acts.ts`): steps, the scene each step opens, arrivals
+that start the next step, the spots the crew works (heaps, guardians), marks, reward and end-card text. One
+`MissionRoom` plays any act; what only an act knows lives in its `ActRules` (`apps/server/src/city/acts/`).
+Starting a night picks the act (`MissionJoinSchema`); joining by code plays whatever act the crew is on.
+
+Act three, The Insider (`packages/shared/src/city/insider.ts`; server rules `acts/insiderRules.ts`):
+- Brannigan rings: everyone the Locksmith called bought a wallet from one shop, whose customer list leaked.
+- Nonce, in a container in the Reef Docks yard, knows where the buyer logged in. Paying him or telling him the truth
+  gets "the east side" (`clueEast`); the truth also gets the yacht phone case (`clueYacht`). Pushing gets neither.
+- At the dead Gate exchange tower, four lobby terminals; the buyer's login is on one of the east two, chosen by the
+  server and never sent until found. Wrong terminals show other frozen accounts. Gus the night watchman walks the
+  tower's walls with a torch (a test checks every terminal has time to be searched unseen); a catch sends the
+  player back to the front.
+- The right terminal shows Teo's frozen account. Teo confesses he phoned the Locksmith himself. Talk him down,
+  hand him to Brannigan, or ask what your cut was (`askedCut`, the seed of the Byzantine ending). Ivy calls: Wren
+  has called a signing ceremony tonight. First finish pays 350 play sats once (`progress.story.insider`).
+- The end card's finale button opens a private council room: the signing ceremony is a live Council match.
+
+The signing ceremony: the act three finale button creates a private council room with `ceremony: true`
+(`JoinOptionsSchema`, `CitadelState.ceremony`). Everyone joining is briefed, and when the match ends
+`awardMatch` saves `progress.story.ceremony`: whether the honest side held, and which side the player sat on.
+
+Act four, The Founder's Coins (`packages/shared/src/city/founder.ts`; server rules `acts/founderRules.ts`), the end
+of season one:
+- An act can carry the lead's history in (`carries`, `carriedMarks`): honesty in act one, asking Teo for a cut in
+  act three, and how the ceremony went. Choices can be gated on marks (`ScriptChoice.if`), and the server refuses
+  votes for choices the crew isn't offered.
+- The pizza-night stick holds a sentence signed with the Founder's key. Quint wants to buy it; Sharpe goes on air
+  at the Heights radio mast to claim he is the Founder. The Choir blacks out the city; three of four generators
+  (`GENERATORS_NEEDED`) put the station back on air while Choir runners comb the mast with phone lights.
+- Sharpe can't sign one sentence; Rook can. The crew picks the ending: Guardian (give it to the federation), Burn
+  (read the words out live and walk away with Dani), or Byzantine (only if the lead once asked for a cut). Ivy's
+  line depends on the ceremony. Every ending cuts to the tip gate at dawn with Mags and Duncan; the FOUNDER mug only
+  appears for players honest in act one, and an unsent 2009 voicemail ends the season. First finish pays 500.
+
+Not built yet from the story bible: the side cases ("ripped from the ledger") and season two.

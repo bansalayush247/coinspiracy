@@ -67,7 +67,10 @@
           <button id="open-progress" type="button" class="progress-chip" hidden></button>
           <div class="menu-tiles">
             <button id="open-city" type="button" class="city-open">Port Concord<small>Open city</small></button>
-            <button id="open-story" type="button" class="story-open">The Dump<small>Story · act one</small></button>
+            <button id="open-story" type="button" class="story-open">The Dump<small>Story · act one · crew of 4</small></button>
+            <button id="open-ransom" type="button" class="story-open ransom-open">The Ransom Call<small>Story · act two · crew of 4</small></button>
+            <button id="open-insider" type="button" class="story-open insider-open">The Insider<small>Story · act three · crew of 4</small></button>
+            <button id="open-founder" type="button" class="story-open founder-open">The Founder’s Coins<small>Story · act four · crew of 4</small></button>
             <button id="open-academy" type="button" class="academy-open">Academy<small>Play solo</small></button>
             <button id="open-world" type="button" class="world-open" hidden>Explore<small>Island map</small></button>
             <button id="open-wardrobe" type="button" class="wardrobe-open" hidden>Wardrobe<small>Your look</small></button>
@@ -135,32 +138,39 @@
           </div>
           <div id="city-emotes" class="panel beach-emotes city-emotes" role="group" aria-label="Emotes"></div>
         </section>
-        <section id="story-hud" class="city-hud story-hud" aria-label="The Cold Key, act one" hidden>
+        <section id="story-hud" class="city-hud story-hud" aria-label="The Cold Key" hidden>
           <div class="panel story-bar">
-            <span class="eyebrow">The Cold Key · Act one · The Dump</span>
+            <span id="story-eyebrow" class="eyebrow">The Cold Key</span>
             <p id="story-objective" class="story-objective" aria-live="polite"></p>
             <ul id="story-clues" class="story-clues" aria-label="Clues"></ul>
+            <p id="story-goal" class="story-goal"></p>
             <p id="story-caught" class="story-caught"></p>
+            <div class="story-crew">
+              <span>Crew code <b id="story-code" class="story-code">······</b></span>
+              <button id="story-invite" type="button" disabled>Invite friends</button>
+            </div>
+            <ul id="story-crew" class="story-crew-list" aria-label="Your crew"></ul>
             <button id="story-leave" type="button">Leave the story</button>
           </div>
           <div class="panel city-map story-map" aria-hidden="true">
             <canvas id="story-minimap"></canvas>
             <canvas id="story-dots"></canvas>
           </div>
-          <button id="story-dig" class="city-deposit story-dig" type="button" aria-keyshortcuts="E" hidden>Dig here<small>E · hold still</small></button>
+          <button id="story-dig" class="city-deposit story-dig" type="button" aria-keyshortcuts="E" hidden>Work here<small>E · hold still</small></button>
           <section id="story-talk" class="panel story-talk" aria-live="polite" aria-label="Story" hidden>
             <div id="story-log" class="story-log"></div>
             <div id="story-choices" class="story-choices" role="group" aria-label="Your answer"></div>
             <p id="story-hint" class="story-hint"></p>
           </section>
           <section id="story-end" class="panel story-end" role="dialog" aria-labelledby="story-end-title" hidden>
-            <span class="eyebrow">End of act one</span>
-            <h2 id="story-end-title">The Dump</h2>
-            <p class="story-lesson">The device was never the treasure. The twelve words were. Write your seed words on paper, keep them somewhere safe, and never photograph or type them.</p>
+            <span id="story-end-eyebrow" class="eyebrow">End of the act</span>
+            <h2 id="story-end-title"></h2>
+            <p id="story-lesson" class="story-lesson"></p>
             <ul id="story-remembers" class="story-remembers"></ul>
             <p id="story-honest" class="story-honest"></p>
             <p id="story-reward" class="story-reward"></p>
-            <p class="story-next">Next: act two, <i>The Ransom Call</i>. Coming soon.</p>
+            <p id="story-end-next" class="story-next"></p>
+            <button id="story-finale" type="button" class="cta" hidden></button>
             <button id="story-end-leave" type="button">Back to the map</button>
           </section>
         </section>

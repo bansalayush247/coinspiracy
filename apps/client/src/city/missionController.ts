@@ -1,28 +1,30 @@
-// Runs a story mission: the private mission room, the dialogue, the objective, digging at the tip, and the
-// end card. The server decides everything; this only sends moves, choices and digs, and draws what comes back.
+// Runs a story mission: the private mission room and its crew, the dialogue, the objective, the act's work (digging
+// at the tip, asking guardians to sign), and the end card. The server decides everything; this only sends moves,
+// votes and work, and draws what comes back.
 import { Callbacks } from '@colyseus/sdk';
-import type { Vec2 } from '@byzantine-council/shared';
+import { formatRoomCode, isRoomCode } from '@byzantine-council/shared';
 import {
   CaughtLineSchema,
-  DANI_SPOT,
-  DIG_MS,
-  DUMP_MARKS,
-  DUMP_OBJECTIVES,
-  DUMP_REWARD_SATS,
-  GATE_SPOT,
-  HEAPS,
+  DUMP_ACT,
   MISSION_MESSAGES,
   MissionResultSchema,
-  canDig,
+  SPEAKER_NAMES,
+  actOf,
+  canWork,
+  workLabel,
+  type ActId,
   type CaughtLine,
   type CityPlayer,
-  type DumpStep,
-  type MissionHeap,
   type MissionNpc,
   type MissionResult,
+  type MissionSpot,
+  type Speaker,
+  type StoryAct,
 } from '@byzantine-council/shared/city';
 import { audio } from '../audio/engine.js';
 import type { PlayerInput } from '../game/input.js';
+import { cssColor, seatColors } from '../game/palette.js';
+import { inviteLink } from '../net/invite.js';
 import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { el, h } from '../ui/dom.js';
@@ -32,7 +34,11 @@ import { Dialogue } from './dialogue.js';
 
 type MissionRoom = Awaited<ReturnType<Session['mission']>>;
 
-const TARGETS: Readonly<Partial<Record<DumpStep, Vec2>>> = { toDani: DANI_SPOT, toTip: GATE_SPOT };
+const GUS_LINES: readonly string[] = [
+  'Gus: “Oi! Lobby’s shut. Has been for eleven years. Out the front, please.”',
+  'Gus: “You again? Withdrawals are paused. So are you. Front, now.”',
+  'Gus: “Third time. I’m putting you in my song.”',
+];
 
 const CAUGHT_LINES: Readonly<Record<CaughtLine['by'], readonly string[]>> = {
   guard: [
@@ -45,7 +51,34 @@ const CAUGHT_LINES: Readonly<Record<CaughtLine['by'], readonly string[]>> = {
     'Duncan licks your whole face, then escorts you out. He has principles.',
     'Duncan brings you back to the gate by the sleeve. Mags: “He likes you. That’s worse.”',
   ],
+  choir: [
+    'A Choir runner shines a phone in your face. “Not you. We want the stick.” They walk you back to the road.',
+    'The Choir, in unison: “Again? The key belongs to everyone. Not you specifically.” Back to the road.',
+    'A Choir runner sighs. “Third time. We’re starting to like you, and that’s against the rules.”',
+  ],
+  lookout: [
+    'Lookout: “Oi. Off the breakwater. We’re not allowed to touch you, so please just go.”',
+    'Lookout: “Again? Mate. I’ve got a flask and a strict no-touching policy. Back you go.”',
+    'Lookout: “Third time. Respect. Still no. Shoo.”',
+  ],
 };
+
+// How dark the night lies over each step: the ransom call breaks at dawn and the Mint is a morning scene.
+const DARK: Readonly<Record<ActId, (step: string) => number>> = {
+  dump: (step) => (step === 'found' || step === 'done' ? 0.3 : 0.55),
+  ransom: (step) => (['call', 'toIvy', 'ivy', 'sign', 'locked'].includes(step) ? 0.16 : 0.58),
+  insider: (step) => (['call', 'toNonce', 'nonce', 'toTower'].includes(step) ? 0.12 : 0.6),
+  founder: (step) => (step === 'blackout' || step === 'power' ? 0.78 : step === 'radio' || step === 'done' ? 0.3 : 0.55),
+};
+const WORK_TOAST: Readonly<Record<ActId, string>> = {
+  dump: 'Find the right heap. Signs show the year and season.',
+  ransom: 'Five guardians round Mint Hall. Three signatures lock it in. Split up to be quicker.',
+  insider: 'Four lobby terminals, one with the buyer’s login. Search while Gus is round the other side.',
+  founder: 'Four generators, two each side of the mast. Three get the station back on air. Split up.',
+};
+const CAUGHT_WHERE: Readonly<Record<CaughtLine['by'], string>> = { guard: 'the gate', duncan: 'the gate', lookout: 'the end of the breakwater', choir: 'the road' };
+// Who does the catching in each act, for telling the crew about it.
+const CATCHERS: Readonly<Record<CaughtLine['by'], string>> = { guard: 'Ivor', duncan: 'Duncan', lookout: 'A lookout', choir: 'The Choir' };
 
 export class MissionController {
   readonly #hud = el('story-hud', HTMLElement);
@@ -55,16 +88,27 @@ export class MissionController {
   readonly #dig = el('story-dig', HTMLButtonElement);
   readonly #dots = el('story-dots', HTMLCanvasElement);
   readonly #end = el('story-end', HTMLElement);
+  readonly #code = el('story-code', HTMLElement);
+  readonly #invite = el('story-invite', HTMLButtonElement);
+  readonly #crewList = el('story-crew', HTMLElement);
+  readonly #goal = el('story-goal', HTMLElement);
   readonly #dialogue = new Dialogue();
   #room: MissionRoom | null = null;
   #marks = new Set<string>();
-  #step: DumpStep = 'call';
+  #step = 'call';
+  #act: StoryAct = DUMP_ACT;
   #near = -1;
   #found: string[] = [];
   #poll = 0;
+  #codeValue = '';
+  #crewSeen = false;
+  #digHeap = -1;
+  #actShown = false;
   onLeft: () => void = () => undefined;
   onToast: (text: string) => void = () => undefined;
   onProfile: (p: ProfileSummary) => void = () => undefined;
+  // The end card's finale button: what comes after the story, such as a council match.
+  onFinale: () => void = () => undefined;
 
   constructor(
     private readonly session: Session,
@@ -79,8 +123,16 @@ export class MissionController {
     el('story-end-leave', HTMLButtonElement).addEventListener('click', () => {
       void this.leave();
     });
+    el('story-finale', HTMLButtonElement).addEventListener('click', () => {
+      void this.leave().then(() => {
+        this.onFinale();
+      });
+    });
     this.#dig.addEventListener('click', () => {
       this.#startDig();
+    });
+    this.#invite.addEventListener('click', () => {
+      void this.#copyInvite();
     });
     this.#dialogue.onChoose = (node, choice) => {
       this.#room?.send('choose', { node, choice });
@@ -108,8 +160,10 @@ export class MissionController {
     return this.#room !== null;
   }
 
-  async enter(nickname: string): Promise<void> {
-    const room = await this.session.mission(nickname);
+  // Starts a new night of the given act, or joins a friend's crew (whatever act it is playing) by its room id.
+  async enter(nickname: string, start: { readonly act?: ActId; readonly roomId?: string }): Promise<void> {
+    const room = await this.session.mission(nickname, start);
+    this.#setAct(actOf(room.state.act));
     this.#room = room;
     this.scene.attach(room.sessionId, this.input, {
       get canSend() {
@@ -126,9 +180,32 @@ export class MissionController {
       callbacks.onChange(player, () => {
         this.scene.updatePlayer(id, player);
       });
+      this.#renderCrew();
+      if (id !== room.sessionId && this.#crewSeen) this.onToast(`${player.name} joined the crew.`);
     });
-    callbacks.onRemove('players', (_p: CityPlayer, id: string) => {
+    callbacks.onRemove('players', (p: CityPlayer, id: string) => {
       this.scene.removePlayer(id);
+      this.#renderCrew();
+      if (id !== room.sessionId) this.onToast(`${p.name} left the crew.`);
+    });
+    callbacks.listen('lead', () => {
+      this.#renderCrew();
+    });
+    callbacks.listen('code', (code: string) => {
+      this.#codeValue = isRoomCode(code) ? code : '';
+      this.#renderCode();
+    });
+    callbacks.onAdd('votes', () => {
+      this.#renderCrewStatus();
+    });
+    callbacks.onRemove('votes', () => {
+      this.#renderCrewStatus();
+    });
+    callbacks.onChange('votes', () => {
+      this.#renderCrewStatus();
+    });
+    callbacks.listen('ready', () => {
+      this.#renderCrewStatus();
     });
     callbacks.onAdd('npcs', (npc: MissionNpc, id: string) => {
       view?.setNpc(id, npc);
@@ -136,27 +213,24 @@ export class MissionController {
         view?.setNpc(id, npc);
       });
     });
-    callbacks.onAdd('heaps', (heap: MissionHeap, index: number) => {
-      this.#found[index] = heap.found;
-      view?.setHeap(index, heap.dug);
-      callbacks.onChange(heap, () => {
-        view?.setHeap(index, heap.dug);
-        if (heap.found !== '' && heap.found !== this.#found[index]) {
-          this.#found[index] = heap.found;
-          this.#dug(heap.found);
+    callbacks.listen('act', (act: string) => {
+      this.#setAct(actOf(act));
+    });
+    callbacks.onAdd('spots', (spot: MissionSpot, index: number) => {
+      this.#found[index] = spot.note;
+      view?.setSpot(index, spot.done);
+      callbacks.onChange(spot, () => {
+        view?.setSpot(index, spot.done);
+        this.#diggers(room);
+        this.#renderGoal();
+        if (spot.note !== '' && spot.note !== this.#found[index]) {
+          this.#found[index] = spot.note;
+          this.#dug(spot.note);
         }
       });
     });
     callbacks.listen('step', (step: string) => {
-      this.#setStep(step as DumpStep);
-    });
-    callbacks.listen('digging', (heap: number) => {
-      view?.setDigging(heap);
-      this.#dig.classList.toggle('digging', heap >= 0);
-      if (heap >= 0) {
-        audio.play('stepSand');
-        this.#dig.style.setProperty('--dig-ms', `${String(DIG_MS)}ms`);
-      }
+      this.#setStep(step);
     });
     callbacks.listen('caught', (n: number) => {
       this.#caught.textContent = n > 0 ? `Caught ${String(n)}×` : '';
@@ -177,7 +251,13 @@ export class MissionController {
     room.onMessage(MISSION_MESSAGES.CAUGHT, (payload: unknown) => {
       const line = CaughtLineSchema.safeParse(payload);
       if (!line.success) return;
-      const lines = CAUGHT_LINES[line.data.by];
+      const gus = this.#act.id === 'insider';
+      if (line.data.name !== undefined) {
+        const who = gus ? 'Gus' : CATCHERS[line.data.by];
+        this.onToast(`${who} caught ${line.data.name}. Back to ${gus ? 'the front of the tower' : CAUGHT_WHERE[line.data.by]} with them.`);
+        return;
+      }
+      const lines = gus ? GUS_LINES : CAUGHT_LINES[line.data.by];
       audio.play('refuse');
       this.onToast(lines[Math.min(lines.length - 1, line.data.count - 1)] ?? '');
     });
@@ -200,6 +280,7 @@ export class MissionController {
       this.#render();
     }, 150);
     this.#render();
+    this.#crewSeen = true;
   }
 
   async leave(): Promise<void> {
@@ -217,8 +298,15 @@ export class MissionController {
     this.#marks = new Set();
     this.#found = [];
     this.#step = 'call';
+    this.#actShown = false;
+    this.#goal.textContent = '';
     this.#near = -1;
     this.#clues.replaceChildren();
+    this.#crewList.replaceChildren();
+    this.#codeValue = '';
+    this.#crewSeen = false;
+    this.#digHeap = -1;
+    this.#renderCode();
     this.#caught.textContent = '';
     this.#dig.hidden = true;
     this.#end.hidden = true;
@@ -237,41 +325,146 @@ export class MissionController {
     }
     this.input.enabled = false;
     if (node === 'pell' || node === 'selfie') audio.play('chirp');
-    this.#dialogue.show(node, seq, this.#marks);
+    this.#dialogue.show(node, seq, this.#marks, this.#room?.state.said ?? '');
+    this.#renderCrewStatus();
   }
 
-  #free(): boolean {
-    return this.#step === 'toDani' || this.#step === 'toTip' || this.#step === 'dig';
-  }
-
-  #setStep(step: DumpStep): void {
-    this.#step = step;
-    this.#objective.textContent = DUMP_OBJECTIVES[step];
-    this.scene.mission?.setTarget(TARGETS[step] ?? null);
-    if (step === 'dig') {
-      audio.setMood('proposals');
-      this.onToast('Find the right heap. Signs show the year and season.');
+  // Lights the heap each crew member is digging, and runs the bar on the dig button for this player's own.
+  #diggers(room: MissionRoom): void {
+    let mine = -1;
+    const digging: number[] = [];
+    room.state.spots.forEach((spot, i) => {
+      if (spot.worker === '') return;
+      digging.push(i);
+      if (spot.worker === room.sessionId) mine = i;
+    });
+    this.scene.mission?.setDigging(digging);
+    if (mine === this.#digHeap) return;
+    this.#digHeap = mine;
+    this.#dig.classList.toggle('digging', mine >= 0);
+    if (mine >= 0) {
+      audio.play(this.#act.id === 'dump' ? 'stepSand' : 'click');
+      this.#dig.style.setProperty('--dig-ms', `${String(this.#act.workMs)}ms`);
     }
-    if (step === 'found') {
+  }
+
+  #renderCrew(): void {
+    const room = this.#room;
+    if (room === null) return;
+    const items = [...room.state.players.entries()]
+      .sort(([, a], [, b]) => a.seat - b.seat)
+      .map(([id, p]) => {
+        const li = h('li');
+        const dot = h('i');
+        dot.style.setProperty('--seat', cssColor(seatColors(p.seat).lit));
+        li.append(dot, document.createTextNode(id === room.sessionId ? `${p.name} (you)` : p.name));
+        if (id === room.state.lead) li.append(h('small', '', 'lead'));
+        return li;
+      });
+    this.#crewList.replaceChildren(...(items.length > 1 ? items : []));
+    this.#dialogue.crew = room.state.players.size;
+    this.#renderCrewStatus();
+  }
+
+  #renderCrewStatus(): void {
+    const room = this.#room;
+    if (room === null) return;
+    const votes = new Map<string, string[]>();
+    room.state.votes.forEach((choice, id) => {
+      const name = id === room.sessionId ? 'you' : (room.state.players.get(id)?.name ?? '');
+      const list = votes.get(choice) ?? [];
+      list.push(name);
+      votes.set(choice, list);
+    });
+    this.#dialogue.crewStatus(votes, room.state.votes.get(room.sessionId) ?? null, room.state.ready);
+  }
+
+  // Streamer mode hides the code on screen; the invite link is still copied, so it can be sent privately.
+  #renderCode(): void {
+    const streaming = document.documentElement.dataset['streamer'] === 'on';
+    this.#code.textContent = this.#codeValue === '' ? '······' : streaming ? '•••-•••' : formatRoomCode(this.#codeValue);
+    this.#invite.disabled = this.#codeValue === '' || this.#act.closed.includes(this.#step);
+  }
+
+  async #copyInvite(): Promise<void> {
+    if (this.#codeValue === '') return;
+    const link = inviteLink(window.location.href, this.#codeValue);
+    try {
+      await navigator.clipboard.writeText(link);
+      this.onToast('Invite link copied. Friends who open it join your crew, up to four of you.');
+    } catch {
+      this.onToast(document.documentElement.dataset['streamer'] === 'on' ? 'Copying failed. Turn off streamer mode to read the code out.' : `Copying failed. Your crew code is ${formatRoomCode(this.#codeValue)}.`);
+    }
+  }
+
+  // Steps where the crew walks about: going somewhere, working the act's spots, or sneaking.
+  #free(): boolean {
+    return this.#act.arrivals[this.#step] !== undefined || this.#step === this.#act.workStep;
+  }
+
+  #setAct(act: StoryAct): void {
+    if (act === this.#act && this.#actShown) return;
+    this.#act = act;
+    this.#actShown = true;
+    this.#dialogue.act = act;
+    this.scene.mission?.setAct(act);
+    this.#room?.state.spots.forEach((spot, i) => {
+      this.scene.mission?.setSpot(i, spot.done);
+    });
+    this.scene.mission?.setDark(DARK[act.id](this.#step));
+    el('story-eyebrow', HTMLElement).textContent = `The Cold Key · ${act.number} · ${act.title}`;
+    this.#hud.setAttribute('aria-label', `The Cold Key, ${act.number.toLowerCase()}`);
+    this.#objective.textContent = act.objectives[this.#step] ?? '';
+  }
+
+  #setStep(step: string): void {
+    const before = this.#step;
+    this.#step = step;
+    this.#renderCode();
+    this.#renderGoal();
+    this.#objective.textContent = this.#act.objectives[step] ?? '';
+    this.scene.mission?.setTarget(this.#act.targets[step] ?? null);
+    this.scene.mission?.setDark(DARK[this.#act.id](step));
+    if (step === this.#act.workStep) {
+      audio.setMood('proposals');
+      this.onToast(WORK_TOAST[this.#act.id]);
+    }
+    if (step === 'sneak') audio.setMood('proposals');
+    if (before === this.#act.workStep && step !== before) {
       audio.setMood('story');
       audio.play('taskDone');
     }
     this.input.enabled = this.#room !== null && this.#free() && !this.#dialogue.open;
   }
 
+  // Progress on the act's work, when it has a goal: "Signatures: 2 of 3".
+  #renderGoal(): void {
+    const room = this.#room;
+    const goal = this.#act.workGoal;
+    if (room === null || goal === 0 || this.#step !== this.#act.workStep) {
+      this.#goal.textContent = '';
+      return;
+    }
+    let n = 0;
+    room.state.spots.forEach((spot, i) => {
+      if (spot.done && this.#act.spots[i]?.refuses !== true) n++;
+    });
+    this.#goal.textContent = `${this.#act.goalLabel ?? 'Done'}: ${String(Math.min(n, goal))} of ${String(goal)}`;
+  }
+
   #dug(found: string): void {
-    audio.play('taskFail');
+    audio.play(this.#act.id === 'dump' ? 'taskFail' : 'taskDone');
     this.onToast(found);
   }
 
   #startDig(): void {
     if (this.#dig.hidden || this.#near < 0) return;
-    this.#room?.send('dig', { heap: this.#near });
+    this.#room?.send('work', { spot: this.#near });
   }
 
   #renderClues(): void {
     const clues = [...this.#marks].flatMap((m) => {
-      const mark = DUMP_MARKS[m];
+      const mark = this.#act.marks[m];
       return mark?.clue === true ? [mark.text] : [];
     });
     this.#clues.replaceChildren(...clues.map((c) => h('li', '', c)));
@@ -281,20 +474,26 @@ export class MissionController {
     const room = this.#room;
     const pos = this.scene.predictedPosition();
     if (room === null || pos === null) return;
+    this.#renderCode();
+    this.#renderCrewStatus();
     let near = -1;
-    if (this.#step === 'dig' && !this.#dialogue.open) {
-      near = HEAPS.findIndex((heap, i) => room.state.heaps[i]?.dug !== true && canDig(pos, heap));
+    const act = this.#act;
+    if (this.#step === act.workStep && !this.#dialogue.open) {
+      near = act.spots.findIndex((spot, i) => room.state.spots[i]?.done !== true && canWork(pos, spot, act.workReach));
     }
     if (near !== this.#near) this.#near = near;
-    const heap = HEAPS[near];
-    this.#dig.hidden = heap === undefined;
-    if (heap !== undefined) this.#dig.firstChild?.replaceWith(document.createTextNode(`Dig the ${heap.label} heap`));
+    const spot = act.spots[near];
+    this.#dig.hidden = spot === undefined;
+    if (spot !== undefined) this.#dig.firstChild?.replaceWith(document.createTextNode(workLabel(act, spot)));
     const ctx = this.#dots.getContext('2d');
     if (ctx === null) return;
     this.#dots.width = el('story-minimap', HTMLCanvasElement).width;
     this.#dots.height = el('story-minimap', HTMLCanvasElement).height;
-    const target = TARGETS[this.#step];
+    const target = act.targets[this.#step];
     if (target !== undefined) drawMapDot(ctx, target, '#ffd27a', 5);
+    room.state.players.forEach((p, id) => {
+      if (id !== room.sessionId) drawMapDot(ctx, p, cssColor(seatColors(p.seat).lit), 3);
+    });
     drawMapDot(ctx, pos, '#fff1de', 3.5);
   }
 
@@ -302,21 +501,30 @@ export class MissionController {
     audio.play('rankUp');
     const who = new Map<string, string[]>();
     for (const m of this.#marks) {
-      const mark = DUMP_MARKS[m];
+      const mark = this.#act.marks[m];
       if (mark?.who === undefined || mark.who === 'rook') continue;
       const list = who.get(mark.who) ?? [];
       list.push(mark.text);
       who.set(mark.who, list);
     }
-    const names: Record<string, string> = { dani: 'Dani', mags: 'Mags', pell: 'Mr Pell' };
-    el('story-remembers', HTMLElement).replaceChildren(...[...who].map(([k, list]) => h('li', '', `${names[k] ?? k} remembers: ${list.join('; ')}.`)));
-    el('story-honest', HTMLElement).textContent = r.honest ? 'You chose honesty at least once tonight. Someone at the tip noticed.' : 'You never once told the plain truth tonight. Someone at the tip noticed that too.';
+    const act = this.#act;
+    const voice = (k: string): string => (k === 'voice' ? 'The voice on the phone' : SPEAKER_NAMES[k as Speaker]);
+    el('story-remembers', HTMLElement).replaceChildren(...[...who].map(([k, list]) => h('li', '', `${voice(k)} remembers: ${list.join('; ')}.`)));
+    el('story-honest', HTMLElement).textContent = r.honest ? 'You chose honesty at least once. Somebody noticed.' : 'You never once told the plain truth. Somebody noticed that too.';
+    const number = act.number.toLowerCase();
     const reward: Record<MissionResult['reason'], string> = {
-      paid: r.paid > 0 ? `+${String(r.paid)} play sats in your wallet for finishing act one.` : 'Act one is saved to your profile.',
+      paid: r.paid > 0 ? `+${String(r.paid)} play sats in your wallet for finishing ${number}.` : `${act.number} is saved to your profile.`,
       replay: 'Replayed: your choices are saved; the reward is only paid once.',
-      noProfile: `Playing as a guest without a saved profile: nothing was saved, and the ${String(DUMP_REWARD_SATS)} play sats wait for a profile.`,
+      noProfile: `Playing as a guest without a saved profile: nothing was saved, and the ${String(act.rewardSats)} play sats wait for a profile.`,
       error: 'Your progress couldn’t be saved just now.',
     };
+    el('story-end-eyebrow', HTMLElement).textContent = `End of ${number}`;
+    el('story-end-title', HTMLElement).textContent = act.title;
+    el('story-lesson', HTMLElement).textContent = act.lesson;
+    el('story-end-next', HTMLElement).textContent = act.next;
+    const finale = el('story-finale', HTMLButtonElement);
+    finale.hidden = act.finale === undefined;
+    finale.textContent = act.finale ?? '';
     el('story-reward', HTMLElement).textContent = reward[r.reason];
     this.#end.hidden = false;
     this.#dig.hidden = true;

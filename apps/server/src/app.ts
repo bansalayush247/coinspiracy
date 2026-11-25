@@ -125,7 +125,7 @@ export function createGameServer(options: GameServerOptions) {
           res.status(409).json({ error: 'room_unavailable' });
           return;
         }
-        const reply: RoomLookup = { roomId: listing.roomId, players: listing.clients, maxPlayers: listing.maxClients };
+        const reply: RoomLookup = { kind: listing.name === MISSION_ROOM ? 'story' : 'council', roomId: listing.roomId, players: listing.clients, maxPlayers: listing.maxClients };
         res.json(reply);
       });
     },

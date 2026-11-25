@@ -1,6 +1,8 @@
 // Act one, The Dump, end to end: production build, real server, headless Brave. A guest opens the story from the
 // menu, answers Mr Pell, Dani and Mags with the keyboard, digs the right heap at Gullmoor tip at night, asks Dani
-// nicely, and reaches the end card with the reward. The server is only used to skip the long walks.
+// nicely, and reaches the end card with the reward. Then a friend joins a crew from its invite link and the two
+// split a vote, act two is played from the call to the lighthouse, and act three from the leak to Teo's confession
+// and the council finale. The server is only used to skip the walks.
 // Run: npx tsx --conditions=source e2e/story.ts
 import { randomBytes } from 'node:crypto';
 import { mkdir, rm } from 'node:fs/promises';
@@ -8,8 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { matchMaker } from '@colyseus/core';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
-import { CITY_MAP, DANI_SPOT, GATE_SPOT, HEAPS, canDig } from '@byzantine-council/shared/city';
+import { BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
 import { canStand } from '@byzantine-council/shared/pathfinding';
+import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
 import type { MissionRoom } from '../apps/server/src/city/MissionRoom.js';
 import { MemoryProfileStore } from '../apps/server/src/profile/store.js';
@@ -23,6 +26,7 @@ const BRAVE = process.env['BRAVE_PATH'] ?? '/Applications/Brave Browser.app/Cont
 const OUT = 'dist-story';
 
 let failures = 0;
+let latestCouncils = 0;
 function check(ok: boolean, label: string): void {
   if (!ok) failures++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`);
@@ -38,7 +42,7 @@ async function until(test: () => boolean, label: string, timeoutMs = 20_000): Pr
   return false;
 }
 
-async function open(browser: Browser, name: string, viewport: { width: number; height: number }, errors: string[]): Promise<{ page: Page; room: MissionRoom }> {
+async function open(browser: Browser, name: string, viewport: { width: number; height: number }, errors: string[], tile = '#open-story'): Promise<{ page: Page; room: MissionRoom }> {
   const page = await browser.newPage({ viewport });
   page.on('pageerror', (e) => errors.push(`${name}: ${String(e)}`));
   page.on('console', (m) => {
@@ -49,7 +53,7 @@ async function open(browser: Browser, name: string, viewport: { width: number; h
   await page.keyboard.press('Escape');
   await page.locator('#nickname').fill(name);
   const before = new Set((await matchMaker.query({ name: 'mission' })).map((r) => r.roomId));
-  await page.click('#open-story');
+  await page.click(tile);
   await page.locator('#story-hud').waitFor({ state: 'visible', timeout: 15_000 });
   let room: MissionRoom | undefined;
   await until(() => {
@@ -148,7 +152,7 @@ async function main(): Promise<void> {
     await page.screenshot({ path: `${shots}story-patrol.png` });
     check(room.state.caught === 0, 'watching the patrol from the edge of the yard is safe');
     room.quietNight();
-    const spot = digSpot(room.deviceHeap);
+    const spot = digSpot(room.secretSpot);
     room.teleport(spot.x, spot.y);
     await page.locator('#story-dig').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
     check(await page.isVisible('#story-dig'), 'a dig button appears beside a heap');
@@ -185,6 +189,204 @@ async function main(): Promise<void> {
     check(true, 'the story plays on a phone screen');
     await phone.page.click('#story-leave');
     await phone.page.locator('#menu').waitFor({ state: 'visible', timeout: 10_000 });
+
+    const lead = await open(browser, 'Ana', { width: 1280, height: 800 }, errors);
+    await until(() => lead.room.state.code !== '', 'a crew code');
+    const code = lead.room.state.code;
+    await lead.page.waitForFunction((c) => document.getElementById('story-code')?.textContent.replace('-', '') === c, code, { timeout: 10_000 }).catch(() => undefined);
+    check(((await lead.page.textContent('#story-code')) ?? '').replace('-', '') === code, 'the story bar shows the crew code');
+    const friend = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    friend.on('pageerror', (e) => errors.push(`Bo: ${String(e)}`));
+    friend.on('console', (m) => {
+      if (m.type() === 'error') errors.push(`Bo: ${m.text()}`);
+    });
+    await friend.goto(`${WEB}/#join=${code}`);
+    await friend.locator('#open-story').waitFor({ state: 'visible', timeout: 10_000 });
+    await friend.keyboard.press('Escape');
+    await friend.locator('#nickname').fill('Bo');
+    check((await friend.inputValue('#room-code')).replace('-', '') === code, 'the invite link fills in the code');
+    await friend.click('button[data-action="join"]');
+    await friend.locator('#story-hud').waitFor({ state: 'visible', timeout: 15_000 }).catch(() => undefined);
+    check(await friend.isVisible('#story-hud'), 'the code opens the crew’s story, not a council room');
+    await until(() => lead.room.state.players.size === 2, 'two in the crew');
+    await lead.page.waitForFunction(() => document.querySelectorAll('#story-crew li').length === 2, undefined, { timeout: 10_000 }).catch(() => undefined);
+    check(((await lead.page.textContent('#story-crew')) ?? '').includes('Bo'), 'the lead sees Bo in the crew');
+    await until(() => lead.room.state.node === 'pell', 'Pell calls the crew');
+    await lead.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+    await friend.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+    await lead.page.keyboard.press('1');
+    await until(() => lead.room.state.votes.size === 1, 'the lead votes');
+    await friend.waitForFunction(() => document.querySelector('.story-choice.voted') === null && (document.querySelector('.story-votes')?.textContent ?? '') !== '', undefined, { timeout: 5_000 }).catch(() => undefined);
+    await friend.screenshot({ path: `${shots}story-crew-vote.png` });
+    check(((await friend.textContent('#story-choices')) ?? '').includes('Ana'), 'Bo sees which way Ana voted');
+    await friend.keyboard.press('2');
+    await until(() => lead.room.state.node === 'pellJoke', 'the tie goes to the lead');
+    check(lead.room.state.node === 'pellJoke', 'a split vote goes the lead’s way');
+    const said = await friend.waitForFunction(() => document.getElementById('story-log')?.textContent.includes('I’m budgeting') === true, undefined, { timeout: 10_000 }).then(() => true).catch(() => false);
+    check(said, 'Bo’s story log shows the line the crew chose');
+    await friend.click('#story-leave');
+    await friend.locator('#menu').waitFor({ state: 'visible', timeout: 10_000 });
+    await until(() => lead.room.state.players.size === 1, 'Bo left');
+    await lead.page.click('#story-leave');
+    await lead.page.locator('#menu').waitFor({ state: 'visible', timeout: 10_000 });
+
+    const two = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-ransom');
+    await until(() => two.room.state.node === 'ransom', 'the ransom call');
+    check(two.room.state.act === 'ransom', 'the act two tile opens The Ransom Call');
+    await two.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+    check(((await two.page.textContent('#story-eyebrow')) ?? '').includes('Act two'), 'the story bar names act two');
+    await two.page.screenshot({ path: `${shots}ransom-call.png` });
+    await answer(two.page, two.room, 'ransom', 1);
+    await answer(two.page, two.room, 'proof', 1);
+    await answer(two.page, two.room, 'proofAgain', 1);
+    const heard = await two.page.waitForFunction(() => document.getElementById('story-clues')?.textContent.includes('recording') === true, undefined, { timeout: 10_000 }).then(() => true).catch(() => false);
+    check(heard, 'catching the recording writes down the ferry horn clue');
+    await read(two.page, two.room, 'caught');
+    await read(two.page, two.room, 'callEnd');
+    await until(() => two.room.state.step === 'toIvy', 'off to the Mint');
+    two.room.teleport(IVY_SPOT.x, IVY_SPOT.y + 1);
+    await answer(two.page, two.room, 'ivy', 3);
+    await read(two.page, two.room, 'ivyHow');
+    await read(two.page, two.room, 'ivyPlan');
+    await until(() => two.room.state.step === 'sign', 'signing');
+    two.room.quietNight();
+    for (const i of [4, 0, 1, 2]) {
+      const g = GUARDIANS[i];
+      if (g === undefined) throw new Error('guardian');
+      two.room.teleport(g.at.x, g.at.y + 1);
+      await two.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Ask ${label}`) === true, g.label, { timeout: 10_000 }).catch(() => undefined);
+      if (i === 4) {
+        check(((await two.page.textContent('#story-dig')) ?? '').includes('Ask Wren to sign'), 'the button asks the guardian by name');
+        await two.page.waitForTimeout(700);
+        await two.page.screenshot({ path: `${shots}ransom-mint.png` });
+      }
+      await two.page.keyboard.press('e');
+      await until(() => two.room.state.spots[i]?.done === true, `asked ${g.label}`);
+      if (i === 0) check(((await two.page.textContent('#story-goal')) ?? '').includes('1 of 3'), 'Wren’s refusal doesn’t count; Osei’s signature does');
+    }
+    await until(() => two.room.state.node === 'locked', 'locked in');
+    check(two.room.state.node === 'locked', 'three signatures lock the words into the federation');
+    await read(two.page, two.room, 'locked');
+    await read(two.page, two.room, 'lockedClue');
+    await until(() => two.room.state.step === 'toLighthouse', 'off to the lighthouse');
+    two.room.teleport(BREAKWATER.x, BREAKWATER.y);
+    await read(two.page, two.room, 'breakwater');
+    await until(() => two.room.state.step === 'sneak', 'sneaking');
+    check(two.room.state.npcs.get('lookout1')?.shown === false, 'hearing the horn gets the crew there before the second lookout');
+    await two.page.waitForTimeout(1500);
+    await two.page.screenshot({ path: `${shots}ransom-breakwater.png` });
+    two.room.teleport(LIGHTHOUSE_DOOR.x, LIGHTHOUSE_DOOR.y);
+    await answer(two.page, two.room, 'door', 3);
+    await read(two.page, two.room, 'doorLook');
+    await until(() => two.room.state.node === 'brannDoor', 'Brannigan');
+    await two.page.waitForTimeout(3000);
+    await two.page.screenshot({ path: `${shots}ransom-door.png` });
+    await read(two.page, two.room, 'brannDoor');
+    await two.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await two.page.textContent('#story-end-title')) ?? '') === 'The Ransom Call', 'the end card is act two’s');
+    check(((await two.page.textContent('#story-reward')) ?? '').includes('+300 play sats'), `act two pays its first finish (${(await two.page.textContent('#story-reward')) ?? ''})`);
+    await two.page.screenshot({ path: `${shots}ransom-end.png` });
+    await two.page.click('#story-end-leave');
+    await two.page.locator('#menu').waitFor({ state: 'visible', timeout: 10_000 });
+
+    const three = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-insider');
+    await until(() => three.room.state.node === 'morning', 'Brannigan rings');
+    check(three.room.state.act === 'insider', 'the act three tile opens The Insider');
+    await answer(three.page, three.room, 'morning', 2);
+    await read(three.page, three.room, 'morningGo');
+    await read(three.page, three.room, 'morningEnd');
+    await until(() => three.room.state.step === 'toNonce', 'off to Nonce');
+    three.room.teleport(NONCE_SPOT.x, NONCE_SPOT.y + 0.5);
+    await until(() => three.room.state.node === 'nonce', 'Nonce');
+    await three.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+    await three.page.screenshot({ path: `${shots}insider-nonce.png` });
+    await answer(three.page, three.room, 'nonce', 3);
+    await read(three.page, three.room, 'nonceTruth');
+    await read(three.page, three.room, 'nonceYacht');
+    await read(three.page, three.room, 'nonceEnd');
+    await until(() => three.room.state.step === 'toTower', 'off to the tower');
+    three.room.teleport(TOWER_SPOT.x, TOWER_SPOT.y);
+    await read(three.page, three.room, 'tower');
+    await until(() => three.room.state.step === 'search', 'searching');
+    check(((await three.page.textContent('#story-clues')) ?? '').includes('east side'), 'telling Nonce the truth gets the east-side clue');
+    three.room.quietNight();
+    const term = TERMINALS[three.room.secretSpot];
+    if (term === undefined) throw new Error('terminal');
+    three.room.teleport(term.at.x + 0.1, term.at.y + 0.6);
+    await three.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Search the ${label} terminal`) === true, term.label, { timeout: 10_000 }).catch(() => undefined);
+    await three.page.waitForTimeout(600);
+    await three.page.screenshot({ path: `${shots}insider-tower.png` });
+    await three.page.keyboard.press('e');
+    await until(() => three.room.state.node === 'account', 'Teo’s account');
+    check(three.room.state.node === 'account', 'the right terminal shows Teo’s frozen account');
+    await three.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await three.page.screenshot({ path: `${shots}insider-teo.png` });
+    await answer(three.page, three.room, 'account', 1);
+    await read(three.page, three.room, 'teoTalk');
+    await read(three.page, three.room, 'teoEnd');
+    await three.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await three.page.textContent('#story-end-title')) ?? '') === 'The Insider', 'the end card is act three’s');
+    check(((await three.page.textContent('#story-reward')) ?? '').includes('+350 play sats'), `act three pays its first finish (${(await three.page.textContent('#story-reward')) ?? ''})`);
+    check(await three.page.isVisible('#story-finale'), 'the end card offers the signing ceremony');
+    await three.page.screenshot({ path: `${shots}insider-end.png` });
+    const councils = (await matchMaker.query({ name: ROOM_NAME })).length;
+    await three.page.click('#story-finale');
+    const opened = await until(() => {
+      void matchMaker.query({ name: ROOM_NAME }).then((list) => {
+        latestCouncils = list.length;
+      });
+      return latestCouncils > councils;
+    }, 'a council room for the ceremony');
+    check(opened, 'the finale button opens a private council room');
+    const ceremonyRoom = (await matchMaker.query({ name: ROOM_NAME })).map((r) => matchMaker.getLocalRoomById(r.roomId) as { state?: { ceremony?: boolean } } | undefined).find((r) => r?.state?.ceremony === true);
+    check(ceremonyRoom !== undefined, 'that room is the story’s signing ceremony');
+    await three.page.locator('.toast').first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
+    check(((await three.page.textContent('#toasts')) ?? '').includes('signing ceremony'), 'the ceremony briefs everyone who joins');
+
+    const four = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-founder');
+    await until(() => four.room.state.node === 'stick', 'the stick');
+    check(four.room.state.act === 'founder', 'the act four tile opens The Founder’s Coins');
+    await read(four.page, four.room, 'stick');
+    await answer(four.page, four.room, 'quintCall', 3);
+    await read(four.page, four.room, 'quintAsk');
+    await read(four.page, four.room, 'sharpeRadio');
+    await until(() => four.room.state.step === 'toMast', 'off to the mast');
+    four.room.teleport(MAST_SPOT.x, MAST_SPOT.y);
+    await read(four.page, four.room, 'blackout');
+    await until(() => four.room.state.step === 'power', 'the generators');
+    four.room.quietNight();
+    for (const i of [0, 1, 2]) {
+      const g = GENERATORS[i];
+      if (g === undefined) throw new Error('generator');
+      four.room.teleport(g.at.x, g.at.y);
+      await four.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Restart the ${label} generator`) === true, g.label, { timeout: 10_000 }).catch(() => undefined);
+      if (i === 0) {
+        await four.page.waitForTimeout(600);
+        await four.page.screenshot({ path: `${shots}founder-blackout.png` });
+      }
+      await four.page.keyboard.press('e');
+      await until(() => four.room.state.spots[i]?.done === true, `restarted ${g.label}`);
+    }
+    await until(() => four.room.state.node === 'onAir', 'on air');
+    check(four.room.state.node === 'onAir', 'three generators put the station back on air');
+    await read(four.page, four.room, 'onAir');
+    await read(four.page, four.room, 'nineMinutes');
+    await until(() => four.room.state.node === 'theChoice', 'the choice');
+    await four.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 30_000 });
+    check((await four.page.locator('.story-choice').count()) === 2, 'a crew that never asked for a cut sees only the Guardian and Burn endings');
+    await four.page.screenshot({ path: `${shots}founder-choice.png` });
+    await answer(four.page, four.room, 'theChoice', 2);
+    await read(four.page, four.room, 'endBurn');
+    await read(four.page, four.room, 'burnDani');
+    await read(four.page, four.room, 'dawn');
+    await until(() => four.room.state.node === 'voicemail', 'the voicemail');
+    await four.page.waitForTimeout(4000);
+    await four.page.screenshot({ path: `${shots}founder-voicemail.png` });
+    await read(four.page, four.room, 'voicemail');
+    await four.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await four.page.textContent('#story-end-title')) ?? '') === 'The Founder’s Coins', 'the end card is act four’s');
+    check(((await four.page.textContent('#story-reward')) ?? '').includes('+500 play sats'), `the season finale pays its first finish (${(await four.page.textContent('#story-reward')) ?? ''})`);
+    await four.page.screenshot({ path: `${shots}founder-end.png` });
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

@@ -56,7 +56,7 @@ export const ProgressSchema = z.strictObject({
   epochFrame: z.boolean(),
   title: TitleIdSchema.nullable(),
   frame: FrameIdSchema.nullable(),
-  story: z.strictObject({ dump: StoryRecordSchema.optional() }).optional(),
+  story: z.strictObject({ dump: StoryRecordSchema.optional(), ransom: StoryRecordSchema.optional(), insider: StoryRecordSchema.optional(), founder: StoryRecordSchema.optional(), ceremony: StoryRecordSchema.optional() }).optional(),
 });
 
 const XpLineSchema = z.strictObject({ reason: z.enum(XP_REASONS), xp: Int(10_000) });

@@ -23,13 +23,20 @@ export function pay(data: ProfileData, applied: Applied): ProfileData {
   return { ...data, wallet, owned: [...owned], progress: applied.progress };
 }
 
+// The story's signing ceremony: whether the honest side held, and which side this player sat on, for act four.
+function ceremonyRemembered(data: ProfileData, match: MatchFacts, player: PlayerFacts): ProfileData {
+  const ceremony = { done: true, honest: match.winner === 'honest', marks: [player.role === 'byzantine' ? 'satByzantine' : 'satHonest'] };
+  return { ...data, progress: { ...data.progress, story: { ...data.progress.story, ceremony } } };
+}
+
 export async function awardMatch(store: ProfileStore, match: MatchFacts, payees: readonly Payee[], nowMs: number): Promise<Map<string, Award>> {
   const awards = new Map<string, Award>();
   const results = await Promise.allSettled(
     payees.map(async (p) => {
       const out = await store.change(p.profileId, `match:${match.matchId}:${p.profileId}`, nowMs, (data) => {
         const applied = applyMatch(data.progress, match, p.facts);
-        return { data: pay(data, applied), result: applied.award };
+        const paid = pay(data, applied);
+        return { data: match.ceremony === true ? ceremonyRemembered(paid, match, p.facts) : paid, result: applied.award };
       });
       if (out.ok) awards.set(p.sessionId, out.result);
     }),

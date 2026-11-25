@@ -21,6 +21,8 @@ export interface MatchFacts {
   readonly events: readonly SeasonEvent[];
   // Where the match was played; absent means the Citadel (facts from before arenas existed).
   readonly arena?: ArenaId;
+  // Played as the story's signing ceremony; its outcome is saved for act four.
+  readonly ceremony?: boolean;
 }
 
 export interface PlayerFacts {

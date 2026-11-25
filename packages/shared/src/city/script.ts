@@ -2,7 +2,7 @@
 // itself. Characters remember choices as marks, and later lines can depend on them. The server walks the
 // script; the client only renders it, so a scene can never be skipped past a choice.
 
-export const SPEAKERS = ['rook', 'dani', 'mags', 'pell', 'voice'] as const;
+export const SPEAKERS = ['rook', 'dani', 'mags', 'pell', 'voice', 'teo', 'ivy', 'brannigan', 'lookout', 'nonce', 'watchman', 'quint', 'sharpe', 'choir', 'founder'] as const;
 export type Speaker = (typeof SPEAKERS)[number];
 
 export const SPEAKER_NAMES: Readonly<Record<Speaker, string>> = Object.freeze({
@@ -11,7 +11,25 @@ export const SPEAKER_NAMES: Readonly<Record<Speaker, string>> = Object.freeze({
   mags: 'Mags',
   pell: 'Mr Pell',
   voice: 'Voice on Teo’s phone',
+  teo: 'Teo',
+  ivy: 'Ivy',
+  brannigan: 'Det. Brannigan',
+  lookout: 'Lookout',
+  nonce: 'Nonce',
+  watchman: 'Gus',
+  quint: 'Ellis Quint',
+  sharpe: 'Dr Sharpe',
+  choir: 'The Choir',
+  founder: 'Voicemail, 2009',
 });
+
+// Things characters remember (who) and clues the player picks up (clue), set by choices and scenes.
+export interface Mark {
+  readonly who?: Speaker;
+  readonly text: string;
+  readonly clue?: boolean;
+  readonly honest?: boolean;
+}
 
 export interface ScriptLine {
   readonly who: Speaker;
@@ -28,6 +46,9 @@ export interface ScriptChoice {
   readonly text: string;
   readonly go: string;
   readonly mark?: string;
+  // Offered only when the crew holds the mark (if) or doesn't (unless).
+  readonly if?: string;
+  readonly unless?: string;
 }
 
 export interface ScriptNode {
@@ -41,9 +62,14 @@ export interface ScriptNode {
   readonly seconds?: number;
   readonly timeout?: string;
   readonly next?: string;
+  // Goes to `to` instead of `next` when the crew holds the mark `if`.
+  readonly jump?: { readonly if: string; readonly to: string };
   // Ends the scene and hands play back to the mission at this step.
   readonly then?: string;
 }
+
+// Where a node that moves on by itself goes next, given what the crew holds.
+export const nextOf = (node: ScriptNode, marks: ReadonlySet<string>): string | undefined => (node.jump !== undefined && marks.has(node.jump.if) ? node.jump.to : node.next);
 
 export type Script = Readonly<Record<string, ScriptNode>>;
 
@@ -52,11 +78,15 @@ const PER_CHAR_MS = 34;
 const PER_ACTION_MS = 900;
 const MAX_READ_MS = 30_000;
 
-export const shown = (line: ScriptLine, marks: ReadonlySet<string>): boolean =>
+export const shown = (line: { readonly if?: string; readonly unless?: string }, marks: ReadonlySet<string>): boolean =>
   (line.if === undefined || marks.has(line.if)) && (line.unless === undefined || !marks.has(line.unless));
 
 export function visibleLines(node: ScriptNode, marks: ReadonlySet<string>): readonly ScriptLine[] {
   return node.lines.filter((l) => shown(l, marks));
+}
+
+export function visibleChoices(node: ScriptNode, marks: ReadonlySet<string>): readonly ScriptChoice[] {
+  return (node.choices ?? []).filter((c) => shown(c, marks));
 }
 
 // How long a node takes to read at a comfortable pace; the server waits this long before moving on by itself.
@@ -72,13 +102,14 @@ export function scriptProblems(script: Script, starts: readonly string[], steps:
   const problems: string[] = [];
   const ids = new Set(Object.keys(script));
   for (const [id, node] of Object.entries(script)) {
-    const exits = [node.next, node.timeout, ...(node.choices ?? []).map((c) => c.go)].filter((x): x is string => x !== undefined);
+    const exits = [node.next, node.jump?.to, node.timeout, ...(node.choices ?? []).map((c) => c.go)].filter((x): x is string => x !== undefined);
     for (const to of exits) if (!ids.has(to)) problems.push(`${id} -> missing ${to}`);
     const hasChoices = (node.choices?.length ?? 0) > 0;
     const ways = [hasChoices, node.next !== undefined, node.then !== undefined].filter(Boolean).length;
     if (ways !== 1) problems.push(`${id} must have exactly one of choices, next or then`);
     if (node.seconds !== undefined && (!hasChoices || node.timeout === undefined)) problems.push(`${id} has a clock without choices and a timeout`);
     if (node.timeout !== undefined && node.seconds === undefined) problems.push(`${id} has a timeout without a clock`);
+    if (node.jump !== undefined && node.next === undefined) problems.push(`${id} jumps without a next`);
     if (node.then !== undefined && !steps.includes(node.then)) problems.push(`${id} hands back to unknown step ${node.then}`);
     if (node.lines.length === 0 && node.action === undefined) problems.push(`${id} says nothing`);
     const choiceIds = (node.choices ?? []).map((c) => c.id);
@@ -95,7 +126,7 @@ export function scriptProblems(script: Script, starts: readonly string[], steps:
       problems.push(`start ${id} is missing`);
       continue;
     }
-    for (const to of [node.next, node.timeout, ...(node.choices ?? []).map((c) => c.go)]) if (to !== undefined) queue.push(to);
+    for (const to of [node.next, node.jump?.to, node.timeout, ...(node.choices ?? []).map((c) => c.go)]) if (to !== undefined) queue.push(to);
   }
   for (const id of ids) if (!seen.has(id)) problems.push(`${id} is unreachable`);
   return problems;

@@ -243,7 +243,7 @@ describe('private rooms and codes', () => {
     const res = await lookup(formatRoomCode(host.state.code).toLowerCase());
     expect(res.status).toBe(200);
     const reply = RoomLookupSchema.parse(await res.json());
-    expect(reply).toStrictEqual({ roomId: host.roomId, players: 1, maxPlayers: MAX_PLAYERS });
+    expect(reply).toStrictEqual({ kind: 'council', roomId: host.roomId, players: 1, maxPlayers: MAX_PLAYERS });
     const friend = await client().joinById<CitadelState>(reply.roomId, { nickname: 'Friend' });
     expect(friend.roomId).toBe(host.roomId);
   });

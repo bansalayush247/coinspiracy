@@ -271,8 +271,9 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     if (!parsed.success) throw new ServerError(ErrorCode.APPLICATION_ERROR, 'Invalid room options.');
     this.#code = await claimRoomCode(this.presence, this.roomId);
     this.state.code = this.#code;
-    if (parsed.data.private === true) {
+    if (parsed.data.private === true || parsed.data.ceremony === true) {
       this.state.isPrivate = true;
+      this.state.ceremony = parsed.data.ceremony === true;
       await this.setPrivate(true);
     }
     // Order matters: start the loop, then disable timed patches, then patch once per step.
@@ -1130,6 +1131,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
       blockHeight: this.state.blockHeight,
       events,
       arena: this.#matchArena,
+      ceremony: this.state.ceremony,
     };
     const payees: Payee[] = [];
     for (const [id] of this.state.players) {

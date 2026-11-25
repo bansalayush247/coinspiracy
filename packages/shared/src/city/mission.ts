@@ -1,21 +1,28 @@
-// A story mission: a private instance of Port Concord. The server walks the script and the mission steps; the
-// client draws them. Where the device is buried is never in this state, only which heaps have been dug.
+// A story mission: a private instance of Port Concord for a crew of up to four, playing one act. The server walks
+// the script and the act's steps; the client draws them. Hidden things (where the device is buried) are never in
+// this state, only which spots have been worked and what turned up.
 import { schema, t, type SchemaType } from '@colyseus/schema';
 import { z } from 'zod';
+import { NicknameSchema } from '../lobby.js';
+import { STORY_ACTS } from './acts.js';
 import { CityPlayer } from './state.js';
-import { DUMP_SCRIPT, HEAPS } from './dump.js';
+import { ACT_IDS } from './story.js';
 
 export const MISSION_ROOM = 'mission';
 
-export const NPC_KINDS = ['dani', 'mags', 'guard', 'duncan'] as const;
+export const NPC_KINDS = ['dani', 'mags', 'guard', 'duncan', 'ivy', 'guardian', 'lookout', 'teo', 'brannigan', 'nonce', 'choir', 'sharpe'] as const;
 export type NpcKind = (typeof NPC_KINDS)[number];
+// The kinds that carry a torch, drawn as a cone the server uses to catch the crew.
+export const TORCH_KINDS: ReadonlySet<NpcKind> = new Set(['guard', 'lookout', 'choir']);
 
 export const MissionNpc = schema(
   {
     kind: t.string().default('dani'),
+    // Shown over the head; '' uses the character's own name.
+    name: t.string().default(''),
     x: t.float64().default(0),
     y: t.float64().default(0),
-    // Radians, the way the guard's torch points.
+    // Radians, the way a torch points.
     facing: t.float32().default(0),
     shown: t.boolean().default(true),
     chasing: t.boolean().default(false),
@@ -24,27 +31,38 @@ export const MissionNpc = schema(
 );
 export type MissionNpc = SchemaType<typeof MissionNpc>;
 
-export const MissionHeap = schema(
+// A place the crew works at: a heap to dig, a guardian to ask.
+export const MissionSpot = schema(
   {
-    dug: t.boolean().default(false),
-    found: t.string().default(''),
+    done: t.boolean().default(false),
+    note: t.string().default(''),
+    // The crew member working it right now, '' when nobody is.
+    worker: t.string().default(''),
   },
-  'MissionHeap',
+  'MissionSpot',
 );
-export type MissionHeap = SchemaType<typeof MissionHeap>;
+export type MissionSpot = SchemaType<typeof MissionSpot>;
 
 export const MissionState = schema(
   {
+    act: t.string().default('dump'),
     players: t.map(CityPlayer).view(),
     npcs: t.map(MissionNpc),
-    heaps: t.array(MissionHeap),
+    spots: t.array(MissionSpot),
     step: t.string().default('call'),
     // The scene node on screen, '' between scenes; seq changes every time a node starts, even the same one again.
     node: t.string().default(''),
     seq: t.uint16().default(0),
     marks: t.array('string'),
-    digging: t.int8().default(-1),
     caught: t.uint8().default(0),
+    // The crew's invite code, and who breaks tied votes.
+    code: t.string().default(''),
+    lead: t.string().default(''),
+    // Votes on the choice on screen, by crew member; how many have read the scene and are ready to move on.
+    votes: t.map('string'),
+    ready: t.uint8().default(0),
+    // The choice that settled the last choice node, '' when the crew said nothing.
+    said: t.string().default(''),
   },
   'MissionState',
 );
@@ -56,12 +74,18 @@ export const MISSION_MESSAGES = Object.freeze({
   RESULT: 'result',
 } as const);
 
-const NodeIdSchema = z.string().refine((id) => Object.hasOwn(DUMP_SCRIPT, id));
+// Starting a night picks the act; joining a crew by code takes whatever act the crew is playing.
+export const MissionJoinSchema = z.strictObject({ nickname: NicknameSchema, act: z.enum(ACT_IDS).optional() });
+
+const NODE_IDS: ReadonlySet<string> = new Set(Object.values(STORY_ACTS).flatMap((a) => Object.keys(a.script)));
+const MAX_SPOTS = Math.max(...Object.values(STORY_ACTS).map((a) => a.spots.length));
+const NodeIdSchema = z.string().max(32).refine((id) => NODE_IDS.has(id));
 export const AdvancePayloadSchema = z.strictObject({ node: NodeIdSchema });
 export const ChoosePayloadSchema = z.strictObject({ node: NodeIdSchema, choice: z.string().min(1).max(16) });
-export const DigPayloadSchema = z.strictObject({ heap: z.number().int().min(0).max(HEAPS.length - 1) });
+export const WorkPayloadSchema = z.strictObject({ spot: z.number().int().min(0).max(MAX_SPOTS - 1) });
 
-export const CaughtLineSchema = z.strictObject({ by: z.enum(['guard', 'duncan']), count: z.number().int().min(1).max(255) });
+// `name` is set when it was someone else in the crew who got caught.
+export const CaughtLineSchema = z.strictObject({ by: z.enum(['guard', 'duncan', 'lookout', 'choir']), count: z.number().int().min(1).max(255), name: z.string().min(1).max(16).optional() });
 export type CaughtLine = z.infer<typeof CaughtLineSchema>;
 
 export const MISSION_RESULT_REASONS = ['paid', 'replay', 'noProfile', 'error'] as const;

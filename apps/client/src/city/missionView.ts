@@ -1,8 +1,9 @@
-// What a story mission adds to Port Concord: night, the characters, Ivor's torch, the heap signs at the tip, and
-// a marker for where to go next. Drawn on top of the city scene; it keeps no game state of its own.
+// What a story mission adds to Port Concord: night, the characters, the guards' torches, the act's own markers
+// (heap signs at the tip, guardians who have signed), and a marker for where to go next. Drawn on top of the city
+// scene; it keeps no game state of its own.
 import Phaser from 'phaser';
 import type { Vec2 } from '@byzantine-council/shared';
-import { HEAPS, TORCH_HALF_ANGLE, TORCH_RANGE, heapCentre, inSight, type NpcKind } from '@byzantine-council/shared/city';
+import { HEAPS, TORCH_HALF_ANGLE, TORCH_KINDS, TORCH_RANGE, inSight, type NpcKind, type StoryAct } from '@byzantine-council/shared/city';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
 import { sceneDpr } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer } from '../game/interpolation.js';
@@ -11,10 +12,19 @@ import { seatColors, type GuardianColors } from '../game/palette.js';
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
+const PLAIN: Wear = { hat: '', shades: '', outfit: '' };
 const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan'>, { name: string; colors: GuardianColors; wear: Wear }>> = {
-  dani: { name: 'Dani', colors: { lit: 0x4fb3a9, shadow: 0x2b6b66, highlight: 0xa6e3dc }, wear: { hat: '', shades: '', outfit: '' } },
-  mags: { name: 'Mags', colors: { lit: 0xd98c3f, shadow: 0x8a5426, highlight: 0xf2c491 }, wear: { hat: '', shades: '', outfit: '' } },
-  guard: { name: 'Ivor', colors: seatColors(7), wear: { hat: '', shades: '', outfit: '' } },
+  dani: { name: 'Dani', colors: { lit: 0x4fb3a9, shadow: 0x2b6b66, highlight: 0xa6e3dc }, wear: PLAIN },
+  mags: { name: 'Mags', colors: { lit: 0xd98c3f, shadow: 0x8a5426, highlight: 0xf2c491 }, wear: PLAIN },
+  guard: { name: 'Ivor', colors: seatColors(7), wear: PLAIN },
+  ivy: { name: 'Ivy', colors: { lit: 0xb79cf0, shadow: 0x6a568f, highlight: 0xe2d6ff }, wear: PLAIN },
+  guardian: { name: 'Guardian', colors: { lit: 0xe8c25a, shadow: 0x8f7330, highlight: 0xfff0b8 }, wear: PLAIN },
+  lookout: { name: 'Lookout', colors: { lit: 0x4a5566, shadow: 0x262c36, highlight: 0x8792a3 }, wear: PLAIN },
+  teo: { name: 'Teo', colors: { lit: 0xff8a3c, shadow: 0x9c4d1c, highlight: 0xffc799 }, wear: PLAIN },
+  brannigan: { name: 'Brannigan', colors: { lit: 0xc7b28a, shadow: 0x7a6a4f, highlight: 0xeee1c2 }, wear: PLAIN },
+  nonce: { name: 'Nonce', colors: { lit: 0x5fd3b0, shadow: 0x2f7a63, highlight: 0xb7f2df }, wear: PLAIN },
+  choir: { name: 'Choir runner', colors: { lit: 0x3a3550, shadow: 0x1c1a28, highlight: 0x77729a }, wear: PLAIN },
+  sharpe: { name: 'Dr Sharpe', colors: { lit: 0x9fb4c7, shadow: 0x56677a, highlight: 0xd8e4ef }, wear: PLAIN },
 };
 
 interface Figure {
@@ -32,6 +42,7 @@ interface Figure {
 
 export interface NpcView {
   readonly kind: string;
+  readonly name: string;
   readonly x: number;
   readonly y: number;
   readonly facing: number;
@@ -49,7 +60,8 @@ export class MissionView {
   readonly #digMarks: Phaser.GameObjects.Graphics[] = [];
   readonly #tmp = { x: 0, y: 0 };
   #target: Vec2 | null = null;
-  #digging = -1;
+  #digging: ReadonlySet<number> = new Set();
+  #act: StoryAct | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -62,19 +74,37 @@ export class MissionView {
     this.#torch = scene.add.graphics().setDepth(16).setBlendMode(Phaser.BlendModes.ADD);
     this.#beacon = scene.add.graphics().setDepth(17);
     this.#pointer = scene.add.graphics().setDepth(18);
-    HEAPS.forEach((h, i) => {
-      const c = heapCentre(h);
-      const s = worldToScreen(c.x, c.y);
-      const sign = scene.add
-        .text(s.x, s.y - 40 * ART_SCALE, h.label, { fontFamily: FONT, fontSize: '15px', fontStyle: '800', color: h.winter ? '#cfe8ff' : '#fff1de', backgroundColor: '#2a1a33cc', padding: { x: 6, y: 3 } })
+  }
+
+  // Puts up the act's markers: a sign on every heap or place, or a badge over each guardian once asked.
+  setAct(act: StoryAct): void {
+    if (this.#act === act) return;
+    this.#act = act;
+    for (const sign of this.#signs) sign.destroy();
+    for (const mark of this.#digMarks) mark.destroy();
+    this.#signs.length = 0;
+    this.#digMarks.length = 0;
+    const dig = act.markers === 'heaps';
+    const labelled = act.markers !== 'badges';
+    act.spots.forEach((spot, i) => {
+      const s = worldToScreen(spot.at.x, spot.at.y);
+      const winter = dig && HEAPS[i]?.winter === true;
+      const sign = this.scene.add
+        .text(s.x, s.y - (labelled ? 40 : 78) * ART_SCALE, labelled ? spot.label : '', { fontFamily: FONT, fontSize: '15px', fontStyle: '800', color: winter ? '#cfe8ff' : '#fff1de', backgroundColor: '#2a1a33cc', padding: { x: 6, y: 3 } })
         .setOrigin(0.5, 1)
-        .setDepth(-1);
+        .setDepth(-1)
+        .setVisible(labelled);
       this.names.add(sign);
       this.#signs.push(sign);
-      const mark = new Phaser.GameObjects.Graphics(scene).setPosition(s.x, s.y).setDepth(depthOf(c.x, c.y) + 0.1).setVisible(false);
+      const mark = new Phaser.GameObjects.Graphics(this.scene).setPosition(s.x, s.y).setDepth(this.depthOf(spot.at.x, spot.at.y) + 0.1).setVisible(false);
       this.entities.add(mark);
-      mark.fillStyle(0x3b2a1c, 0.85);
-      mark.fillEllipse(0, 6 * ART_SCALE, 40 * ART_SCALE, 18 * ART_SCALE);
+      if (dig) {
+        mark.fillStyle(0x3b2a1c, 0.85);
+        mark.fillEllipse(0, 6 * ART_SCALE, 40 * ART_SCALE, 18 * ART_SCALE);
+      } else {
+        mark.lineStyle(3 * ART_SCALE, 0xe8c25a, 0.9);
+        mark.strokeEllipse(0, 0, 70 * ART_SCALE, 34 * ART_SCALE);
+      }
       this.#digMarks[i] = mark;
     });
   }
@@ -88,7 +118,7 @@ export class MissionView {
       const body = new Phaser.GameObjects.Graphics(this.scene);
       const root = new Phaser.GameObjects.Container(this.scene, 0, 0, [ring, body]);
       this.entities.add(root);
-      const label = new Phaser.GameObjects.Text(this.scene, 0, 0, kind === 'duncan' ? 'Duncan' : LOOKS[kind].name, {
+      const label = new Phaser.GameObjects.Text(this.scene, 0, 0, npc.name !== '' ? npc.name : kind === 'duncan' ? 'Duncan' : LOOKS[kind].name, {
         fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffe3a8', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this.scene)),
       }).setOrigin(0.5, 1);
       this.names.add(label);
@@ -107,13 +137,25 @@ export class MissionView {
     f.shown = npc.shown;
   }
 
-  setHeap(index: number, dug: boolean): void {
-    this.#digMarks[index]?.setVisible(dug);
-    this.#signs[index]?.setAlpha(dug ? 0.45 : 1);
+  setSpot(index: number, done: boolean): void {
+    this.#digMarks[index]?.setVisible(done);
+    const sign = this.#signs[index];
+    if (sign === undefined) return;
+    if (this.#act?.markers !== 'badges') {
+      sign.setAlpha(done ? 0.45 : 1);
+      return;
+    }
+    const refused = this.#act.spots[index]?.refuses === true;
+    sign.setText(refused ? 'Won’t sign' : 'Signed').setColor(refused ? '#ff9c85' : '#ffe3a8').setVisible(done);
   }
 
-  setDigging(index: number): void {
-    this.#digging = index;
+  setDigging(heaps: readonly number[]): void {
+    this.#digging = new Set(heaps);
+  }
+
+  // How dark the night lies over the city: deep at night, a thin blue haze for dawn and morning scenes.
+  setDark(alpha: number): void {
+    this.#night.setFillStyle(0x0b1530, alpha);
   }
 
   setTarget(target: Vec2 | null): void {
@@ -145,7 +187,7 @@ export class MissionView {
     this.#drawBeacon(time);
     this.#drawPointer(me, zoom);
     this.#digMarks.forEach((m, i) => {
-      if (i === this.#digging && !this.reduced) m.setVisible(true).setAlpha(0.5 + 0.5 * Math.abs(Math.sin(time / 120)));
+      if (this.#digging.has(i) && !this.reduced) m.setVisible(true).setAlpha(0.5 + 0.5 * Math.abs(Math.sin(time / 120)));
     });
   }
 
@@ -172,12 +214,14 @@ export class MissionView {
     drawGuardian(f.body, look.colors, f.side, look.wear);
   }
 
-  // The torch: a warm cone on the ground in front of Ivor, in the same reach the server uses.
+  // Torches: a warm cone on the ground in front of every guard, in the same reach the server uses.
   #drawTorch(): void {
     const g = this.#torch;
     g.clear();
-    const guard = [...this.#figures.values()].find((f) => f.kind === 'guard');
-    if (guard === undefined || !guard.shown) return;
+    for (const f of this.#figures.values()) if (TORCH_KINDS.has(f.kind) && f.shown) this.#cone(g, f);
+  }
+
+  #cone(g: Phaser.GameObjects.Graphics, guard: Figure): void {
     const steps = 10;
     const points: Phaser.Math.Vector2[] = [];
     const o = worldToScreen(guard.pos.x, guard.pos.y);

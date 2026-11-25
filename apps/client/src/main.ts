@@ -22,6 +22,7 @@ import { BeachController } from './beach/beachController.js';
 import { CITY_SCENE_KEY, CityScene } from './city/CityScene.js';
 import { CityController } from './city/cityController.js';
 import { MissionController } from './city/missionController.js';
+import type { ActId } from '@byzantine-council/shared/city';
 import { ISLAND_SCENE_KEY, IslandScene, type PreviewIslandId } from './explore/IslandScene.js';
 import { Wardrobe } from './profile/wardrobe.js';
 import { registerServiceWorker } from './pwa/register.js';
@@ -237,7 +238,16 @@ class Controller {
       void this.#visitCity();
     });
     el('open-story', HTMLButtonElement).addEventListener('click', () => {
-      void this.#playStory();
+      void this.#playStory({ act: 'dump' });
+    });
+    el('open-ransom', HTMLButtonElement).addEventListener('click', () => {
+      void this.#playStory({ act: 'ransom' });
+    });
+    el('open-insider', HTMLButtonElement).addEventListener('click', () => {
+      void this.#playStory({ act: 'insider' });
+    });
+    el('open-founder', HTMLButtonElement).addEventListener('click', () => {
+      void this.#playStory({ act: 'founder' });
     });
     el('island-back', HTMLButtonElement).addEventListener('click', () => {
       this.#leaveIsland();
@@ -442,8 +452,9 @@ class Controller {
     }
   }
 
-  // A story mission: Port Concord at night, launched in mission mode, in a private room of its own.
-  async #playStory(): Promise<void> {
+  // A story mission: Port Concord at night, launched in mission mode, in a private room for the crew; a room id joins
+  // a friend's crew instead of starting a new night.
+  async #playStory(start: { readonly act?: ActId; readonly roomId?: string }): Promise<void> {
     if (this.#busy || this.#room !== null || this.#beach?.active === true || this.#city?.active === true || this.#mission?.active === true) return;
     const nickname = this.#menu.validNickname();
     if (nickname === null) return;
@@ -477,12 +488,17 @@ class Controller {
         this.#setProfile(p);
       };
       controller.onLeft = back;
+      controller.onFinale = () => {
+        const name = this.#menu.validNickname();
+        if (name !== null) void this.#join({ kind: 'create', nickname: name, ceremony: true });
+      };
       this.#mission = controller;
     }
     this.#menu.hide();
     document.documentElement.dataset['phase'] = 'city';
     try {
-      await this.#mission.enter(nickname);
+      await this.#mission.enter(nickname, start);
+      if (window.location.hash !== '') window.history.replaceState(null, '', window.location.pathname + window.location.search);
     } catch (error) {
       back();
       this.#menu.showError(joinErrorMessage(error));
@@ -574,12 +590,18 @@ class Controller {
     this.#setBusy(true, label);
     try {
       await this.#profileReady;
-      const room =
-        action.kind === 'quick'
-          ? await this.session.quickMatch(action.nickname)
-          : action.kind === 'create'
-            ? await this.session.createPrivate(action.nickname)
-            : await this.session.joinByCode(action.code, action.nickname);
+      let room: GameRoom;
+      if (action.kind === 'quick') room = await this.session.quickMatch(action.nickname);
+      else if (action.kind === 'create') room = await this.session.createPrivate(action.nickname, action.ceremony === true);
+      else {
+        const found = await this.session.lookup(action.code);
+        if (found.kind === 'story') {
+          this.#setBusy(false);
+          await this.#playStory({ roomId: found.roomId });
+          return;
+        }
+        room = await this.session.joinCouncil(found.roomId, action.nickname);
+      }
       this.#enter(room);
     } catch (error) {
       this.#menu.showError(joinErrorMessage(error));
@@ -671,6 +693,11 @@ class Controller {
     });
     callbacks.listen('isPrivate', () => {
       this.#hud.setRoom(room.state.code, room.state.isPrivate);
+    });
+    callbacks.listen('ceremony', (ceremony: boolean) => {
+      if (!ceremony) return;
+      this.#hud.toast('The signing ceremony. Wren called it to move the whole vault, and the Locksmith already has at least one guardian. Invite your crew, then find who’s lying before anyone signs.');
+      this.#hud.toast('How this match ends is saved to your story, and act four remembers it.');
     });
     room.onStateChange.once(() => {
       synced = true;

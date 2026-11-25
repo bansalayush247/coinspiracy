@@ -3,7 +3,8 @@
 import { isClearSegment } from '../pathfinding.js';
 import type { Vec2 } from '../map.js';
 import { CITY_BUILDINGS, CITY_MAP } from './map.js';
-import type { Script, Speaker } from './script.js';
+import type { Mark, Script } from './script.js';
+import type { StoryAct } from './story.js';
 
 export const DUMP_STEPS = ['call', 'toDani', 'dani', 'toTip', 'mags', 'dig', 'found', 'done'] as const;
 export type DumpStep = (typeof DUMP_STEPS)[number];
@@ -120,14 +121,6 @@ export function inTorch(guard: Vec2, facing: number, who: Vec2): boolean {
 // The yard Duncan guards; he gives up the chase outside it.
 export const TIP_YARD = Object.freeze({ c0: 9, r0: 16, c1: 33, r1: 30 });
 export const inYard = (p: Vec2): boolean => p.x >= TIP_YARD.c0 && p.x <= TIP_YARD.c1 + 1 && p.y >= TIP_YARD.r0 && p.y <= TIP_YARD.r1 + 1;
-
-// Things characters remember (who) and clues the player picks up (clue), set by choices and scenes.
-export interface Mark {
-  readonly who?: Speaker;
-  readonly text: string;
-  readonly clue?: boolean;
-  readonly honest?: boolean;
-}
 
 export const DUMP_MARKS: Readonly<Record<string, Mark>> = Object.freeze({
   promisedPell: { who: 'pell', text: 'you promised him every coin' },
@@ -388,4 +381,29 @@ export const DUMP_SCRIPT: Script = Object.freeze({
     after: 'The line goes quiet. Behind the gatehouse, Mags turns off a radio she wasn’t listening to.',
     then: 'done',
   },
+});
+
+export const DUMP_ACT: StoryAct = Object.freeze({
+  id: 'dump',
+  number: 'Act one',
+  title: 'The Dump',
+  steps: DUMP_STEPS,
+  scenes: DUMP_SCENES,
+  objectives: DUMP_OBJECTIVES,
+  targets: Object.freeze({ toDani: DANI_SPOT, toTip: GATE_SPOT }),
+  arrivals: Object.freeze({ toDani: { at: DANI_SPOT, range: ARRIVE_RANGE, to: 'dani' }, toTip: { at: GATE_SPOT, range: ARRIVE_RANGE, to: 'mags' } }),
+  closed: ['found', 'done'],
+  workStep: 'dig',
+  spots: HEAPS.map((h) => Object.freeze({ at: heapCentre(h), label: h.label })),
+  workReach: DIG_REACH,
+  workMs: DIG_MS,
+  workGoal: 0,
+  workVerb: 'Dig the {} heap',
+  markers: 'heaps',
+  start: DUMP_START,
+  script: DUMP_SCRIPT,
+  marks: DUMP_MARKS,
+  rewardSats: DUMP_REWARD_SATS,
+  lesson: 'The device was never the treasure. The twelve words were. Write your seed words on paper, keep them somewhere safe, and never photograph or type them.',
+  next: 'Next: act two, The Ransom Call.',
 });

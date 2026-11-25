@@ -35,7 +35,7 @@ export interface Progress {
   readonly epochFrame: boolean;
   readonly title: TitleId | null;
   readonly frame: FrameId | null;
-  readonly story?: { readonly dump?: StoryRecord };
+  readonly story?: { readonly dump?: StoryRecord; readonly ransom?: StoryRecord; readonly insider?: StoryRecord; readonly founder?: StoryRecord; readonly ceremony?: StoryRecord };
 }
 
 export interface StoryRecord {

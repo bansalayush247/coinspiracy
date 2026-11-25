@@ -100,6 +100,8 @@ export const CitadelState = schema(
     // Six-character invite code; every member already knows it.
     code: t.string().default(''),
     isPrivate: t.boolean().default(false),
+    // Opened from the end of act three as the story's signing ceremony.
+    ceremony: t.boolean().default(false),
     hostId: t.string().default(''),
     players: t.map(PlayerState),
     // Honest task progress, 0-100; full means the honest guardians win.

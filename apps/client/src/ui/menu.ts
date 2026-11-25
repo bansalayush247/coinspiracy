@@ -3,7 +3,7 @@ import { el } from './dom.js';
 
 export type MenuAction =
   | { readonly kind: 'quick'; readonly nickname: string }
-  | { readonly kind: 'create'; readonly nickname: string }
+  | { readonly kind: 'create'; readonly nickname: string; readonly ceremony?: boolean }
   | { readonly kind: 'join'; readonly nickname: string; readonly code: string };
 
 const NICKNAME_KEY = 'bc.nickname';

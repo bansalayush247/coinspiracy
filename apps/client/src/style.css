@@ -956,12 +956,27 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .city-down { position: absolute; left: 50%; bottom: 26%; transform: translateX(-50%); margin: 0; padding: 12px 18px; font-weight: 700; text-align: center; max-width: calc(100% - 32px); }
 /* Story missions: night in Port Concord, a script panel, and the end card. */
 .story-open { background: rgba(120, 160, 255, 0.14); color: #b9cdff; }
+.ransom-open { background: rgba(255, 154, 60, 0.14); color: #ffc58f; }
+.insider-open { background: rgba(224, 87, 75, 0.14); color: #ffab9f; }
+.founder-open { background: rgba(255, 210, 122, 0.14); color: #ffe3a8; }
 .story-bar { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); display: grid; gap: 6px; padding: 10px 14px; width: min(360px, calc(100% - 24px - 260px)); }
 .story-objective { margin: 0; font-weight: 700; font-size: 15px; }
 .story-clues { margin: 0; padding: 0 0 0 16px; font-size: 12px; color: #cfe8ff; display: grid; gap: 2px; }
-.story-clues:empty, .story-caught:empty { display: none; }
+.story-clues:empty, .story-caught:empty, .story-goal:empty { display: none; }
+.story-goal { margin: 0; font-size: 13px; font-weight: 700; color: var(--gold); }
 .story-caught { margin: 0; font-size: 12px; color: #ff9c85; font-weight: 700; }
 .story-bar > button { justify-self: start; }
+.story-crew { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.story-code { color: var(--gold); letter-spacing: 0.06em; }
+.story-crew button { padding: 4px 10px; font-size: 12px; }
+.story-crew-list { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; }
+.story-crew-list:empty { display: none; }
+.story-crew-list li { display: flex; gap: 5px; align-items: center; }
+.story-crew-list i { width: 9px; height: 9px; border-radius: 50%; background: var(--seat); }
+.story-crew-list small { color: var(--muted); }
+.story-choice.voted { outline: 2px solid var(--gold); }
+.story-votes { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.story-votes:empty { display: none; }
 .story-dig { bottom: max(120px, calc(env(safe-area-inset-bottom) + 120px)); overflow: hidden; }
 .story-dig.digging::after { content: ''; position: absolute; left: 0; bottom: 0; height: 5px; width: 100%; background: #2a1a33; transform-origin: left; animation: story-dig var(--dig-ms, 1800ms) linear forwards; }
 @keyframes story-dig { from { transform: scaleX(0); } to { transform: scaleX(1); } }
