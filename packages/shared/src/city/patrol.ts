@@ -33,3 +33,28 @@ export function walkRoute(w: Walker, route: readonly Vec2[], speed: number, dt: 
   }
   return { x, y, facing, leg };
 }
+
+// One step along a path walked once, start to end; `leg` is the waypoint last reached and stays on the last.
+export function walkPath(w: Walker, path: readonly Vec2[], speed: number, dt: number): Walker {
+  if (w.leg >= path.length - 1) return w;
+  let { x, y, facing, leg } = w;
+  let budget = speed * dt;
+  while (budget > 0 && leg < path.length - 1) {
+    const target = path[leg + 1] ?? { x, y };
+    const dx = target.x - x;
+    const dy = target.y - y;
+    const dist = Math.hypot(dx, dy);
+    if (dist <= budget) {
+      x = target.x;
+      y = target.y;
+      budget -= dist;
+      leg++;
+      continue;
+    }
+    x += (dx / dist) * budget;
+    y += (dy / dist) * budget;
+    facing = Math.atan2(dy, dx);
+    budget = 0;
+  }
+  return { x, y, facing, leg };
+}

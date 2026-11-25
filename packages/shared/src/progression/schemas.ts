@@ -1,5 +1,6 @@
 // Zod schemas for stored progress and everything progression sends over the wire. Strict and bounded.
 import { z } from 'zod';
+import { ACT_IDS } from '../city/story.js';
 import { RewardIdSchema } from '../economy/catalog.js';
 import { DrillAnswerSchema, DrillChallengeSchema } from '../drills.js';
 import { TaskIdSchema } from '../schemas.js';
@@ -10,7 +11,7 @@ import { EPOCH_TIERS } from './epoch.js';
 import { MAX_QUESTS, QUEST_IDS } from './quests.js';
 import { FRAME_IDS, MAX_RANK } from './rank.js';
 import { SEAL_IDS } from './seals.js';
-import { TITLE_IDS } from './progress.js';
+import { TITLE_IDS, type StoryKey } from './progress.js';
 
 const Int = (max: number) => z.number().int().min(0).max(max);
 const Day = z.number().int().min(-1).max(10_000_000);
@@ -30,6 +31,8 @@ const StoryRecordSchema = z.strictObject({
   honest: z.boolean(),
   marks: z.array(z.string().regex(/^[a-zA-Z]{1,24}$/)).max(32),
 });
+export const STORY_KEYS: readonly StoryKey[] = Object.freeze([...ACT_IDS, 'ceremony']);
+const StorySchema = z.strictObject(Object.fromEntries(STORY_KEYS.map((k) => [k, StoryRecordSchema.optional()])) as Record<StoryKey, z.ZodOptional<typeof StoryRecordSchema>>);
 
 // Stored progress; checked on every load and save.
 export const ProgressSchema = z.strictObject({
@@ -56,7 +59,7 @@ export const ProgressSchema = z.strictObject({
   epochFrame: z.boolean(),
   title: TitleIdSchema.nullable(),
   frame: FrameIdSchema.nullable(),
-  story: z.strictObject({ dump: StoryRecordSchema.optional(), ransom: StoryRecordSchema.optional(), insider: StoryRecordSchema.optional(), founder: StoryRecordSchema.optional(), ceremony: StoryRecordSchema.optional() }).optional(),
+  story: StorySchema.optional(),
 });
 
 const XpLineSchema = z.strictObject({ reason: z.enum(XP_REASONS), xp: Int(10_000) });
@@ -110,6 +113,8 @@ export const ProgressViewSchema = z.strictObject({
     rewards: z.array(z.strictObject({ tier: Int(EPOCH_TIERS), sats: Int(100_000).optional(), frame: FrameIdSchema.optional(), item: RewardIdSchema.optional() })).max(EPOCH_TIERS),
   }),
   academy: z.array(z.strictObject({ level: z.number().int().min(1).max(99), stars: Int(ACADEMY_MAX_STARS), open: z.boolean() })).max(ACADEMY_LEVELS.length),
+  // The stories finished at least once, for ticking off the casebook.
+  stories: z.array(z.enum(STORY_KEYS as [StoryKey, ...StoryKey[]])).max(STORY_KEYS.length),
 });
 
 export const SelectTitlePayloadSchema = z.strictObject({ title: TitleIdSchema.nullable() });

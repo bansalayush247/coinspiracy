@@ -1,5 +1,6 @@
 // A profile's progression and every way it changes. Pure: the server stores the result and
 // applies it in one transaction with the matching sats, keyed by match or Academy run.
+import type { ActId } from '../city/story.js';
 import type { RewardId } from '../economy/catalog.js';
 import type { RandomSource } from '../roles.js';
 import { ACADEMY_FIRST_CLEAR, ACADEMY_LEVELS, ACADEMY_MAX_STARS, ACADEMY_THREE_STARS, academyLevel } from './academy.js';
@@ -35,8 +36,11 @@ export interface Progress {
   readonly epochFrame: boolean;
   readonly title: TitleId | null;
   readonly frame: FrameId | null;
-  readonly story?: { readonly dump?: StoryRecord; readonly ransom?: StoryRecord; readonly insider?: StoryRecord; readonly founder?: StoryRecord; readonly ceremony?: StoryRecord };
+  readonly story?: Readonly<Partial<Record<StoryKey, StoryRecord>>>;
 }
+
+// Every saved story: the acts, the side cases, and the signing ceremony.
+export type StoryKey = ActId | 'ceremony';
 
 export interface StoryRecord {
   readonly done: boolean;

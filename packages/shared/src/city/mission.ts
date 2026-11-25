@@ -6,14 +6,39 @@ import { z } from 'zod';
 import { NicknameSchema } from '../lobby.js';
 import { STORY_ACTS } from './acts.js';
 import { CityPlayer } from './state.js';
-import { ACT_IDS } from './story.js';
+import { ACT_IDS, CATCHER_IDS } from './story.js';
 
 export const MISSION_ROOM = 'mission';
 
-export const NPC_KINDS = ['dani', 'mags', 'guard', 'duncan', 'ivy', 'guardian', 'lookout', 'teo', 'brannigan', 'nonce', 'choir', 'sharpe'] as const;
+export const NPC_KINDS = [
+  'dani',
+  'mags',
+  'guard',
+  'duncan',
+  'ivy',
+  'guardian',
+  'lookout',
+  'teo',
+  'brannigan',
+  'nonce',
+  'choir',
+  'sharpe',
+  'okafor',
+  'pip',
+  'juno',
+  'crane',
+  'stall',
+  'mc',
+  'penrose',
+  'keeper',
+  'kit',
+  'marco',
+  'benny',
+  'gull',
+] as const;
 export type NpcKind = (typeof NPC_KINDS)[number];
 // The kinds that carry a torch, drawn as a cone the server uses to catch the crew.
-export const TORCH_KINDS: ReadonlySet<NpcKind> = new Set(['guard', 'lookout', 'choir']);
+export const TORCH_KINDS: ReadonlySet<NpcKind> = new Set(['guard', 'lookout', 'choir', 'keeper', 'gull']);
 
 export const MissionNpc = schema(
   {
@@ -72,6 +97,7 @@ export const MISSION_MESSAGES = Object.freeze({
   CAUGHT: 'caught',
   DUNCAN: 'duncan',
   RESULT: 'result',
+  NOTE: 'note',
 } as const);
 
 // Starting a night picks the act; joining a crew by code takes whatever act the crew is playing.
@@ -85,8 +111,12 @@ export const ChoosePayloadSchema = z.strictObject({ node: NodeIdSchema, choice: 
 export const WorkPayloadSchema = z.strictObject({ spot: z.number().int().min(0).max(MAX_SPOTS - 1) });
 
 // `name` is set when it was someone else in the crew who got caught.
-export const CaughtLineSchema = z.strictObject({ by: z.enum(['guard', 'duncan', 'lookout', 'choir']), count: z.number().int().min(1).max(255), name: z.string().min(1).max(16).optional() });
+export const CaughtLineSchema = z.strictObject({ by: z.enum(CATCHER_IDS), count: z.number().int().min(1).max(255), name: z.string().min(1).max(16).optional() });
 export type CaughtLine = z.infer<typeof CaughtLineSchema>;
+
+// Told to one crew member only, such as why a spot can't be worked yet.
+export const MissionNoteSchema = z.strictObject({ text: z.string().min(1).max(240) });
+export type MissionNote = z.infer<typeof MissionNoteSchema>;
 
 export const MISSION_RESULT_REASONS = ['paid', 'replay', 'noProfile', 'error'] as const;
 export const MissionResultSchema = z.strictObject({

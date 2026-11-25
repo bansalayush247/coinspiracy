@@ -230,8 +230,10 @@ export const FOUNDER_SCRIPT: Script = Object.freeze({
 
 export const FOUNDER_ACT: StoryAct = Object.freeze({
   id: 'founder',
+  kind: 'act',
   number: 'Act four',
   title: 'The Founder’s Coins',
+  blurb: 'Inspired by a forger who claimed to be the Founder and could not sign one sentence.',
   steps: FOUNDER_STEPS,
   scenes: Object.freeze({ call: 'stick', blackout: 'blackout', radio: 'onAir' }),
   objectives: FOUNDER_OBJECTIVES,
@@ -246,6 +248,20 @@ export const FOUNDER_ACT: StoryAct = Object.freeze({
   goalLabel: 'Generators',
   workVerb: 'Restart the {} generator',
   markers: 'labels',
+  hint: 'Four generators, two each side of the mast. Three get the station back on air. Split up.',
+  night: 0.55,
+  nights: Object.freeze({ blackout: 0.78, power: 0.78, radio: 0.3, done: 0.3 }),
+  catchers: Object.freeze({
+    choir: {
+      name: 'The Choir',
+      where: 'the road',
+      lines: [
+        'A Choir runner shines a phone in your face. “Not you. We want the stick.” They walk you back to the road.',
+        'The Choir, in unison: “Again? The key belongs to everyone. Not you specifically.” Back to the road.',
+        'A Choir runner sighs. “Third time. We’re starting to like you, and that’s against the rules.”',
+      ],
+    },
+  }),
   carries: true,
   start: FOUNDER_START,
   script: FOUNDER_SCRIPT,

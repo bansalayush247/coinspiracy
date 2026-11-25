@@ -2,7 +2,35 @@
 // itself. Characters remember choices as marks, and later lines can depend on them. The server walks the
 // script; the client only renders it, so a scene can never be skipped past a choice.
 
-export const SPEAKERS = ['rook', 'dani', 'mags', 'pell', 'voice', 'teo', 'ivy', 'brannigan', 'lookout', 'nonce', 'watchman', 'quint', 'sharpe', 'choir', 'founder'] as const;
+export const SPEAKERS = [
+  'rook',
+  'dani',
+  'mags',
+  'pell',
+  'voice',
+  'teo',
+  'ivy',
+  'brannigan',
+  'lookout',
+  'nonce',
+  'watchman',
+  'quint',
+  'sharpe',
+  'choir',
+  'founder',
+  'okafor',
+  'pip',
+  'juno',
+  'crane',
+  'stall',
+  'mc',
+  'penrose',
+  'keeper',
+  'kit',
+  'sol',
+  'marco',
+  'benny',
+] as const;
 export type Speaker = (typeof SPEAKERS)[number];
 
 export const SPEAKER_NAMES: Readonly<Record<Speaker, string>> = Object.freeze({
@@ -21,6 +49,18 @@ export const SPEAKER_NAMES: Readonly<Record<Speaker, string>> = Object.freeze({
   sharpe: 'Dr Sharpe',
   choir: 'The Choir',
   founder: 'Voicemail, 2009',
+  okafor: 'Mrs Okafor',
+  pip: 'Pip',
+  juno: 'Juno',
+  crane: 'Mr Crane',
+  stall: 'Stallholder',
+  mc: 'MC Mempool',
+  penrose: 'Ms Penrose',
+  keeper: 'Mrs Bellweather',
+  kit: 'Kit',
+  sol: 'Sol',
+  marco: 'Marco',
+  benny: 'Benny',
 });
 
 // Things characters remember (who) and clues the player picks up (clue), set by choices and scenes.

@@ -71,6 +71,7 @@
             <button id="open-ransom" type="button" class="story-open ransom-open">The Ransom Call<small>Story · act two · crew of 4</small></button>
             <button id="open-insider" type="button" class="story-open insider-open">The Insider<small>Story · act three · crew of 4</small></button>
             <button id="open-founder" type="button" class="story-open founder-open">The Founder’s Coins<small>Story · act four · crew of 4</small></button>
+            <button id="open-cases" type="button" class="story-open cases-open">Casebook<small>Side cases · crew of 4</small></button>
             <button id="open-academy" type="button" class="academy-open">Academy<small>Play solo</small></button>
             <button id="open-world" type="button" class="world-open" hidden>Explore<small>Island map</small></button>
             <button id="open-wardrobe" type="button" class="wardrobe-open" hidden>Wardrobe<small>Your look</small></button>
@@ -222,6 +223,17 @@
             <button id="story-next" type="button" class="cta">Next page</button>
           </div>
           <button id="story-close" type="button" class="story-close" aria-label="Close the book">×</button>
+        </section>
+        <section id="cases" class="panel modal cases" role="dialog" aria-modal="true" aria-labelledby="cases-title" tabindex="-1" hidden>
+          <header class="progress-head">
+            <div>
+              <p class="eyebrow">Ripped from the ledger</p>
+              <h2 id="cases-title">The casebook</h2>
+            </div>
+            <button id="cases-close" type="button">Close</button>
+          </header>
+          <p class="cases-intro">One-night stories, each inspired by a real event and retold with invented people. Play them in any order, alone or with a crew of up to four.</p>
+          <ul id="cases-list" class="cases-list"></ul>
         </section>
         <section id="academy" class="panel modal academy" role="dialog" aria-modal="true" aria-labelledby="academy-title" tabindex="-1" hidden>
           <header class="progress-head">

@@ -7,13 +7,15 @@ import {
   CaughtLineSchema,
   DUMP_ACT,
   MISSION_MESSAGES,
+  MissionNoteSchema,
   MissionResultSchema,
   SPEAKER_NAMES,
   actOf,
   canWork,
+  nightAt,
+  storyEyebrow,
   workLabel,
   type ActId,
-  type CaughtLine,
   type CityPlayer,
   type MissionNpc,
   type MissionResult,
@@ -33,52 +35,6 @@ import { drawMapDot, paintMinimap } from './cityController.js';
 import { Dialogue } from './dialogue.js';
 
 type MissionRoom = Awaited<ReturnType<Session['mission']>>;
-
-const GUS_LINES: readonly string[] = [
-  'Gus: “Oi! Lobby’s shut. Has been for eleven years. Out the front, please.”',
-  'Gus: “You again? Withdrawals are paused. So are you. Front, now.”',
-  'Gus: “Third time. I’m putting you in my song.”',
-];
-
-const CAUGHT_LINES: Readonly<Record<CaughtLine['by'], readonly string[]>> = {
-  guard: [
-    'Ivor: “Oi! Gate! Now! And wipe your feet.”',
-    'Ivor: “You again. I’m writing this down. I’m not, but I could.”',
-    'Ivor: “Third time. Mags says you’re ‘persistent’. I say you’re paperwork.”',
-  ],
-  duncan: [
-    'Duncan sits on you. Mags walks you back to the gate, tutting.',
-    'Duncan licks your whole face, then escorts you out. He has principles.',
-    'Duncan brings you back to the gate by the sleeve. Mags: “He likes you. That’s worse.”',
-  ],
-  choir: [
-    'A Choir runner shines a phone in your face. “Not you. We want the stick.” They walk you back to the road.',
-    'The Choir, in unison: “Again? The key belongs to everyone. Not you specifically.” Back to the road.',
-    'A Choir runner sighs. “Third time. We’re starting to like you, and that’s against the rules.”',
-  ],
-  lookout: [
-    'Lookout: “Oi. Off the breakwater. We’re not allowed to touch you, so please just go.”',
-    'Lookout: “Again? Mate. I’ve got a flask and a strict no-touching policy. Back you go.”',
-    'Lookout: “Third time. Respect. Still no. Shoo.”',
-  ],
-};
-
-// How dark the night lies over each step: the ransom call breaks at dawn and the Mint is a morning scene.
-const DARK: Readonly<Record<ActId, (step: string) => number>> = {
-  dump: (step) => (step === 'found' || step === 'done' ? 0.3 : 0.55),
-  ransom: (step) => (['call', 'toIvy', 'ivy', 'sign', 'locked'].includes(step) ? 0.16 : 0.58),
-  insider: (step) => (['call', 'toNonce', 'nonce', 'toTower'].includes(step) ? 0.12 : 0.6),
-  founder: (step) => (step === 'blackout' || step === 'power' ? 0.78 : step === 'radio' || step === 'done' ? 0.3 : 0.55),
-};
-const WORK_TOAST: Readonly<Record<ActId, string>> = {
-  dump: 'Find the right heap. Signs show the year and season.',
-  ransom: 'Five guardians round Mint Hall. Three signatures lock it in. Split up to be quicker.',
-  insider: 'Four lobby terminals, one with the buyer’s login. Search while Gus is round the other side.',
-  founder: 'Four generators, two each side of the mast. Three get the station back on air. Split up.',
-};
-const CAUGHT_WHERE: Readonly<Record<CaughtLine['by'], string>> = { guard: 'the gate', duncan: 'the gate', lookout: 'the end of the breakwater', choir: 'the road' };
-// Who does the catching in each act, for telling the crew about it.
-const CATCHERS: Readonly<Record<CaughtLine['by'], string>> = { guard: 'Ivor', duncan: 'Duncan', lookout: 'A lookout', choir: 'The Choir' };
 
 export class MissionController {
   readonly #hud = el('story-hud', HTMLElement);
@@ -251,15 +207,20 @@ export class MissionController {
     room.onMessage(MISSION_MESSAGES.CAUGHT, (payload: unknown) => {
       const line = CaughtLineSchema.safeParse(payload);
       if (!line.success) return;
-      const gus = this.#act.id === 'insider';
+      const catcher = this.#act.catchers[line.data.by];
+      if (catcher === undefined) return;
       if (line.data.name !== undefined) {
-        const who = gus ? 'Gus' : CATCHERS[line.data.by];
-        this.onToast(`${who} caught ${line.data.name}. Back to ${gus ? 'the front of the tower' : CAUGHT_WHERE[line.data.by]} with them.`);
+        this.onToast(`${catcher.name} caught ${line.data.name}. Back to ${catcher.where} with them.`);
         return;
       }
-      const lines = gus ? GUS_LINES : CAUGHT_LINES[line.data.by];
       audio.play('refuse');
-      this.onToast(lines[Math.min(lines.length - 1, line.data.count - 1)] ?? '');
+      this.onToast(catcher.lines[Math.min(catcher.lines.length - 1, line.data.count - 1)] ?? '');
+    });
+    room.onMessage(MISSION_MESSAGES.NOTE, (payload: unknown) => {
+      const note = MissionNoteSchema.safeParse(payload);
+      if (!note.success) return;
+      audio.play('refuse');
+      this.onToast(note.data.text);
     });
     room.onMessage(MISSION_MESSAGES.DUNCAN, () => {
       audio.play('whiff');
@@ -343,7 +304,7 @@ export class MissionController {
     this.#digHeap = mine;
     this.#dig.classList.toggle('digging', mine >= 0);
     if (mine >= 0) {
-      audio.play(this.#act.id === 'dump' ? 'stepSand' : 'click');
+      audio.play(this.#act.markers === 'heaps' ? 'stepSand' : 'click');
       this.#dig.style.setProperty('--dig-ms', `${String(this.#act.workMs)}ms`);
     }
   }
@@ -411,9 +372,9 @@ export class MissionController {
     this.#room?.state.spots.forEach((spot, i) => {
       this.scene.mission?.setSpot(i, spot.done);
     });
-    this.scene.mission?.setDark(DARK[act.id](this.#step));
-    el('story-eyebrow', HTMLElement).textContent = `The Cold Key · ${act.number} · ${act.title}`;
-    this.#hud.setAttribute('aria-label', `The Cold Key, ${act.number.toLowerCase()}`);
+    this.scene.mission?.setDark(nightAt(act, this.#step));
+    el('story-eyebrow', HTMLElement).textContent = storyEyebrow(act);
+    this.#hud.setAttribute('aria-label', act.kind === 'case' ? `Side case, ${act.title}` : `The Cold Key, ${act.number.toLowerCase()}`);
     this.#objective.textContent = act.objectives[this.#step] ?? '';
   }
 
@@ -424,10 +385,10 @@ export class MissionController {
     this.#renderGoal();
     this.#objective.textContent = this.#act.objectives[step] ?? '';
     this.scene.mission?.setTarget(this.#act.targets[step] ?? null);
-    this.scene.mission?.setDark(DARK[this.#act.id](step));
+    this.scene.mission?.setDark(nightAt(this.#act, step));
     if (step === this.#act.workStep) {
       audio.setMood('proposals');
-      this.onToast(WORK_TOAST[this.#act.id]);
+      this.onToast(this.#act.hint);
     }
     if (step === 'sneak') audio.setMood('proposals');
     if (before === this.#act.workStep && step !== before) {
@@ -453,7 +414,7 @@ export class MissionController {
   }
 
   #dug(found: string): void {
-    audio.play(this.#act.id === 'dump' ? 'taskFail' : 'taskDone');
+    audio.play(this.#act.markers === 'heaps' ? 'taskFail' : 'taskDone');
     this.onToast(found);
   }
 
@@ -511,14 +472,14 @@ export class MissionController {
     const voice = (k: string): string => (k === 'voice' ? 'The voice on the phone' : SPEAKER_NAMES[k as Speaker]);
     el('story-remembers', HTMLElement).replaceChildren(...[...who].map(([k, list]) => h('li', '', `${voice(k)} remembers: ${list.join('; ')}.`)));
     el('story-honest', HTMLElement).textContent = r.honest ? 'You chose honesty at least once. Somebody noticed.' : 'You never once told the plain truth. Somebody noticed that too.';
-    const number = act.number.toLowerCase();
+    const number = act.kind === 'case' ? 'the case' : act.number.toLowerCase();
     const reward: Record<MissionResult['reason'], string> = {
-      paid: r.paid > 0 ? `+${String(r.paid)} play sats in your wallet for finishing ${number}.` : `${act.number} is saved to your profile.`,
+      paid: r.paid > 0 ? `+${String(r.paid)} play sats in your wallet for finishing ${number}.` : `${act.kind === 'case' ? act.title : act.number} is saved to your profile.`,
       replay: 'Replayed: your choices are saved; the reward is only paid once.',
       noProfile: `Playing as a guest without a saved profile: nothing was saved, and the ${String(act.rewardSats)} play sats wait for a profile.`,
       error: 'Your progress couldn’t be saved just now.',
     };
-    el('story-end-eyebrow', HTMLElement).textContent = `End of ${number}`;
+    el('story-end-eyebrow', HTMLElement).textContent = act.kind === 'case' ? 'Case closed' : `End of ${number}`;
     el('story-end-title', HTMLElement).textContent = act.title;
     el('story-lesson', HTMLElement).textContent = act.lesson;
     el('story-end-next', HTMLElement).textContent = act.next;

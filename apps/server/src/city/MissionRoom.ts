@@ -30,6 +30,7 @@ import {
   readMs,
   visibleChoices,
   type ActId,
+  type CatcherId,
   type CaughtLine,
   type MissionResult,
   type ScriptNode,
@@ -44,9 +45,15 @@ import { profileIdFromCookieHeader } from '../profile/session.js';
 import type { ProfileData, ProfileStore } from '../profile/store.js';
 import { claimRoomCode, releaseRoomCode } from '../roomCodes.js';
 import { holdSeat } from '../scaling/index.js';
+import { CoinsRules } from './acts/coinsRules.js';
+import { DeadmanRules } from './acts/deadmanRules.js';
 import { DumpRules } from './acts/dumpRules.js';
 import { FounderRules } from './acts/founderRules.js';
 import { InsiderRules } from './acts/insiderRules.js';
+import { NumberRules } from './acts/numberRules.js';
+import { PasswordRules } from './acts/passwordRules.js';
+import { PizzaRules } from './acts/pizzaRules.js';
+import { PopcornRules } from './acts/popcornRules.js';
 import { RansomRules } from './acts/ransomRules.js';
 import { near, type ActContext, type ActRules } from './acts/rules.js';
 
@@ -94,7 +101,18 @@ const MIN_SKIP_MS = 300;
 // Moving further than this from where you started working a spot stops the work.
 const WORK_WOBBLE = 0.35;
 
-const RULES: Readonly<Record<ActId, () => ActRules>> = { dump: () => new DumpRules(), ransom: () => new RansomRules(), insider: () => new InsiderRules(), founder: () => new FounderRules() };
+const RULES: Readonly<Record<ActId, () => ActRules>> = {
+  dump: () => new DumpRules(),
+  ransom: () => new RansomRules(),
+  insider: () => new InsiderRules(),
+  founder: () => new FounderRules(),
+  popcorn: () => new PopcornRules(),
+  number: () => new NumberRules(),
+  coins: () => new CoinsRules(),
+  deadman: () => new DeadmanRules(),
+  password: () => new PasswordRules(),
+  pizza: () => new PizzaRules(),
+};
 
 export class MissionRoom extends Room<{ state: MissionState; client: MissionClient }> {
   override maxClients = CREW_MAX;
@@ -337,7 +355,7 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
     if (this.#scene === null) this.#arrivals(now);
     for (const m of this.#crew.values()) this.#working(m, now);
     this.#sceneClock(now);
-    if (!this.#quiet) this.rules.tick(this.#ctx, now);
+    if (!this.#quiet) this.rules.tick?.(this.#ctx, now);
     this.broadcastPatch();
   }
 
@@ -463,6 +481,11 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
     if (def === undefined || spot === undefined) return;
     if (this.state.step !== this.act.workStep || this.#scene !== null || now < m.caughtUntil || m.work !== null) return;
     if (spot.done || spot.worker !== '' || !canWork(m.player, def, this.act.workReach)) return;
+    const refusal = this.rules.refuse?.(this.#ctx, index, m) ?? null;
+    if (refusal !== null) {
+      m.client.send(MISSION_MESSAGES.NOTE, { text: refusal });
+      return;
+    }
     m.work = { spot: index, at: { x: m.player.x, y: m.player.y }, until: now + this.act.workMs };
     spot.worker = m.id;
   }
@@ -482,11 +505,13 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
     const step = this.state.step;
     const note = this.rules.worked(this.#ctx, work.spot, m, now);
     spot.note = note;
-    if (this.state.step !== step) {
+    const scene = this.act.spots[work.spot]?.scene;
+    if (this.state.step !== step || (scene !== undefined && this.#scene === null)) {
       this.#hero = m.id;
       for (const other of this.#crew.values()) if (other.work !== null) this.#stopWork(other);
       this.#gather();
     }
+    if (this.state.step === step && scene !== undefined && this.#scene === null) this.#enter(scene, now);
   }
 
   #stopWork(m: Member): void {
@@ -496,7 +521,7 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
     if (spot !== undefined && spot.worker === m.id) spot.worker = '';
   }
 
-  #caught(m: Member, by: CaughtLine['by'], to: Vec2, now: number): void {
+  #caught(m: Member, by: CatcherId, to: Vec2, now: number): void {
     this.#stopWork(m);
     m.caughtUntil = now + CAUGHT_MS;
     this.state.caught = Math.min(255, this.state.caught + 1);

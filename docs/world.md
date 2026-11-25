@@ -233,4 +233,27 @@ of season one:
   line depends on the ceremony. Every ending cuts to the tip gate at dawn with Mags and Duncan; the FOUNDER mug only
   appears for players honest in act one, and an unsent 2009 voicemail ends the season. First finish pays 500.
 
-Not built yet from the story bible: the side cases ("ripped from the ledger") and season two.
+Side cases, "ripped from the ledger" (`kind: 'case'` in `StoryAct`; listed by `SIDE_CASES` in `acts.ts`): one-night
+stories played from the Casebook tile (`apps/client/src/city/casebook.ts`), on the same mission room and client as
+the acts. The profile view's `stories` lists every finished story so the casebook can mark cases solved.
+- What used to be per-act client tables now lives on the act: `hint` (said when the work starts), `night` and
+  `nights` (how dark each step is), and `catchers` (who catches, where they send you, what they say).
+- A spot can open its own scene once worked (`StorySpot.scene`), such as a memory; the scene hands back to the work
+  step. An act's rules can refuse a spot for now (`ActRules.refuse`), told only to the one who tried (`note`).
+- `Patrols` (`apps/server/src/city/acts/patrols.ts`) walks any act's torch guards on fixed loops and catches in the
+  watched steps; `walkPath` walks a route once, for characters with somewhere to be.
+- The Popcorn Tin (`popcorn.ts`, `popcornRules.ts`), Low Tide: Brannigan searches the six yard spots in a fixed order
+  (`BRANNIGAN_ROUNDS`), skipping any the crew has searched, and takes the tin himself if he reaches the kennel
+  first (`beaten`). Biscuit refuses the kennel until someone searches the bins. A test replays Brannigan's whole
+  round; another proves a crew using the bins can beat him.
+- Borrowed Number (`number.ts`), Saltmarket: three details to find (`DETAILS`), then Kestrel Mobile.
+- Follow the Coins (`coins.ts`), Saltmarket market: two chain-reading questions, four tip jars (the server picks the
+  one with the reused address), Tiny's ring light on the east lane, the studio on the Reef Docks.
+- The Dead Man's Vault (`deadman.ts`), the Heights graveyard: three of five shares (two plaques gone), Mrs
+  Bellweather's lantern, the QuayEx tower on Signet Row.
+- The Forgotten Password (`password.ts`): three memory spots, each with its own scene; the last marks
+  `allMemories`, which jumps the memory to the way home. Three guesses, generated per try left.
+- Pizza Night (`pizza.ts`): five topping stalls (anchovies refuse), then three gulls circling the road east, out
+  along the road and back over the lane beside it; a test walks the delivery at every start time to prove a gap.
+
+Not built yet from the story bible: season two.

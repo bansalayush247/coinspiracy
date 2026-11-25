@@ -2,6 +2,27 @@
 
 ## 25 November 2026
 
+### The casebook: six side cases
+- A new Casebook tile on the menu opens six one-night side cases, "ripped from the ledger": each inspired by a real
+  event and retold with invented people. Play them in any order, alone or with a crew of up to four. The casebook
+  marks the ones you've solved, and each pays 150 to 200 play sats the first time.
+- **The Popcorn Tin.** A friendly race with Brannigan round a burglar's yard in Low Tide. He searches the obvious
+  places first; the tin is in the kennel, and Biscuit the dog won't get off it unless someone rattles the bins.
+- **Borrowed Number.** Pip's phone number was moved to a stranger's SIM, and his savings went with the text codes.
+  Find his birthday, address and first pet out in the open, then walk into the phone shop, where the clerk isn't one.
+- **Follow the Coins.** Read a public chain with Brannigan: the odd amount is the change, coins spent together share
+  an owner. Find the reused address on a market tip jar (out of the music video's ring light) and the rapper who
+  boasted about it.
+- **The Dead Man's Vault.** An exchange boss lost at sea left his vault key in five shares on five graveyard benches;
+  any three open it, which is lucky, because two plaques were stolen. Dodge Mrs Bellweather's lantern. The vault is
+  empty. So was the coffin.
+- **The Forgotten Password.** Kit's late brother left him a drive with three guesses left. Visit the three places
+  they shared; each plays a memory of Sol that gives away a piece of his password. Then type. Both endings close
+  the case.
+- **Pizza Night.** Gather toppings round Saltmarket (no anchovies, ever), then run two hot pizzas across town past
+  the gulls to Benny, who pays ten thousand coins for them. Ten years later, that's a lot of coins.
+- Toasts now show above the story bar on phones, near the bottom of the screen, instead of hiding behind it.
+
 ### Act four: The Founder's Coins, and the signing ceremony
 - The finale of season one. The little stick from pizza night holds a message signed with the Founder's key. Ellis
   Quint wants to buy it, Dr Sharpe goes on air to claim he is the Founder, and the Choir blacks out the whole city.

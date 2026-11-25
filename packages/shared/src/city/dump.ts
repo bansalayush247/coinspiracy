@@ -385,8 +385,10 @@ export const DUMP_SCRIPT: Script = Object.freeze({
 
 export const DUMP_ACT: StoryAct = Object.freeze({
   id: 'dump',
+  kind: 'act',
   number: 'Act one',
   title: 'The Dump',
+  blurb: 'Inspired by a drive of bitcoin thrown out and buried in a landfill.',
   steps: DUMP_STEPS,
   scenes: DUMP_SCENES,
   objectives: DUMP_OBJECTIVES,
@@ -400,6 +402,25 @@ export const DUMP_ACT: StoryAct = Object.freeze({
   workGoal: 0,
   workVerb: 'Dig the {} heap',
   markers: 'heaps',
+  hint: 'Find the right heap. Signs show the year and season.',
+  night: 0.55,
+  nights: Object.freeze({ found: 0.3, done: 0.3 }),
+  catchers: Object.freeze({
+    guard: {
+      name: 'Ivor',
+      where: 'the gate',
+      lines: ['Ivor: “Oi! Gate! Now! And wipe your feet.”', 'Ivor: “You again. I’m writing this down. I’m not, but I could.”', 'Ivor: “Third time. Mags says you’re ‘persistent’. I say you’re paperwork.”'],
+    },
+    duncan: {
+      name: 'Duncan',
+      where: 'the gate',
+      lines: [
+        'Duncan sits on you. Mags walks you back to the gate, tutting.',
+        'Duncan licks your whole face, then escorts you out. He has principles.',
+        'Duncan brings you back to the gate by the sleeve. Mags: “He likes you. That’s worse.”',
+      ],
+    },
+  }),
   start: DUMP_START,
   script: DUMP_SCRIPT,
   marks: DUMP_MARKS,

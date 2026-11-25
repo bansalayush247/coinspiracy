@@ -4,7 +4,7 @@ import { epochReward, EPOCH_TIERS, EPOCH_TIER_XP, epochHat } from './epoch.js';
 import { MAX_QUESTS, questById } from './quests.js';
 import { nextUnlock, rankFor, RANK_UP_SATS } from './rank.js';
 import { SEALS, sealProgress, sealVisible } from './seals.js';
-import { displayTitle, ownedFrames, ownedTitles, type Progress } from './progress.js';
+import { displayTitle, ownedFrames, ownedTitles, type Progress, type StoryKey } from './progress.js';
 
 export function toProgressView(p: Progress, nowMs: number) {
   const rank = rankFor(p.xp);
@@ -53,6 +53,7 @@ export function toProgressView(p: Progress, nowMs: number) {
       // Opens with its island, then once the island's level before it is cleared.
       open: academyLevelOpen(l.level, p.xp, p.academy),
     })),
+    stories: Object.entries(p.story ?? {}).flatMap(([k, r]) => (r.done ? [k as StoryKey] : [])),
   };
 }
 export type ProgressView = ReturnType<typeof toProgressView>;

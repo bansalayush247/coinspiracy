@@ -274,8 +274,10 @@ export const RANSOM_SCRIPT: Script = Object.freeze({
 
 export const RANSOM_ACT: StoryAct = Object.freeze({
   id: 'ransom',
+  kind: 'act',
   number: 'Act two',
   title: 'The Ransom Call',
+  blurb: 'Inspired by the wave of kidnappings for keys.',
   steps: RANSOM_STEPS,
   scenes: Object.freeze({ call: 'ransom', ivy: 'ivy', locked: 'locked', breakwater: 'breakwater', door: 'door' }),
   objectives: RANSOM_OBJECTIVES,
@@ -294,6 +296,20 @@ export const RANSOM_ACT: StoryAct = Object.freeze({
   goalLabel: 'Signatures',
   workVerb: 'Ask {} to sign',
   markers: 'badges',
+  hint: 'Five guardians round Mint Hall. Three signatures lock it in. Split up to be quicker.',
+  night: 0.58,
+  nights: Object.freeze({ call: 0.16, toIvy: 0.16, ivy: 0.16, sign: 0.16, locked: 0.16 }),
+  catchers: Object.freeze({
+    lookout: {
+      name: 'A lookout',
+      where: 'the end of the breakwater',
+      lines: [
+        'Lookout: “Oi. Off the breakwater. We’re not allowed to touch you, so please just go.”',
+        'Lookout: “Again? Mate. I’ve got a flask and a strict no-touching policy. Back you go.”',
+        'Lookout: “Third time. Respect. Still no. Shoo.”',
+      ],
+    },
+  }),
   start: RANSOM_START,
   script: RANSOM_SCRIPT,
   marks: RANSOM_MARKS,

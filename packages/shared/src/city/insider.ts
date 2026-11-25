@@ -228,8 +228,10 @@ export const INSIDER_SCRIPT: Script = Object.freeze({
 
 export const INSIDER_ACT: StoryAct = Object.freeze({
   id: 'insider',
+  kind: 'act',
   number: 'Act three',
   title: 'The Insider',
+  blurb: 'Inspired by a wallet maker’s leaked customer list, and an exchange that froze withdrawals.',
   steps: INSIDER_STEPS,
   scenes: Object.freeze({ call: 'morning', nonce: 'nonce', tower: 'tower', found: 'account' }),
   objectives: INSIDER_OBJECTIVES,
@@ -243,6 +245,20 @@ export const INSIDER_ACT: StoryAct = Object.freeze({
   workGoal: 0,
   workVerb: 'Search the {} terminal',
   markers: 'labels',
+  hint: 'Four lobby terminals, one with the buyer’s login. Search while Gus is round the other side.',
+  night: 0.6,
+  nights: Object.freeze({ call: 0.12, toNonce: 0.12, nonce: 0.12, toTower: 0.12 }),
+  catchers: Object.freeze({
+    guard: {
+      name: 'Gus',
+      where: 'the front of the tower',
+      lines: [
+        'Gus: “Oi! Lobby’s shut. Has been for eleven years. Out the front, please.”',
+        'Gus: “You again? Withdrawals are paused. So are you. Front, now.”',
+        'Gus: “Third time. I’m putting you in my song.”',
+      ],
+    },
+  }),
   start: INSIDER_START,
   script: INSIDER_SCRIPT,
   marks: INSIDER_MARKS,

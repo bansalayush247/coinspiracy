@@ -13,7 +13,7 @@ import { seatColors, type GuardianColors } from '../game/palette.js';
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 const PLAIN: Wear = { hat: '', shades: '', outfit: '' };
-const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan'>, { name: string; colors: GuardianColors; wear: Wear }>> = {
+const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan' | 'gull'>, { name: string; colors: GuardianColors; wear: Wear }>> = {
   dani: { name: 'Dani', colors: { lit: 0x4fb3a9, shadow: 0x2b6b66, highlight: 0xa6e3dc }, wear: PLAIN },
   mags: { name: 'Mags', colors: { lit: 0xd98c3f, shadow: 0x8a5426, highlight: 0xf2c491 }, wear: PLAIN },
   guard: { name: 'Ivor', colors: seatColors(7), wear: PLAIN },
@@ -25,7 +25,19 @@ const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan'>, { name: string; colors:
   nonce: { name: 'Nonce', colors: { lit: 0x5fd3b0, shadow: 0x2f7a63, highlight: 0xb7f2df }, wear: PLAIN },
   choir: { name: 'Choir runner', colors: { lit: 0x3a3550, shadow: 0x1c1a28, highlight: 0x77729a }, wear: PLAIN },
   sharpe: { name: 'Dr Sharpe', colors: { lit: 0x9fb4c7, shadow: 0x56677a, highlight: 0xd8e4ef }, wear: PLAIN },
+  okafor: { name: 'Mrs Okafor', colors: { lit: 0xe57aa8, shadow: 0x8c4566, highlight: 0xf7c4da }, wear: PLAIN },
+  pip: { name: 'Pip', colors: { lit: 0x6fc4e8, shadow: 0x37728c, highlight: 0xc4ebfa }, wear: PLAIN },
+  juno: { name: 'Juno', colors: { lit: 0xa6d65c, shadow: 0x5d7f2e, highlight: 0xdaf2b4 }, wear: PLAIN },
+  crane: { name: 'Mr Crane', colors: { lit: 0x8b8fa8, shadow: 0x4c4f63, highlight: 0xc9cbe0 }, wear: PLAIN },
+  stall: { name: 'Stallholder', colors: { lit: 0xd9b36a, shadow: 0x86683a, highlight: 0xf4dfb1 }, wear: PLAIN },
+  mc: { name: 'MC Mempool', colors: { lit: 0xf2c230, shadow: 0x9a7612, highlight: 0xfff0a0 }, wear: PLAIN },
+  penrose: { name: 'Ms Penrose', colors: { lit: 0x4a4a5c, shadow: 0x26262f, highlight: 0x8e8ea6 }, wear: PLAIN },
+  keeper: { name: 'Mrs Bellweather', colors: { lit: 0x6e7d5a, shadow: 0x3b4430, highlight: 0xb4c19e }, wear: PLAIN },
+  kit: { name: 'Kit', colors: { lit: 0x7f9be0, shadow: 0x435899, highlight: 0xc6d3f5 }, wear: PLAIN },
+  marco: { name: 'Marco', colors: { lit: 0xf2f2ee, shadow: 0x9a9a92, highlight: 0xffffff }, wear: PLAIN },
+  benny: { name: 'Benny', colors: { lit: 0x5c8a6e, shadow: 0x2f4a3a, highlight: 0xa8d1b8 }, wear: PLAIN },
 };
+const ANIMAL_NAMES: Readonly<Record<'duncan' | 'gull', string>> = { duncan: 'Duncan', gull: 'Gull' };
 
 interface Figure {
   readonly kind: NpcKind;
@@ -118,7 +130,7 @@ export class MissionView {
       const body = new Phaser.GameObjects.Graphics(this.scene);
       const root = new Phaser.GameObjects.Container(this.scene, 0, 0, [ring, body]);
       this.entities.add(root);
-      const label = new Phaser.GameObjects.Text(this.scene, 0, 0, npc.name !== '' ? npc.name : kind === 'duncan' ? 'Duncan' : LOOKS[kind].name, {
+      const label = new Phaser.GameObjects.Text(this.scene, 0, 0, npc.name !== '' ? npc.name : kind === 'duncan' || kind === 'gull' ? ANIMAL_NAMES[kind] : LOOKS[kind].name, {
         fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffe3a8', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this.scene)),
       }).setOrigin(0.5, 1);
       this.names.add(label);
@@ -180,7 +192,7 @@ export class MissionView {
       f.label.setVisible(seen);
       f.root.setPosition(s.x, s.y).setDepth(this.depthOf(f.pos.x, f.pos.y));
       f.body.y = -trot;
-      f.label.setScale(1 / zoom).setPosition(s.x, s.y - (f.kind === 'duncan' ? 24 : GUARDIAN_HEIGHT / ART_SCALE + 8) * ART_SCALE);
+      f.label.setScale(1 / zoom).setPosition(s.x, s.y - (f.kind === 'duncan' ? 24 : f.kind === 'gull' ? 86 : GUARDIAN_HEIGHT / ART_SCALE + 8) * ART_SCALE);
     }
     for (const sign of this.#signs) sign.setScale(1 / zoom);
     this.#drawTorch();
@@ -208,6 +220,10 @@ export class MissionView {
   #draw(f: Figure): void {
     if (f.kind === 'duncan') {
       drawDog(f.body, f.side, f.chasing);
+      return;
+    }
+    if (f.kind === 'gull') {
+      drawGull(f.body, f.side);
       return;
     }
     const look = LOOKS[f.kind];
@@ -292,4 +308,22 @@ function drawDog(g: Phaser.GameObjects.Graphics, side: 1 | -1, chasing: boolean)
   g.lineBetween(-side * 12 * k, -11 * k, -side * 17 * k, chasing ? -18 * k : -13 * k);
   g.fillStyle(0xc0503a, 1);
   g.fillRect(side * 7 * k, -12 * k, 4 * k, 2 * k);
+}
+
+// A gull hanging in the air over its stretch of road, wings up, beak the way it faces.
+function drawGull(g: Phaser.GameObjects.Graphics, side: 1 | -1): void {
+  const k = ART_SCALE * 1.6;
+  g.clear();
+  g.fillStyle(0xf4f4f0, 1);
+  g.fillEllipse(0, -34 * k, 22 * k, 10 * k);
+  g.fillCircle(side * 10 * k, -38 * k, 5.5 * k);
+  g.fillStyle(0xb9bfc6, 1);
+  g.fillTriangle(-4 * k, -36 * k, -20 * k, -50 * k, 4 * k, -38 * k);
+  g.fillTriangle(4 * k, -36 * k, 20 * k, -50 * k, -4 * k, -38 * k);
+  g.fillStyle(0x2a2a30, 1);
+  g.fillCircle(side * 12 * k, -39 * k, 1.4 * k);
+  g.fillStyle(0xf2a23a, 1);
+  g.fillTriangle(side * 15 * k, -39 * k, side * 21 * k, -37 * k, side * 15 * k, -36 * k);
+  g.fillStyle(0x2a2a30, 0.9);
+  g.fillTriangle(-side * 11 * k, -34 * k, -side * 17 * k, -36 * k, -side * 17 * k, -31 * k);
 }

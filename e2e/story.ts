@@ -2,7 +2,8 @@
 // menu, answers Mr Pell, Dani and Mags with the keyboard, digs the right heap at Gullmoor tip at night, asks Dani
 // nicely, and reaches the end card with the reward. Then a friend joins a crew from its invite link and the two
 // split a vote, act two is played from the call to the lighthouse, and act three from the leak to Teo's confession
-// and the council finale. The server is only used to skip the walks.
+// and the council finale, act four to the season's end, and two side cases from the casebook. The server is only
+// used to skip the walks.
 // Run: npx tsx --conditions=source e2e/story.ts
 import { randomBytes } from 'node:crypto';
 import { mkdir, rm } from 'node:fs/promises';
@@ -10,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { matchMaker } from '@colyseus/core';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
-import { BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
+import { BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
 import { canStand } from '@byzantine-council/shared/pathfinding';
 import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
@@ -42,7 +43,14 @@ async function until(test: () => boolean, label: string, timeoutMs = 20_000): Pr
   return false;
 }
 
-async function open(browser: Browser, name: string, viewport: { width: number; height: number }, errors: string[], tile = '#open-story'): Promise<{ page: Page; room: MissionRoom }> {
+async function open(
+  browser: Browser,
+  name: string,
+  viewport: { width: number; height: number },
+  errors: string[],
+  tile = '#open-story',
+  caseTitle?: string,
+): Promise<{ page: Page; room: MissionRoom }> {
   const page = await browser.newPage({ viewport });
   page.on('pageerror', (e) => errors.push(`${name}: ${String(e)}`));
   page.on('console', (m) => {
@@ -54,6 +62,11 @@ async function open(browser: Browser, name: string, viewport: { width: number; h
   await page.locator('#nickname').fill(name);
   const before = new Set((await matchMaker.query({ name: 'mission' })).map((r) => r.roomId));
   await page.click(tile);
+  if (caseTitle !== undefined) {
+    await page.locator('#cases').waitFor({ state: 'visible', timeout: 10_000 });
+    await page.screenshot({ path: `${shots}casebook.png` });
+    await page.locator('.cases-list .case', { hasText: caseTitle }).locator('button').click();
+  }
   await page.locator('#story-hud').waitFor({ state: 'visible', timeout: 15_000 });
   let room: MissionRoom | undefined;
   await until(() => {
@@ -67,9 +80,15 @@ async function open(browser: Browser, name: string, viewport: { width: number; h
   return { page, room };
 }
 
+// Skips the typing with Space, as a player would, then picks a choice by its number key.
 async function answer(page: Page, room: MissionRoom, node: string, key: number): Promise<void> {
   await until(() => room.state.node === node, node);
-  await page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+  const choice = page.locator('.story-choice').first();
+  for (let i = 0; i < 60 && !(await choice.isVisible()); i++) {
+    await page.keyboard.press(' ');
+    await page.waitForTimeout(250);
+  }
+  await choice.waitFor({ state: 'visible', timeout: 20_000 });
   await page.keyboard.press(String(key));
 }
 
@@ -387,6 +406,74 @@ async function main(): Promise<void> {
     check(((await four.page.textContent('#story-end-title')) ?? '') === 'The Founder’s Coins', 'the end card is act four’s');
     check(((await four.page.textContent('#story-reward')) ?? '').includes('+500 play sats'), `the season finale pays its first finish (${(await four.page.textContent('#story-reward')) ?? ''})`);
     await four.page.screenshot({ path: `${shots}founder-end.png` });
+
+    const tin = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-cases', 'The Popcorn Tin');
+    check(tin.room.state.act === 'popcorn', 'the casebook opens The Popcorn Tin');
+    check((await tin.page.textContent('#story-eyebrow'))?.startsWith('Ripped from the ledger') === true, 'a side case is labelled as one');
+    await answer(tin.page, tin.room, 'street', 1);
+    await read(tin.page, tin.room, 'okaforPolite');
+    await read(tin.page, tin.room, 'okaforBins');
+    await read(tin.page, tin.room, 'streetEnd');
+    await until(() => tin.room.state.step === 'search', 'the search');
+    tin.room.teleport(100.5, 84.5);
+    await tin.page.waitForTimeout(1800);
+    await tin.page.screenshot({ path: `${shots}popcorn-yard.png` });
+    tin.room.quietNight();
+    const kennel = POPCORN_ACT.spots[KENNEL_SPOT]?.at ?? MARCO_DOOR;
+    tin.room.teleport(kennel.x, kennel.y);
+    await tin.page.waitForFunction(() => document.getElementById('story-dig')?.textContent.includes('Search the kennel') === true, undefined, { timeout: 10_000 }).catch(() => undefined);
+    await tin.page.keyboard.press('e');
+    await tin.page.waitForFunction(() => document.getElementById('toasts')?.textContent.includes('Biscuit is asleep') === true, undefined, { timeout: 5_000 }).catch(() => undefined);
+    check(((await tin.page.textContent('#toasts')) ?? '').includes('Biscuit is asleep'), 'Biscuit won’t budge off the kennel at first');
+    for (const spot of [BINS, KENNEL_SPOT]) {
+      const at = POPCORN_ACT.spots[spot]?.at ?? kennel;
+      tin.room.teleport(at.x, at.y);
+      await tin.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Search the ${label}`) === true, POPCORN_ACT.spots[spot]?.label ?? '', { timeout: 10_000 }).catch(() => undefined);
+      await tin.page.keyboard.press('e');
+      await until(() => tin.room.state.spots[spot]?.done === true, `searched ${String(spot)}`);
+    }
+    await answer(tin.page, tin.room, 'tin', 1);
+    await read(tin.page, tin.room, 'tinHand');
+    await read(tin.page, tin.room, 'tinEnd');
+    await tin.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await tin.page.textContent('#story-end-eyebrow')) ?? '') === 'Case closed', 'a side case ends with “Case closed”');
+    check(((await tin.page.textContent('#story-reward')) ?? '').includes('+150 play sats'), `the case pays its first solve (${(await tin.page.textContent('#story-reward')) ?? ''})`);
+    await tin.page.screenshot({ path: `${shots}popcorn-end.png` });
+    await tin.page.click('#story-end-leave');
+    await tin.page.locator('#open-cases').waitFor({ state: 'visible', timeout: 10_000 });
+    await tin.page.click('#open-cases');
+    await tin.page.locator('.cases-list .case.solved').first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await tin.page.locator('.cases-list .case.solved').first().textContent()) ?? '').includes('The Popcorn Tin'), 'the casebook marks the case solved');
+    check((await tin.page.locator('.cases-list .case').count()) === 6, 'the casebook lists six side cases');
+
+    const pizza = await open(browser, 'Rook', { width: 390, height: 844 }, errors, '#open-cases', 'Pizza Night');
+    await answer(pizza.page, pizza.room, 'notice', 1);
+    await read(pizza.page, pizza.room, 'noticeDeal');
+    await read(pizza.page, pizza.room, 'noticeEnd');
+    await until(() => pizza.room.state.step === 'toppings', 'the toppings');
+    for (const i of [0, 2, 3]) {
+      const t = TOPPINGS[i];
+      if (t === undefined) throw new Error('topping');
+      pizza.room.teleport(t.at.x, t.at.y);
+      await pizza.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Buy from the ${label}`) === true, t.label, { timeout: 10_000 }).catch(() => undefined);
+      await pizza.page.keyboard.press('e');
+      await until(() => pizza.room.state.spots[i]?.done === true, `bought ${t.label}`);
+    }
+    await until(() => pizza.room.state.step === 'toMarco', 'back to Marco');
+    pizza.room.teleport(MARCO_DOOR.x, MARCO_DOOR.y);
+    await read(pizza.page, pizza.room, 'oven');
+    await until(() => pizza.room.state.step === 'deliver', 'the delivery');
+    pizza.room.quietNight();
+    pizza.room.teleport(67, 65);
+    await pizza.page.waitForTimeout(1500);
+    await pizza.page.screenshot({ path: `${shots}pizza-gulls.png` });
+    pizza.room.teleport(BENNY_DOOR.x, BENNY_DOOR.y);
+    await answer(pizza.page, pizza.room, 'benny', 1);
+    await read(pizza.page, pizza.room, 'bennyCoins');
+    await read(pizza.page, pizza.room, 'later');
+    await pizza.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await pizza.page.textContent('#story-end-title')) ?? '') === 'Pizza Night', 'Pizza Night plays to its end card on a phone');
+    await pizza.page.screenshot({ path: `${shots}pizza-end.png` });
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

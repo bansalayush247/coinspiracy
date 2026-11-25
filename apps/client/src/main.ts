@@ -15,6 +15,7 @@ import { ProfileApi, type ProfileSummary } from './profile/api.js';
 import { ProgressPage } from './profile/progressPage.js';
 import { WorldMap } from './profile/worldMap.js';
 import { AcademyPanel } from './profile/academy.js';
+import { Casebook } from './city/casebook.js';
 import { SeasonBanner } from './profile/season.js';
 import { StoryBook } from './story/storyBook.js';
 import { BEACH_SCENE_KEY, BeachScene } from './beach/BeachScene.js';
@@ -140,6 +141,7 @@ class Controller {
   #lastProfile: ProfileSummary | null = null;
   #seasonColors: readonly [string, string] | null = null;
   readonly #academy = new AcademyPanel();
+  readonly #casebook = new Casebook();
   readonly #progressChip = el('open-progress', HTMLButtonElement);
 
   constructor(
@@ -162,6 +164,7 @@ class Controller {
     this.#progressPage.setProfile(p);
     this.#world.setProfile(p);
     this.#academy.setProfile(p);
+    this.#casebook.setProfile(p);
     this.#wardrobe.setProfile(p);
     this.#beach?.setProfile(p);
     this.#lastProfile = p;
@@ -249,6 +252,12 @@ class Controller {
     el('open-founder', HTMLButtonElement).addEventListener('click', () => {
       void this.#playStory({ act: 'founder' });
     });
+    el('open-cases', HTMLButtonElement).addEventListener('click', () => {
+      this.#casebook.open();
+    });
+    this.#casebook.onPlay = (act) => {
+      void this.#playStory({ act });
+    };
     el('island-back', HTMLButtonElement).addEventListener('click', () => {
       this.#leaveIsland();
     });
