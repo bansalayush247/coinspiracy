@@ -34,3 +34,7 @@ export const PunchLineSchema = z.strictObject({
   knockedOut: z.boolean(),
 });
 export type PunchLine = z.infer<typeof PunchLineSchema>;
+
+// Where the driver points the car: the same world-space direction as walking, no sequence numbers.
+export const DrivePayloadSchema = z.strictObject({ dx: z.number().min(-1).max(1), dy: z.number().min(-1).max(1) });
+export type DrivePayload = z.infer<typeof DrivePayloadSchema>;

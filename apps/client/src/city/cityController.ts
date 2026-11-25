@@ -1,6 +1,6 @@
 // Runs a visit to Port Concord: the city room, the HUD, the minimap and district arrivals.
 import { Callbacks } from '@colyseus/sdk';
-import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, PunchLineSchema, VAULT_DOOR, atVault, districtAt, isRough, type CityDrop, type CityPlayer, type DepositResult, type DistrictId } from '@byzantine-council/shared/city';
+import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, ENTER_RANGE, PunchLineSchema, VAULT_DOOR, atVault, districtAt, isRough, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId } from '@byzantine-council/shared/city';
 import { EMOTES, EMOTE_GLYPHS, EmoteLineSchema, type Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import type { PlayerInput } from '../game/input.js';
@@ -27,6 +27,9 @@ export class CityController {
   readonly #punch = el('city-punch', HTMLButtonElement);
   readonly #down = el('city-down', HTMLParagraphElement);
   readonly #deposit = el('city-deposit', HTMLButtonElement);
+  readonly #ride = el('city-ride', HTMLButtonElement);
+  #inCar = false;
+  #driveLoop = 0;
   #atVault = false;
   #rough: boolean | null = null;
   #coins = 0;
@@ -65,6 +68,9 @@ export class CityController {
     this.#deposit.addEventListener('click', () => {
       this.#vault();
     });
+    this.#ride.addEventListener('click', () => {
+      this.#room?.send('ride');
+    });
     window.addEventListener('keydown', (e) => {
       if (this.#room === null || this.#hud.hidden) return;
       if ((e.key === 'f' || e.key === 'F') && !e.repeat && !(e.target instanceof HTMLInputElement)) {
@@ -72,7 +78,8 @@ export class CityController {
         return;
       }
       if ((e.key === 'e' || e.key === 'E') && !e.repeat && !(e.target instanceof HTMLInputElement)) {
-        this.#vault();
+        if (!this.#deposit.hidden) this.#vault();
+        else if (!this.#ride.hidden) this.#room.send('ride');
         return;
       }
       const n = Number(e.key);
@@ -113,6 +120,15 @@ export class CityController {
     });
     callbacks.onRemove('drops', (_d: CityDrop, id: string) => {
       this.scene.removeDrop(id);
+    });
+    callbacks.onAdd('cars', (car: CityCar, id: string) => {
+      this.scene.addCar(id, car);
+      callbacks.onChange(car, () => {
+        this.scene.updateCar(id, car);
+      });
+    });
+    callbacks.onRemove('cars', (_c: CityCar, id: string) => {
+      this.scene.removeCar(id);
     });
     room.onMessage(CITY_MESSAGES.VAULT, (payload: unknown) => {
       const result = DepositResultSchema.safeParse(payload);
@@ -159,6 +175,8 @@ export class CityController {
     this.#deposit.hidden = true;
     this.#deposit.disabled = false;
     this.#atVault = false;
+    this.#setDriving(false);
+    this.#ride.hidden = true;
     this.scene.detach();
     this.#here = null;
     this.#hud.hidden = true;
@@ -193,7 +211,10 @@ export class CityController {
       this.#zone.replaceChildren(rough ? 'Rough streets' : 'Safe streets', h('span', 'city-zone-more', rough ? ' · fights allowed' : ''));
       if (announce) this.onToast(rough ? 'Rough streets: anyone can knock you out and take your pocket' : 'Safe streets: nobody can fight here');
     }
-    this.#punch.disabled = this.scene.meDown;
+    this.#punch.disabled = this.scene.meDown || this.#inCar;
+    const canRide = this.#inCar || (!this.scene.meDown && this.scene.freeCarNear(pos, ENTER_RANGE));
+    this.#ride.hidden = !canRide;
+    this.#ride.firstChild?.replaceWith(document.createTextNode(this.#inCar ? 'Get out' : 'Get in'));
     this.#punch.classList.toggle('off', !rough);
     this.#punch.setAttribute('aria-disabled', String(!rough));
     const vaultHere = atVault(pos) && !this.scene.meDown;
@@ -205,8 +226,9 @@ export class CityController {
     drawDots(this.#dots, pos, this.scene.others());
   }
 
-  // Pocket and knockout state for this client's own guardian.
+  // Pocket, knockout and driving state for this client's own guardian.
   #mine(player: CityPlayer): void {
+    this.#setDriving(player.car !== '');
     const coins = player.pocket ?? 0;
     if (coins !== this.#coins) {
       if (coins > this.#coins) audio.play('coin');
@@ -218,6 +240,20 @@ export class CityController {
       if (player.down) this.input.enabled = false;
       else this.input.enabled = this.#room !== null;
     }
+  }
+
+  #setDriving(on: boolean): void {
+    if (on === this.#inCar) return;
+    this.#inCar = on;
+    this.scene.driving = on;
+    window.clearInterval(this.#driveLoop);
+    if (!on) return;
+    audio.play('chirp');
+    this.onToast('Driving. Point where you want to go and the car steers there; point behind to reverse. E to get out.');
+    this.#driveLoop = window.setInterval(() => {
+      const d = this.input.direction();
+      this.#room?.send('drive', { dx: Math.max(-1, Math.min(1, d.x)), dy: Math.max(-1, Math.min(1, d.y)) });
+    }, 50);
   }
 
   #vault(): void {

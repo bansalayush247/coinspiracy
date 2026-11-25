@@ -16,6 +16,8 @@ export const CityPlayer = schema(
     shielded: t.boolean().default(false),
     // A street tough run by the server, not a person.
     npc: t.boolean().default(false),
+    // The car this guardian is driving, '' on foot.
+    car: t.string().default(''),
     pocket: t.uint32().view(VIEW_TAGS.OWNER).optional(),
     ack: t.uint32().view(VIEW_TAGS.OWNER).optional(),
   },
@@ -34,10 +36,24 @@ export const CityDrop = schema(
 );
 export type CityDrop = SchemaType<typeof CityDrop>;
 
+// A car anyone can drive. heading is radians in map space; driver is the session at the wheel, '' when parked.
+export const CityCar = schema(
+  {
+    x: t.float64().default(0),
+    y: t.float64().default(0),
+    heading: t.float32().default(0),
+    color: t.uint8().default(0),
+    driver: t.string().default(''),
+  },
+  'CityCar',
+);
+export type CityCar = SchemaType<typeof CityCar>;
+
 export const CityState = schema(
   {
     players: t.map(CityPlayer).view(),
     drops: t.map(CityDrop).view(),
+    cars: t.map(CityCar).view(),
     // Everyone in this region, near or far, for the HUD.
     population: t.uint16().default(0),
   },

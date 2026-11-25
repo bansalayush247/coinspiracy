@@ -166,4 +166,9 @@ Ambient life and street toughs:
   They are hit and seen through the same punch and line-of-sight rules as players, chase only on rough streets,
   drop a purse of 8 to 20 coins when knocked out, and respawn after 30 seconds. Population counts people only.
 
+Drivable cars (`packages/shared/src/city/vehicle.ts`): a fixed fleet at `PARKING` spots (kerbside pavement beside a
+road, two per district and two by the arrival point) synced as `CityCar` with the same sight rules as players. The
+`ride` message gets in or out; `drive` sends the direction the driver points. `controls` turns that into pedal and
+wheel, and `stepCar` moves the car on the server, sliding along glancing walls and stopping head-on.
+
 Next: co-op story instances (friends join by code), then act two, The Ransom Call.

@@ -2,6 +2,14 @@
 
 ## 25 November 2026
 
+### Drive anywhere in Port Concord
+- Cars are parked kerbside in every district and by the arrival point. Walk up and press E (or "Get in"); point
+  where you want to go with the keys or the touch stick and the car steers there, and points behind reverse it.
+  E again gets you out beside the car. Abandoned cars are towed back to their spot after four minutes.
+- The server drives every car: it stops dead against walls, water, people on foot and other cars, and lets go of the
+  pedal if a driver's input stops arriving. Nobody can punch, or be punched, from a car, and toughs leave drivers be.
+- Other players' cars show with them inside; the camera follows yours, and the ambient traffic stops behind it.
+
 ### A living city: traffic, ships, more people, and someone to fight
 - Cars drive every road, keeping left. They take turns at traffic lights, keep their distance, stop for anyone in
   the road, and fade in and out where roads meet the sea. A ferry, a cargo ship, sailboats and fishing boats sail

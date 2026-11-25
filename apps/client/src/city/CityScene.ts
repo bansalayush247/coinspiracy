@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
 import { canStand } from '@byzantine-council/shared/pathfinding';
-import { CHUNK, CITY_BUILDINGS, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
+import { CHUNK, CITY_BUILDINGS, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityCar, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
 import { audio } from '../audio/engine.js';
 import { Effects } from '../game/effects.js';
 import { GUARDIAN_HEIGHT, NO_WEAR, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
@@ -15,7 +15,7 @@ import { PhysicsFx, makeFxTextures } from '../game/physics.js';
 import { CorrectionSmoother, Predictor, type PendingInput } from '../game/prediction.js';
 import { Townsfolk } from '../game/townsfolk.js';
 import { MissionView } from './missionView.js';
-import { Traffic } from './traffic.js';
+import { CAR_COLORS, Traffic, drawDrivenCar } from './traffic.js';
 import { Vision } from './vision.js';
 import { buildingFront, drawBuilding, drawContainer, drawMound, drawStreetLamp, drawStreetTree, makeCoinTexture, paintChunk } from './cityArt.js';
 
@@ -54,6 +54,7 @@ interface Avatar {
   readonly buffer: InterpBuffer;
   readonly isMe: boolean;
   readonly npc: boolean;
+  inCar: boolean;
   readonly pos: { x: number; y: number };
   seat: number;
   wear: Wear;
@@ -61,6 +62,17 @@ interface Avatar {
   lastScreenX: number;
   hop: number;
   hopV: number;
+}
+
+interface DrivenCar {
+  readonly g: Phaser.GameObjects.Graphics;
+  readonly buffer: InterpBuffer;
+  readonly pos: { x: number; y: number };
+  heading: number;
+  target: number;
+  drawn: number;
+  readonly color: number;
+  driver: string;
 }
 
 interface Pile {
@@ -123,6 +135,9 @@ export class CityScene extends Phaser.Scene {
   readonly #chunks = new Map<string, Chunk>();
   readonly #piles = new Map<string, Pile>();
   readonly #walls = new Set<Wall>();
+  readonly #cars = new Map<string, DrivenCar>();
+  #driving = false;
+  #following: Phaser.GameObjects.GameObject | null = null;
   #queue: string[] = [];
   #entities!: Phaser.GameObjects.Layer;
   #names!: Phaser.GameObjects.Layer;
@@ -212,6 +227,9 @@ export class CityScene extends Phaser.Scene {
   detach(): void {
     for (const id of [...this.#avatars.keys()]) this.removePlayer(id);
     for (const id of [...this.#piles.keys()]) this.removeDrop(id);
+    for (const id of [...this.#cars.keys()]) this.removeCar(id);
+    this.#driving = false;
+    this.#following = null;
     this.#myId = null;
     this.#predictor = null;
     this.#input = null;
@@ -245,9 +263,10 @@ export class CityScene extends Phaser.Scene {
     this.#names.add(ghost);
     const avatar: Avatar = {
       root, body, bubble, bar, label, ghost, ghostFacing: 0, stars: null, health: MAX_HEALTH, down: false, shielded: false, lunge: 0,
-      buffer: new InterpBuffer(), isMe, npc: p.npc, pos: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, lastScreenX: 0, hop: 0, hopV: 0,
+      buffer: new InterpBuffer(), isMe, npc: p.npc, inCar: false, pos: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, lastScreenX: 0, hop: 0, hopV: 0,
     };
     this.#setFight(avatar, p);
+    this.#seat(avatar, p.car);
     avatar.buffer.push(performance.now(), p.x, p.y);
     this.#avatars.set(id, avatar);
     if (isMe) {
@@ -255,6 +274,79 @@ export class CityScene extends Phaser.Scene {
       this.#prev = { x: p.x, y: p.y };
       this.#acc = 0;
       this.cameras.main.startFollow(root, false, 0.12, 0.12);
+      this.#following = root;
+    }
+  }
+
+  // A guardian in a car is drawn as the car: their body and name are hidden until they get out.
+  #seat(a: Avatar, car: string): void {
+    const inCar = car !== '';
+    if (a.inCar === inCar) return;
+    a.inCar = inCar;
+    a.root.setVisible(!inCar);
+    a.label.setVisible(!inCar);
+    if (inCar) a.bar.setVisible(false);
+  }
+
+  // While this client drives, its walking input stops; the controller sends driving input instead.
+  set driving(on: boolean) {
+    this.#driving = on;
+  }
+
+  addCar(id: string, car: CityCar): void {
+    if (this.#cars.has(id)) return;
+    const g = new Phaser.GameObjects.Graphics(this);
+    this.#entities.add(g);
+    const color = CAR_COLORS[car.color % CAR_COLORS.length] ?? 0xd9534f;
+    const entry: DrivenCar = { g, buffer: new InterpBuffer(), pos: { x: car.x, y: car.y }, heading: car.heading, target: car.heading, drawn: car.heading, color, driver: car.driver };
+    entry.buffer.push(performance.now(), car.x, car.y);
+    drawDrivenCar(g, car.heading, color, car.driver !== '');
+    this.#cars.set(id, entry);
+  }
+
+  updateCar(id: string, car: CityCar): void {
+    const c = this.#cars.get(id);
+    if (c === undefined) return;
+    c.buffer.push(performance.now(), car.x, car.y);
+    c.target = car.heading;
+    if (c.driver !== car.driver) {
+      c.driver = car.driver;
+      drawDrivenCar(c.g, c.heading, c.color, car.driver !== '');
+    }
+  }
+
+  removeCar(id: string): void {
+    this.#cars.get(id)?.g.destroy();
+    this.#cars.delete(id);
+  }
+
+  // Whether a parked car is close enough to get into.
+  freeCarNear(at: Vec2, range: number): boolean {
+    for (const c of this.#cars.values()) if (c.driver === '' && Math.hypot(c.pos.x - at.x, c.pos.y - at.y) <= range) return true;
+    return false;
+  }
+
+  #placeCars(renderTime: number): void {
+    for (const c of this.#cars.values()) {
+      if (c.buffer.sample(renderTime, this.#tmp)) {
+        c.pos.x = this.#tmp.x;
+        c.pos.y = this.#tmp.y;
+      }
+      const turn = Math.atan2(Math.sin(c.target - c.heading), Math.cos(c.target - c.heading));
+      c.heading += turn * 0.35;
+      if (Math.abs(Math.atan2(Math.sin(c.heading - c.drawn), Math.cos(c.heading - c.drawn))) > 0.04) {
+        c.drawn = c.heading;
+        drawDrivenCar(c.g, c.heading, c.color, c.driver !== '');
+      }
+      const s = worldToScreen(c.pos.x, c.pos.y);
+      c.g.setPosition(s.x, s.y).setDepth(sortDepth(c.pos.x, c.pos.y));
+    }
+    if (this.#myId === null) return;
+    const myCar = [...this.#cars.values()].find((c) => c.driver === this.#myId);
+    const want = myCar?.g ?? this.#avatars.get(this.#myId)?.root ?? null;
+    if (want !== null && want !== this.#following) {
+      this.cameras.main.startFollow(want, false, 0.12, 0.12);
+      this.#following = want;
     }
   }
 
@@ -268,6 +360,7 @@ export class CityScene extends Phaser.Scene {
       drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear);
     }
     this.#setFight(a, p);
+    this.#seat(a, p.car);
     if (a.isMe && this.#predictor !== null) {
       const before = this.#predictor.position;
       this.#predictor.reconcile({ x: p.x, y: p.y }, p.ack ?? 0);
@@ -442,12 +535,13 @@ export class CityScene extends Phaser.Scene {
       }
       this.#place(a, time);
     }
+    this.#placeCars(renderTime);
     this.#seeThrough(delta);
     const eye = this.predictedPosition();
     this.#vision?.update(eye);
     const sees = (p: Vec2): boolean => eye === null || inSight(eye, p);
     this.#townsfolk?.cull(sees);
-    this.#traffic?.update(time, delta, [...[...this.#avatars.values()].map((a) => a.pos), ...(this.#townsfolk?.positions() ?? [])], sees);
+    this.#traffic?.update(time, delta, [...[...this.#avatars.values()].map((a) => a.pos), ...[...this.#cars.values()].map((c) => c.pos), ...(this.#townsfolk?.positions() ?? [])], sees);
     this.#mission?.update(time, eye);
     const k = lerpFactor(0.12, delta);
     this.cameras.main.setLerp(k, k);
@@ -468,7 +562,7 @@ export class CityScene extends Phaser.Scene {
         if (a.isMe) fade.add(w);
         else break;
       }
-      this.#outline(a, covered && !a.down);
+      this.#outline(a, covered && !a.down && !a.inCar);
     }
     for (const w of this.#walls) {
       const target = fade.has(w) ? w.faded : 1;
@@ -591,7 +685,7 @@ export class CityScene extends Phaser.Scene {
       this.#prev = { ...p.position };
       const dir = this.#input?.direction() ?? { x: 0, y: 0 };
       const sink = this.#sink;
-      if (Math.hypot(dir.x, dir.y) < 0.01 || sink === null || !sink.canSend || p.stalled || this.meDown) continue;
+      if (Math.hypot(dir.x, dir.y) < 0.01 || sink === null || !sink.canSend || p.stalled || this.meDown || this.#driving) continue;
       sink.send(p.apply(Math.max(-1, Math.min(1, dir.x)), Math.max(-1, Math.min(1, dir.y))));
     }
   }

@@ -1,6 +1,7 @@
 import type { ColyseusTestServer } from '@colyseus/testing';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { CITY_BUILDINGS, CITY_MESSAGES, CITY_ROOM, CITY_SPAWNS, CityState, KNOCKOUT_MS, MAX_HEALTH, PUNCH_COOLDOWN_MS, PunchLineSchema, ROUGH_STREETS, districtAt, inSight, isRough, TOUGH_PURSE_MIN, type PunchLine } from '@byzantine-council/shared/city';
+import { CITY_BUILDINGS, CITY_MAP, CITY_MESSAGES, CITY_ROOM, CITY_SPAWNS, CityState, KNOCKOUT_MS, MAX_HEALTH, PUNCH_COOLDOWN_MS, PunchLineSchema, ROUGH_STREETS, districtAt, inSight, isRough, TOUGH_PURSE_MIN, type PunchLine } from '@byzantine-council/shared/city';
+import { isBlocked } from '@byzantine-council/shared';
 import { EmoteLineSchema } from '@byzantine-council/shared/hub';
 import type { CityRoom } from '../src/city/CityRoom.js';
 import { sdk, startServer, waitFor } from './helpers.js';
@@ -117,6 +118,91 @@ describe('Port Concord', () => {
 
   it('refuses a bad nickname', async () => {
     await expect(join('')).rejects.toThrow();
+  });
+
+  describe('cars', () => {
+    const drive = async (client: Awaited<ReturnType<typeof join>>, dx: number, dy: number, ms: number) => {
+      const end = Date.now() + ms;
+      while (Date.now() < end) {
+        client.send('drive', { dx, dy });
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    };
+
+    it('gets in a parked car, drives it, and gets out beside it', async () => {
+      const a = await join('Driver');
+      const room = colyseus.getRoomById<CityRoom>(a.roomId);
+      const me = room.state.players.get(a.sessionId);
+      const car = room.carList()[0];
+      if (me === undefined || car === undefined) throw new Error('setup');
+      me.x = car.x + 1;
+      me.y = car.y;
+      a.send('ride');
+      await waitFor(() => me.car === car.id, 'in the car');
+      expect(room.carList()[0]?.driver).toBe(a.sessionId);
+      const start = { x: me.x, y: me.y };
+      const ahead = { x: Math.cos(car.heading), y: Math.sin(car.heading) };
+      await drive(a, ahead.x, ahead.y, 700);
+      const moved = room.carList()[0];
+      expect(moved).toBeDefined();
+      expect(Math.hypot((moved?.x ?? 0) - start.x, (moved?.y ?? 0) - start.y)).toBeGreaterThan(1);
+      expect(me.x).toBeCloseTo(moved?.x ?? 0, 5);
+      a.send('punch');
+      a.send('ride');
+      await waitFor(() => me.car === '', 'out of the car');
+      expect(room.carList()[0]?.driver).toBe('');
+      expect(Math.hypot(me.x - (moved?.x ?? 0), me.y - (moved?.y ?? 0))).toBeGreaterThan(0.5);
+    });
+
+    it('lets the car go when the driver stops sending, and never drives through a wall', async () => {
+      const a = await join('Rammer');
+      const room = colyseus.getRoomById<CityRoom>(a.roomId);
+      const me = room.state.players.get(a.sessionId);
+      const car = room.carList()[0];
+      if (me === undefined || car === undefined) throw new Error('setup');
+      me.x = car.x;
+      me.y = car.y;
+      a.send('ride');
+      await waitFor(() => me.car === car.id, 'in the car');
+      await drive(a, Math.cos(car.heading + Math.PI / 2), Math.sin(car.heading + Math.PI / 2), 3000);
+      const stopped = room.carList()[0];
+      if (stopped === undefined) throw new Error('car');
+      expect(isBlocked(CITY_MAP, stopped, 0.45)).toBe(false);
+      await new Promise((r) => setTimeout(r, 1500));
+      const later = room.carList()[0];
+      await new Promise((r) => setTimeout(r, 300));
+      const after = room.carList()[0];
+      expect(Math.hypot((after?.x ?? 0) - (later?.x ?? 0), (after?.y ?? 0) - (later?.y ?? 0))).toBeLessThan(0.01);
+    });
+
+    it('keeps a second driver out, and nobody can punch someone in a car', async () => {
+      const a = await join('First');
+      const b = await join('Second');
+      const room = colyseus.getRoomById<CityRoom>(a.roomId);
+      room.random = { int: () => 0 };
+      const pa = room.state.players.get(a.sessionId);
+      const pb = room.state.players.get(b.sessionId);
+      const street = ROUGH_STREETS.find((p) => districtAt(p)?.id === 'lowtide');
+      const car = room.carList().find((c) => isRough(c));
+      if (pa === undefined || pb === undefined || car === undefined || street === undefined) throw new Error('setup');
+      pa.x = car.x;
+      pa.y = car.y;
+      a.send('ride');
+      await waitFor(() => pa.car === car.id, 'first driver in');
+      pb.x = car.x + 0.9;
+      pb.y = car.y;
+      room.shieldOff(a.sessionId);
+      room.shieldOff(b.sessionId);
+      b.send('ride');
+      await new Promise((r) => setTimeout(r, 200));
+      expect(pb.car).toBe('');
+      const lines: PunchLine[] = [];
+      b.onMessage(CITY_MESSAGES.PUNCH, (m: unknown) => lines.push(PunchLineSchema.parse(m)));
+      b.send('punch');
+      await waitFor(() => lines.length === 1, 'swing seen');
+      expect(lines[0]?.to).toBeNull();
+      expect(pa.health).toBe(MAX_HEALTH);
+    });
   });
 
   describe('street toughs', () => {

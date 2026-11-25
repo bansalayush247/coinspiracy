@@ -22,6 +22,12 @@ import {
   VAULT_DAILY_LIMIT,
   VAULT_DOOR,
   CAR_LANES,
+  CAR_REVERSE_SPEED,
+  CAR_TOP_SPEED,
+  PARKING,
+  carBlockedByMap,
+  controls,
+  stepCar,
   LIGHT_CYCLE_MS,
   SHIP_ROUTES,
   SIGHT_TOUCH,
@@ -317,5 +323,50 @@ describe('traffic', () => {
         }
       }
     }
+  });
+});
+
+describe('cars', () => {
+  const open = (): boolean => false;
+  const drive = (want: { x: number; y: number }, seconds: number, start = { x: 0, y: 0, heading: 0, speed: 0 }, blocked: (p: { x: number; y: number }) => boolean = open) => {
+    let car = start;
+    for (let t = 0; t < seconds; t += 0.05) {
+      const c = controls(car.heading, car.speed, want);
+      car = stepCar(car, c.throttle, c.steer, 0.05, blocked);
+    }
+    return car;
+  };
+
+  it('speeds up toward top speed and coasts to a stop', () => {
+    const fast = drive({ x: 1, y: 0 }, 3);
+    expect(fast.speed).toBeCloseTo(CAR_TOP_SPEED, 1);
+    expect(fast.x).toBeGreaterThan(10);
+    expect(Math.abs(fast.y)).toBeLessThan(0.01);
+    expect(drive({ x: 0, y: 0 }, 3, fast).speed).toBe(0);
+  });
+
+  it('turns toward where the driver points, and backs up when that is behind', () => {
+    const turned = drive({ x: 0, y: 1 }, 2, { x: 0, y: 0, heading: 0, speed: 4 });
+    expect(Math.abs(turned.heading - Math.PI / 2)).toBeLessThan(0.15);
+    const back = drive({ x: -1, y: 0 }, 1.5);
+    expect(back.speed).toBeLessThan(0);
+    expect(back.speed).toBeGreaterThanOrEqual(-CAR_REVERSE_SPEED);
+    expect(back.x).toBeLessThan(0);
+  });
+
+  it('stops dead against a wall', () => {
+    const wall = (p: { x: number; y: number }): boolean => p.x > 3;
+    const out = drive({ x: 1, y: 0 }, 3, undefined, wall);
+    expect(out.x).toBeLessThanOrEqual(3);
+    expect(out.speed).toBe(0);
+  });
+
+  it('parks cars kerbside in every district and by the arrival point, clear of walls', () => {
+    expect(PARKING.length).toBeGreaterThanOrEqual(14);
+    for (const p of PARKING) expect(carBlockedByMap(p)).toBe(false);
+    const arrival = CITY_SPAWNS[0];
+    if (arrival === undefined) throw new Error('spawn');
+    expect(PARKING.some((p) => Math.hypot(p.x - arrival.x, p.y - arrival.y) < 8)).toBe(true);
+    for (const d of CITY_DISTRICTS) expect(PARKING.some((p) => districtAt(p)?.id === d.id), d.id).toBe(true);
   });
 });

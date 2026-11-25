@@ -103,6 +103,32 @@ async function main(): Promise<void> {
       walker.y = 96.5;
       await rook.waitForTimeout(1500);
     }
+    const parked = harbourRoom?.carList()[0];
+    if (walker !== undefined && parked !== undefined) {
+      const beside = [Math.PI / 2, -Math.PI / 2].map((a) => ({ x: parked.x + Math.cos(parked.heading + a), y: parked.y + Math.sin(parked.heading + a) })).find((p) => canStand(CITY_MAP, p)) ?? { x: parked.x, y: parked.y + 1 };
+      walker.x = beside.x;
+      walker.y = beside.y;
+      await rook.locator('#city-ride').waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
+      check(await rook.isVisible('#city-ride'), 'a "Get in" button appears beside a parked car');
+      await rook.keyboard.press('e');
+      await rook.waitForFunction(() => document.getElementById('city-ride')?.textContent.startsWith('Get out') === true, undefined, { timeout: 5_000 }).catch(() => undefined);
+      check(walker.car === parked.id, 'pressing E gets into the car');
+      const from = { x: walker.x, y: walker.y };
+      await rook.keyboard.down('ArrowUp');
+      await rook.waitForTimeout(1400);
+      await rook.screenshot({ path: `${shots}city-drive.png` });
+      await rook.waitForTimeout(1000);
+      await rook.keyboard.up('ArrowUp');
+      const drove = Math.hypot(walker.x - from.x, walker.y - from.y);
+      check(drove > 3, `the car drives where you point (${drove.toFixed(1)} tiles)`);
+      await rook.waitForTimeout(1200);
+      await rook.keyboard.press('e');
+      await rook.waitForTimeout(400);
+      check(walker.car === '', 'pressing E again gets out');
+      walker.x = 61.5;
+      walker.y = 96.5;
+      await rook.waitForTimeout(1200);
+    }
     // Send Dani across the city on the server: Rook's client must stop receiving her.
     const listing = await matchMaker.query({ name: 'city' });
     const roomId = listing[0]?.roomId ?? '';

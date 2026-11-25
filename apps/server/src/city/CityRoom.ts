@@ -4,7 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import { StateView } from '@colyseus/schema';
 import { ErrorCode, Room, ServerError, validate, type AuthContext, type Client } from '@colyseus/core';
-import { CLOSE_CODES, MovePayloadSchema, NoPayloadSchema, SERVER_TICK_HZ, TICK_SECONDS, cryptoRandom, stepMovement, uniqueNickname, type RandomSource } from '@byzantine-council/shared';
+import { CLOSE_CODES, MovePayloadSchema, NoPayloadSchema, PLAYER_RADIUS, SERVER_TICK_HZ, TICK_SECONDS, cryptoRandom, isBlocked, stepMovement, uniqueNickname, type RandomSource } from '@byzantine-council/shared';
 import { findPath } from '@byzantine-council/shared/pathfinding';
 import { credit, isCosmeticId } from '@byzantine-council/shared/economy';
 import { dayFor } from '@byzantine-council/shared/progression';
@@ -17,7 +17,20 @@ import {
   CityJoinSchema,
   CityPlayer,
   CityState,
+  CityCar,
   BULLY_POCKET,
+  CAR_COLORS,
+  CAR_RADIUS,
+  CAR_TOW_MS,
+  DRIVE_INPUT_TTL_MS,
+  DrivePayloadSchema,
+  ENTER_RANGE,
+  PARKING,
+  carBlockedByMap,
+  controls,
+  stepCar,
+  type DrivePayload,
+  type ParkingSpot,
   BULLY_RANGE,
   DROP_LIFETIME_MS,
   KNOCKOUT_MS,
@@ -108,6 +121,17 @@ for (const p of ROUGH_STREETS) {
   if (d !== undefined) ROUGH_BY_DISTRICT.set(d, [...(ROUGH_BY_DISTRICT.get(d) ?? []), p]);
 }
 
+interface Car {
+  readonly state: CityCar;
+  readonly home: ParkingSpot;
+  speed: number;
+  want: { x: number; y: number };
+  wantAt: number;
+  parkedSince: number;
+}
+
+const near = (a: { x: number; y: number }, b: { x: number; y: number }, range: number): boolean => Math.hypot(a.x - b.x, a.y - b.y) <= range;
+
 interface Sim {
   readonly client: CityClient;
   readonly view: StateView;
@@ -151,6 +175,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
   readonly #sims = new Map<string, Sim>();
   readonly #drops = new Map<string, Drop>();
   readonly #toughs = new Map<string, Tough>();
+  readonly #cars = new Map<string, Car>();
   #nextTough = 0;
   #toughsOn = true;
   #nextDrop = 0;
@@ -179,6 +204,18 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     punch: validate(NoPayloadSchema, (client: CityClient) => {
       this.#punch(client.sessionId, Date.now());
     }),
+    ride: validate(NoPayloadSchema, (client: CityClient) => {
+      this.#ride(client.sessionId, Date.now());
+    }),
+    drive: validate(DrivePayloadSchema, (client: CityClient, payload: DrivePayload) => {
+      const sim = this.#sims.get(client.sessionId);
+      const car = this.#carOf(client.sessionId);
+      if (sim === undefined || car === undefined) return;
+      const now = Date.now();
+      sim.lastActiveMs = now;
+      car.want = { x: payload.dx, y: payload.dy };
+      car.wantAt = now;
+    }),
     deposit: validate(NoPayloadSchema, (client: CityClient) => {
       void this.#deposit(client.sessionId);
     }),
@@ -206,6 +243,11 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       this.#step();
     }, SERVER_TICK_HZ);
     this.patchRate = null;
+    PARKING.forEach((home, i) => {
+      const state = new CityCar({ x: home.x, y: home.y, heading: home.heading, color: i % CAR_COLORS });
+      this.#cars.set(`car${String(i)}`, { state, home, speed: 0, want: { x: 0, y: 0 }, wantAt: 0, parkedSince: Date.now() });
+      this.state.cars.set(`car${String(i)}`, state);
+    });
     let n = 0;
     for (const district of ROUGH_DISTRICTS) for (let i = 0; i < TOUGHS_PER_DISTRICT; i++) this.#spawnTough(district, n++);
     this.clock.setInterval(() => {
@@ -269,6 +311,8 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
   override onLeave(client: CityClient): void {
     const player = this.state.players.get(client.sessionId);
     const leaving = this.#sims.get(client.sessionId);
+    const car = this.#carOf(client.sessionId);
+    if (car !== undefined) this.#park(car, Date.now());
     if (player !== undefined && leaving !== undefined && Date.now() - leaving.lastHitMs < COMBAT_LOG_MS) this.#dropPocket(player, Date.now());
     for (const sim of this.#sims.values()) {
       if (player !== undefined && sim.sees.delete(client.sessionId) && sim.client !== client) sim.view.remove(player);
@@ -288,8 +332,9 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       if (player === undefined) continue;
       this.#recover(player, sim, wall);
       const down = sim.knockedOutUntil > wall;
+      const seated = player.car !== '';
       sim.inputs.drain(now, (input) => {
-        if (down) return;
+        if (down || seated) return;
         const next = stepMovement({ x: player.x, y: player.y }, { x: input.dx, y: input.dy }, TICK_SECONDS, CITY_MAP);
         if (next.x !== player.x) player.x = next.x;
         if (next.y !== player.y) player.y = next.y;
@@ -297,6 +342,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       if (player.ack !== sim.inputs.ack) player.ack = sim.inputs.ack;
       if (!down) this.#collect(player);
     }
+    this.#driveCars(wall);
     for (const [id, t] of this.#toughs) this.#brawl(id, t, wall);
     this.#tidyDrops(wall);
     this.#tick = (this.#tick + 1) % INTEREST_EVERY_TICKS;
@@ -331,6 +377,18 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
           sim.sees.delete(otherId);
         }
       }
+      for (const [carId, car] of this.#cars) {
+        const now = sim.seesDrops.has(carId);
+        const next = car.state.driver === id || visible(sim, me, carId, car.state, now);
+        if (next === now) continue;
+        if (next) {
+          sim.view.add(car.state);
+          sim.seesDrops.add(carId);
+        } else {
+          sim.view.remove(car.state);
+          sim.seesDrops.delete(carId);
+        }
+      }
       for (const [dropId, drop] of this.#drops) {
         const now = sim.seesDrops.has(dropId);
         const next = visible(sim, me, dropId, drop.state, now);
@@ -359,7 +417,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
   #punch(sessionId: string, now: number): void {
     const sim = this.#sims.get(sessionId);
     const me = this.state.players.get(sessionId);
-    if (sim === undefined || me === undefined || now - sim.lastPunchMs < PUNCH_COOLDOWN_MS || sim.knockedOutUntil > now) return;
+    if (sim === undefined || me === undefined || me.car !== '' || now - sim.lastPunchMs < PUNCH_COOLDOWN_MS || sim.knockedOutUntil > now) return;
     sim.lastPunchMs = now;
     sim.lastActiveMs = now;
     const attacker = this.#fighter(me, sim);
@@ -367,7 +425,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     for (const id of sim.sees) {
       const other = this.state.players.get(id);
       const f = this.#fight(id);
-      if (id !== sessionId && other !== undefined && f !== undefined) nearby.push([id, this.#fighter(other, f)]);
+      if (id !== sessionId && other !== undefined && f !== undefined && other.car === '') nearby.push([id, this.#fighter(other, f)]);
     }
     const targetId = pickTarget(attacker, nearby, now);
     this.#swing(sessionId, me, sim, targetId, PUNCH_DAMAGE, now);
@@ -399,6 +457,90 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       }
     }
     for (const other of this.#sims.values()) if (other.sees.has(attackerId)) other.client.send(CITY_MESSAGES.PUNCH, line);
+  }
+
+  #carOf(sessionId: string): Car | undefined {
+    const id = this.state.players.get(sessionId)?.car ?? '';
+    return id === '' ? undefined : this.#cars.get(id);
+  }
+
+  // Gets into the nearest free car in reach, or out of the one you are driving onto open ground beside it.
+  #ride(sessionId: string, now: number): void {
+    const sim = this.#sims.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (sim === undefined || player === undefined || player.down || sim.depositing) return;
+    sim.lastActiveMs = now;
+    const current = this.#carOf(sessionId);
+    if (current !== undefined) {
+      const h = current.state.heading;
+      const spots = [h + Math.PI / 2, h - Math.PI / 2, h + Math.PI, h].map((a, i) => ({ x: current.state.x + Math.cos(a) * (i < 2 ? 1 : 1.3), y: current.state.y + Math.sin(a) * (i < 2 ? 1 : 1.3) }));
+      const out = spots.find((p) => !isBlocked(CITY_MAP, p, PLAYER_RADIUS));
+      if (out === undefined) return;
+      this.#park(current, now);
+      player.x = out.x;
+      player.y = out.y;
+      return;
+    }
+    let best: [string, Car] | null = null;
+    for (const entry of this.#cars) {
+      const car = entry[1];
+      if (car.state.driver !== '' || !near(player, car.state, ENTER_RANGE)) continue;
+      if (best === null || Math.hypot(car.state.x - player.x, car.state.y - player.y) < Math.hypot(best[1].state.x - player.x, best[1].state.y - player.y)) best = entry;
+    }
+    if (best === null) return;
+    const [carId, car] = best;
+    car.state.driver = sessionId;
+    car.want = { x: 0, y: 0 };
+    car.wantAt = 0;
+    player.car = carId;
+    player.x = car.state.x;
+    player.y = car.state.y;
+  }
+
+  #park(car: Car, now: number): void {
+    const driver = this.state.players.get(car.state.driver);
+    if (driver !== undefined) driver.car = '';
+    car.state.driver = '';
+    car.speed = 0;
+    car.parkedSince = now;
+  }
+
+  // Runs every driven car one tick and carries its driver along; tows long-abandoned cars back to their spot.
+  #driveCars(now: number): void {
+    for (const [carId, car] of this.#cars) {
+      const s = car.state;
+      if (s.driver === '') {
+        if (now - car.parkedSince > CAR_TOW_MS && !near(s, car.home, 3) && ![...this.state.players.values()].some((p) => near(p, car.home, 2))) {
+          s.x = car.home.x;
+          s.y = car.home.y;
+          s.heading = car.home.heading;
+          car.parkedSince = now;
+        }
+        continue;
+      }
+      const driver = this.state.players.get(s.driver);
+      if (driver === undefined) {
+        this.#park(car, now);
+        continue;
+      }
+      const want = now - car.wantAt > DRIVE_INPUT_TTL_MS ? { x: 0, y: 0 } : car.want;
+      const c = controls(s.heading, car.speed, want);
+      const next = stepCar({ x: s.x, y: s.y, heading: s.heading, speed: car.speed }, c.throttle, c.steer, TICK_SECONDS, (p) => this.#carBlocked(carId, s.driver, p));
+      car.speed = next.speed;
+      if (next.x !== s.x) s.x = next.x;
+      if (next.y !== s.y) s.y = next.y;
+      if (next.heading !== s.heading) s.heading = next.heading;
+      driver.x = s.x;
+      driver.y = s.y;
+    }
+  }
+
+  // Cars stop for walls, water, anyone on foot and other cars.
+  #carBlocked(carId: string, driverId: string, p: { x: number; y: number }): boolean {
+    if (carBlockedByMap(p)) return true;
+    for (const [id, other] of this.state.players) if (id !== driverId && other.car === '' && near(other, p, CAR_RADIUS + 0.3)) return true;
+    for (const [id, other] of this.#cars) if (id !== carId && near(other.state, p, 1.0)) return true;
+    return false;
   }
 
   #spawnTough(district: DistrictId, n: number): void {
@@ -446,12 +588,12 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     if (t.foe !== null) {
       const foe = this.state.players.get(t.foe);
       const fs = this.#sims.get(t.foe);
-      if (foe === undefined || fs === undefined || now > t.angryUntil || fs.knockedOutUntil > now || !isRough(foe) || reach(foe) > TOUGH_CHASE) t.foe = null;
+      if (foe === undefined || fs === undefined || foe.car !== '' || now > t.angryUntil || fs.knockedOutUntil > now || !isRough(foe) || reach(foe) > TOUGH_CHASE) t.foe = null;
     }
     if (t.foe === null && t.bully) {
       for (const [pid, sim] of this.#sims) {
         const p = this.state.players.get(pid);
-        if (p === undefined || (p.pocket ?? 0) < BULLY_POCKET || reach(p) > BULLY_RANGE || sim.shieldUntil > now || sim.knockedOutUntil > now || !isRough(p) || !inSight(body, p)) continue;
+        if (p === undefined || p.car !== '' || (p.pocket ?? 0) < BULLY_POCKET || reach(p) > BULLY_RANGE || sim.shieldUntil > now || sim.knockedOutUntil > now || !isRough(p) || !inSight(body, p)) continue;
         t.foe = pid;
         t.angryUntil = now + TOUGH_ANGRY_MS;
         break;
@@ -593,7 +735,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     const profiles = roomPolicy().profiles;
     const refused: DepositReason | null = sim.depositing
       ? 'busy'
-      : player.down || !atVault(player)
+      : player.down || player.car !== '' || !atVault(player)
         ? 'notAtVault'
         : pocket <= 0
           ? 'empty'
@@ -645,6 +787,11 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       this.state.players.delete(id);
       this.#toughs.delete(id);
     }
+  }
+
+  // For tests: the parked and driven cars.
+  carList(): { id: string; x: number; y: number; heading: number; driver: string }[] {
+    return [...this.#cars].map(([id, c]) => ({ id, x: c.state.x, y: c.state.y, heading: c.state.heading, driver: c.state.driver }));
   }
 
   // For tests: the street toughs and where they stand.
