@@ -33,6 +33,8 @@ export interface ActRules {
   setup(ctx: ActContext): void;
   // Patrols, chases and catches; tests can switch these off for a quiet night.
   tick?(ctx: ActContext, now: number): void;
+  // Characters who walk with the crew; unlike `tick`, this runs on a quiet night too.
+  move?(ctx: ActContext, now: number): void;
   onStep?(ctx: ActContext, step: string, now: number): void;
   onScene?(ctx: ActContext, node: string): void;
   // Why a crew member can't start on a spot right now (told only to them), or null to let them.

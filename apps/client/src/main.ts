@@ -261,6 +261,9 @@ class Controller {
     el('open-receipt', HTMLButtonElement).addEventListener('click', () => {
       void this.#playStory({ act: 'receipt' });
     });
+    el('open-alert', HTMLButtonElement).addEventListener('click', () => {
+      void this.#playStory({ act: 'alert' });
+    });
     el('open-cases', HTMLButtonElement).addEventListener('click', () => {
       this.#casebook.open();
     });

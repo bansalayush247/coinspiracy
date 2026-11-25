@@ -5,7 +5,7 @@
 import type { Vec2 } from '../map.js';
 import type { Mark, Script } from './script.js';
 
-export const ACT_IDS = ['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza'] as const;
+export const ACT_IDS = ['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'alert', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza'] as const;
 export type ActId = (typeof ACT_IDS)[number];
 
 // Everyone who can catch a crew member and send them back.

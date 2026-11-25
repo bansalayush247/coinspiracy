@@ -60,6 +60,7 @@ export const FOUNDER_MARKS: Readonly<Record<string, Mark>> = Object.freeze({
 export interface PastStory {
   readonly dump?: { readonly honest: boolean };
   readonly insider?: { readonly marks: readonly string[] };
+  readonly overflow?: { readonly marks: readonly string[] };
   readonly ceremony?: { readonly done: boolean; readonly honest: boolean };
 }
 
@@ -67,6 +68,8 @@ export function carriedMarks(story: PastStory | undefined): string[] {
   const marks: string[] = [];
   if (story?.dump?.honest === true) marks.push('pastHonest');
   if (story?.insider?.marks.includes('askedCut') === true) marks.push('pastCut');
+  if (story?.overflow?.marks.includes('leftMags') === true) marks.push('pastLeftMags');
+  if (story?.overflow?.marks.includes('pressedMags') === true) marks.push('pastPressedMags');
   if (story?.ceremony?.done === true) marks.push('pastCeremony', story.ceremony.honest ? 'pastCeremonyHeld' : 'pastCeremonyLost');
   return marks;
 }

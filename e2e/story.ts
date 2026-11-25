@@ -2,8 +2,8 @@
 // menu, answers Mr Pell, Dani and Mags with the keyboard, digs the right heap at Gullmoor tip at night, asks Dani
 // nicely, and reaches the end card with the reward. Then a friend joins a crew from its invite link and the two
 // split a vote, act two is played from the call to the lighthouse, and act three from the leak to Teo's confession
-// and the council finale, act four to the season's end, season two's first three acts, and two side cases from the casebook. The server is only
-// used to skip the walks.
+// and the council finale, act four to the season's end, all four acts of season two, and two side cases from the casebook. The server
+// is only used to skip the walks.
 // Run: npx tsx --conditions=source e2e/story.ts
 import { randomBytes } from 'node:crypto';
 import { mkdir, rm } from 'node:fs/promises';
@@ -11,8 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { matchMaker } from '@colyseus/core';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
-import { BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
-import { canStand } from '@byzantine-council/shared/pathfinding';
+import { AERIAL, HATCH, BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
+import { canStand, findPath } from '@byzantine-council/shared/pathfinding';
 import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
 import type { MissionRoom } from '../apps/server/src/city/MissionRoom.js';
@@ -584,6 +584,44 @@ async function main(): Promise<void> {
     check(((await tide.page.textContent('#story-end-title')) ?? '') === 'The Old Receipt', 'the newer receipt beats the tide and ends season two’s third act');
     check(((await tide.page.textContent('#story-clock')) ?? '') === '', 'the tide clock is gone once it’s settled');
     await tide.page.close();
+
+    const last = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-alert');
+    check(last.room.state.act === 'alert', 'the next tile opens The Last Alert');
+    await answer(last.page, last.room, 'tower', 1);
+    await read(last.page, last.room, 'towerRisk');
+    await read(last.page, last.room, 'towerGo');
+    await until(() => last.room.state.step === 'toTip', 'off to the tip');
+    last.room.teleport(GATE_SPOT.x, GATE_SPOT.y);
+    await answer(last.page, last.room, 'hatch', 1);
+    for (let i = 0; i < 200 && last.room.state.step !== 'escort'; i++) {
+      await last.page.keyboard.press(' ');
+      await last.page.waitForTimeout(150);
+    }
+    await until(() => last.room.state.step === 'escort', 'the walk');
+    last.room.quietNight();
+    const route = findPath(CITY_MAP, HATCH, AERIAL);
+    if (!route.ok) throw new Error('no route');
+    let from = { x: HATCH.x, y: HATCH.y };
+    const hops = route.value.flatMap((to) => {
+      const n = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 3);
+      const a = from;
+      from = to;
+      return Array.from({ length: n }, (_, i) => ({ x: a.x + ((to.x - a.x) * (i + 1)) / n, y: a.y + ((to.y - a.y) * (i + 1)) / n }));
+    });
+    const mags = (): { x: number; y: number } => last.room.state.npcs.get('mags') ?? { x: 0, y: 0 };
+    for (const [i, p] of hops.entries()) {
+      last.room.teleport(p.x, p.y);
+      await until(() => Math.hypot(mags().x - p.x, mags().y - p.y) <= 1.5 || last.room.state.step !== 'escort', 'Mags keeps up', 10_000);
+      if (i === Math.floor(hops.length / 2)) await last.page.screenshot({ path: `${shots}alert-escort.png` });
+    }
+    await until(() => last.room.state.step === 'aerial', 'the aerial');
+    check(last.room.state.step === 'aerial', 'Mags follows the lead across the tip to the old aerial');
+    await answer(last.page, last.room, 'aerial', 1);
+    for (const node of ['aerialRead', 'aerialRex', 'dawn']) await read(last.page, last.room, node);
+    await last.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await last.page.textContent('#story-end-title')) ?? '') === 'The Last Alert', 'Mags reads the key out and season two ends');
+    check(((await last.page.textContent('#story-reward')) ?? '').includes('+600 play sats'), `it pays its first finish (${(await last.page.textContent('#story-reward')) ?? ''})`);
+    await last.page.close();
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

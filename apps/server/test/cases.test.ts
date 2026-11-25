@@ -62,12 +62,23 @@ import {
   type CaughtLine,
   type MissionNote,
   type MissionResult,
+  AERIAL,
+  ALERT_ACT,
+  CITY_MAP,
+  walkPath,
+  type Walker,
+  ALERT_REWARD_SATS,
+  GATE_SPOT,
+  HATCH,
+  MAGS_SPOTTED,
 } from '@byzantine-council/shared/city';
+import { findPath } from '@byzantine-council/shared/pathfinding';
 import type { MissionRoom } from '../src/city/MissionRoom.js';
 import { OverflowRules } from '../src/city/acts/overflowRules.js';
 import { PopcornRules } from '../src/city/acts/popcornRules.js';
 import { SplitRules } from '../src/city/acts/splitRules.js';
 import { ReceiptRules } from '../src/city/acts/receiptRules.js';
+import { AlertRules } from '../src/city/acts/alertRules.js';
 import type { ActContext, CrewMember } from '../src/city/acts/rules.js';
 import { MemoryProfileStore } from '../src/profile/store.js';
 import { COOKIE_NAME, type SessionKeys } from '../src/profile/session.js';
@@ -506,5 +517,61 @@ describe('season two, act three: The Old Receipt', () => {
     expect(state.step).toBe('missed');
     expect(now).toBeGreaterThanOrEqual(TIDE_MS);
     expect(state.clock).toBe(0);
+  });
+});
+
+describe('season two, act four: The Last Alert', () => {
+  it('walks Mags to the aerial, where she reads the key out and ends the season', async () => {
+    const run = await begin('alert');
+    await drive(run, { tower: 'risk' }, atStep('toTip'));
+    await arrive(run, GATE_SPOT, 'hatch');
+    await drive(run, { hatch: 'why' }, atStep('escort'));
+    const found = findPath(CITY_MAP, HATCH, AERIAL);
+    if (!found.ok) throw new Error('no path');
+    const mags = () => run.client.state.npcs.get('mags') ?? { x: 0, y: 0 };
+    let from: Vec2 = HATCH;
+    const hops = found.value.flatMap((to) => {
+      const n = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 3);
+      const a = from;
+      from = to;
+      return Array.from({ length: n }, (_, i) => ({ x: a.x + ((to.x - a.x) * (i + 1)) / n, y: a.y + ((to.y - a.y) * (i + 1)) / n }));
+    });
+    for (const p of hops) {
+      run.room.teleport(p.x, p.y);
+      await waitFor(() => Math.hypot(mags().x - p.x, mags().y - p.y) <= 1.5 || run.client.state.step !== 'escort', 'Mags keeps up', 8000);
+    }
+    await waitFor(() => run.client.state.step === 'aerial', 'at the aerial', 8000);
+    await finish(run, { aerial: 'publish' }, ALERT_REWARD_SATS);
+    expect([...run.client.state.marks]).toEqual(expect.arrayContaining(['clueAlert', 'sawRisk', 'askedWhy', 'publishedKey']));
+  }, 60_000);
+
+  it('keeps Mags at the hatch until someone comes for her, and sends her back there when a torch finds her', () => {
+    const state = new MissionState();
+    const notes: unknown[] = [];
+    const rook = { x: HATCH.x + 20, y: HATCH.y };
+    const crew = [{ id: 'rook', player: rook, caughtUntil: 0 }] as unknown as CrewMember[];
+    const ctx = { ...fakeContext(state, crew), act: ALERT_ACT, broadcast: (_: string, payload: unknown) => notes.push(payload) };
+    const rules = new AlertRules();
+    rules.setup(ctx);
+    state.step = 'escort';
+    let now = 0;
+    for (; now < 3000; now += 50) rules.move(ctx, now);
+    expect(state.npcs.get('mags')?.x).toBe(HATCH.x);
+    const lane = findPath(CITY_MAP, HATCH, { x: 39.5, y: 15 });
+    if (!lane.ok) throw new Error('no path');
+    let walker: Walker = { x: HATCH.x + 1, y: HATCH.y, facing: 0, leg: 0 };
+    const path = [{ x: walker.x, y: walker.y }, ...lane.value];
+    for (; now < 60_000 && rules.spotted === 0; now += 50) {
+      const m = state.npcs.get('mags');
+      if (Math.hypot((m?.x ?? 0) - walker.x, (m?.y ?? 0) - walker.y) < 4) walker = walkPath(walker, path, 3.5, 0.05);
+      rook.x = walker.x;
+      rook.y = walker.y;
+      rules.move(ctx, now);
+      rules.tick(ctx, now);
+    }
+    expect(rules.spotted).toBe(1);
+    expect(notes).toEqual([{ text: MAGS_SPOTTED }]);
+    expect(state.npcs.get('mags')?.x).toBe(HATCH.x);
+    expect(state.step).toBe('escort');
   });
 });

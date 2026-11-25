@@ -2,6 +2,16 @@
 
 ## 25 November 2026
 
+### Season two, act four: The Last Alert
+- The end of season two. Ozzy traces the voice on the Mint channel to the gatehouse at Gullmoor tip, and Ivy
+  explains: the Mint's first radio had an alert key, and anything signed with it every guardian's radio obeyed.
+- It's Mags. She still has the key, Rex's volunteers are combing the tip for it, and there's one way to make it
+  useless: read it out on the old aerial, to everyone. Walk her there. She follows whoever is nearest, slower than
+  you, and if a volunteer's torch finds her she hurries back to the hatch.
+- At the aerial, tell her what to do with it, or leave it to her. Then dawn, and the crossword. Remembers whether you
+  pressed Mags or let her keep her secret at the start of the season. Pays 600 play sats once. Inspired by the old
+  alert key that could message every node at once, and how it was retired by being made public.
+
 ### Season two, act three: The Old Receipt
 - Ozzy now runs the Mint's watchtower, and tonight its alarm goes off: Silas the ferryman is closing his tab with
   the fishermen's co-op using a month-old receipt that says they owe him, not the other way round.

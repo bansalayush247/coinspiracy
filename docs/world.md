@@ -276,4 +276,13 @@ the server; helping Nell remember marks the jetty (`JETTY_MARKS`) only as she sa
 jetties (`DECKHAND_ROUTES`); tests check every boat has time out of their lanterns and that a lone player searching
 all six still makes the office with half the tide to spare.
 
-Not built yet: the season two finale.
+Season two, act four, The Last Alert (`alert.ts`; rules `acts/alertRules.ts`), the end of season two: an escort.
+- Mags follows the nearest of the crew within `MAGS_HEAR`, a step (`MAGS_GAP`) behind and slower than a player
+  (`follow`, shared so tests replay it). Acts can now move characters in `ActRules.move`, which runs on quiet test
+  nights too; `tick` keeps the patrols and catches.
+- Rex's volunteers walk six lanes round the north tip and the road (`VOLUNTEER_ROUTES`). A torch on a crew member
+  sends them to the gate; a torch on Mags sends her back to the hatch (`MAGS_SPOTTED`). Her reaching the aerial
+  (`AERIAL`) starts the last scene; there is no work step.
+- `carriedMarks` now also brings in how the lead treated Mags in The Overflow (`pastLeftMags`, `pastPressedMags`).
+- Tests prove the hatch and five places to wait are never lit, and that a lone player can walk Mags to the aerial
+  unseen in under two minutes, with at least two crossings that need timing.

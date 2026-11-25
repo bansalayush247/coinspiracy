@@ -1,4 +1,5 @@
 // Every playable story by id: the acts of "The Cold Key", season by season, then the side cases.
+import { ALERT_ACT } from './alert.js';
 import { COINS_ACT } from './coins.js';
 import { DEADMAN_ACT } from './deadman.js';
 import { DUMP_ACT } from './dump.js';
@@ -22,6 +23,7 @@ export const STORY_ACTS: Readonly<Record<ActId, StoryAct>> = Object.freeze({
   overflow: OVERFLOW_ACT,
   split: SPLIT_ACT,
   receipt: RECEIPT_ACT,
+  alert: ALERT_ACT,
   popcorn: POPCORN_ACT,
   number: NUMBER_ACT,
   coins: COINS_ACT,

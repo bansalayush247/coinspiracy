@@ -58,6 +58,7 @@ import { PopcornRules } from './acts/popcornRules.js';
 import { SplitRules } from './acts/splitRules.js';
 import { RansomRules } from './acts/ransomRules.js';
 import { ReceiptRules } from './acts/receiptRules.js';
+import { AlertRules } from './acts/alertRules.js';
 import { near, type ActContext, type ActRules } from './acts/rules.js';
 
 interface Auth {
@@ -112,6 +113,7 @@ const RULES: Readonly<Record<ActId, () => ActRules>> = {
   overflow: () => new OverflowRules(),
   split: () => new SplitRules(),
   receipt: () => new ReceiptRules(),
+  alert: () => new AlertRules(),
   popcorn: () => new PopcornRules(),
   number: () => new NumberRules(),
   coins: () => new CoinsRules(),
@@ -361,6 +363,7 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
     if (this.#scene === null) this.#arrivals(now);
     for (const m of this.#crew.values()) this.#working(m, now);
     this.#sceneClock(now);
+    this.rules.move?.(this.#ctx, now);
     if (!this.#quiet) this.rules.tick?.(this.#ctx, now);
     this.broadcastPatch();
   }
