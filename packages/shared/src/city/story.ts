@@ -5,7 +5,7 @@
 import type { Vec2 } from '../map.js';
 import type { Mark, Script } from './script.js';
 
-export const ACT_IDS = ['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'alert', 'dust', 'envelope', 'clock', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza'] as const;
+export const ACT_IDS = ['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'alert', 'dust', 'envelope', 'clock', 'book', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza'] as const;
 export type ActId = (typeof ACT_IDS)[number];
 
 // Everyone who can catch a crew member and send them back.
@@ -66,8 +66,8 @@ export interface StoryAct {
   readonly workVerb: string;
   // Told to the crew when the work starts.
   readonly hint: string;
-  // How the client marks the spots: dug heaps with signs, badges over guardians once asked, or labelled places.
-  readonly markers: 'heaps' | 'badges' | 'labels';
+  // How the client marks the spots: dug heaps with signs, badges over guardians once asked, labelled places, or nothing (the characters there carry their own).
+  readonly markers: 'heaps' | 'badges' | 'labels' | 'none';
   // What a badge says once a spot is won, e.g. "Signed".
   readonly badge?: string;
   // How dark it is, 0 for day to 1 for black, and any step that differs.

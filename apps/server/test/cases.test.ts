@@ -78,6 +78,16 @@ import {
   CROWD_CYCLE_S,
   MINT_DOOR,
   OLIVE_SHOP,
+  BOOK_ACT,
+  BOOK_HANDS_FULL,
+  BOOK_POSTS,
+  BOOK_READ,
+  BOOK_RECALLED,
+  BOOK_REWARD_SATS,
+  MOTION_NEEDED,
+  POST_NOTES,
+  READING_TABLE,
+  VOTE_S,
   CITY_MAP,
   walkPath,
   type Walker,
@@ -96,6 +106,7 @@ import { AlertRules } from '../src/city/acts/alertRules.js';
 import { DustRules } from '../src/city/acts/dustRules.js';
 import { EnvelopeRules } from '../src/city/acts/envelopeRules.js';
 import { ClockRules } from '../src/city/acts/clockRules.js';
+import { BookRules } from '../src/city/acts/bookRules.js';
 import type { ActContext, CrewMember } from '../src/city/acts/rules.js';
 import { MemoryProfileStore } from '../src/profile/store.js';
 import { COOKIE_NAME, type SessionKeys } from '../src/profile/session.js';
@@ -732,5 +743,90 @@ describe('season three, act three: The Clock', () => {
     expect(alone.fennick).toBe(true);
     expect(alone.clock).toBeGreaterThan(0);
     expect(run(true).rules.clockedCount).toBe(0);
+  });
+});
+
+describe('season three, act four: The Little Book', () => {
+  it('reads Mr Varnish’s letters out at the table until the vote, and ends season three', async () => {
+    const run = await begin('book');
+    await drive(run, { letter: 'together' }, atStep('letters'));
+    await waitFor(() => run.client.state.clock > 0, 'the vote clock runs');
+    await waitFor(() => run.client.state.spots.some((s) => !s.done), 'a letter handed over', 15_000);
+    const i = run.client.state.spots.findIndex((s) => !s.done);
+    await work(run, i);
+    expect(run.client.state.spots[i]?.note).toBe(POST_NOTES[i]);
+    expect(run.client.state.npcs.get(`letter${String(i)}`)?.shown).toBe(true);
+    run.room.teleport(READING_TABLE.x, READING_TABLE.y);
+    await waitFor(() => run.client.state.marks.includes('clueTogether'), 'read out at the table');
+    expect(run.notes.map((n) => n.text)).toContain(BOOK_READ);
+    await waitFor(() => run.client.state.step === 'vote', 'the vote at noon', (VOTE_S + 10) * 1000);
+    await finish(run, { vote: 'thank', farewell: 'kind' }, BOOK_REWARD_SATS);
+    expect([...run.client.state.marks]).toEqual(expect.arrayContaining(['clueThreshold', 'readTogether', 'clueTogether', 'clueNoNames', 'thankedGuardians', 'kindGlass']));
+    expect(['handsNone', 'handsSome'].filter((m) => run.client.state.marks.includes(m))).toHaveLength(1);
+  }, 120_000);
+
+  it('calls the vote early once four guardians are alone with a letter, and starts the hall clock again', () => {
+    const state = new MissionState();
+    for (let i = 0; i < BOOK_POSTS.length; i++) state.spots.push(new MissionSpot());
+    const notes: { text: string }[] = [];
+    const crew = [{ id: 'rook', player: { ...READING_TABLE }, caughtUntil: 0 }] as unknown as CrewMember[];
+    const ctx = { ...fakeContext(state, crew), act: BOOK_ACT, broadcast: (_: string, payload: unknown) => notes.push(payload as { text: string }) };
+    const rules = new BookRules();
+    rules.setup(ctx);
+    expect(state.spots.every((s) => s.done)).toBe(true);
+    state.step = 'letters';
+    rules.onStep(ctx, 'letters');
+    expect(state.clock).toBe(VOTE_S);
+    for (let now = 0; now < VOTE_S * 1000 && rules.recalled === 0; now += 50) {
+      rules.move(ctx, now);
+      rules.tick(ctx);
+    }
+    expect(rules.recalled).toBe(1);
+    expect(notes.filter((n) => n.text.includes('alone with a letter too long'))).toHaveLength(MOTION_NEEDED);
+    expect(notes.at(-1)).toEqual({ text: BOOK_RECALLED });
+    expect(state.step).toBe('letters');
+    expect(state.clock).toBe(VOTE_S);
+    expect(state.spots.every((s) => s.done)).toBe(true);
+    expect([...state.npcs.entries()].filter(([id, n]) => id.startsWith('letter') && n.shown)).toEqual([]);
+  });
+
+  it('gives each of the crew one letter at a time, reads it at the table, and puts it back if they leave', () => {
+    const state = new MissionState();
+    for (let i = 0; i < BOOK_POSTS.length; i++) state.spots.push(new MissionSpot());
+    const marks: string[] = [];
+    const rook = { id: 'rook', player: { ...READING_TABLE }, caughtUntil: 0 } as unknown as CrewMember;
+    const crew = [rook];
+    const ctx = { ...fakeContext(state, crew), act: BOOK_ACT, mark: (m: string) => marks.push(m) };
+    const rules = new BookRules();
+    rules.setup(ctx);
+    state.step = 'letters';
+    rules.onStep(ctx, 'letters');
+    let now = 0;
+    const until = (done: () => boolean): void => {
+      for (; now < VOTE_S * 1000 && !done(); now += 50) rules.move(ctx, now);
+    };
+    until(() => state.spots.some((s) => !s.done));
+    const first = state.spots.findIndex((s) => !s.done);
+    expect(rules.refuse(ctx, first, rook)).toBeNull();
+    expect(rules.worked(ctx, first, rook)).toBe(POST_NOTES[first]);
+    const player = rook.player as { x: number; y: number };
+    player.x = READING_TABLE.x + 6;
+    until(() => state.spots.filter((s) => !s.done).length > 0);
+    expect(state.npcs.get(`letter${String(first)}`)?.x).toBe(player.x);
+    expect(rules.refuse(ctx, state.spots.findIndex((s) => !s.done), rook)).toBe(BOOK_HANDS_FULL);
+    player.x = READING_TABLE.x;
+    rules.move(ctx, now);
+    expect(rules.read).toBe(1);
+    expect(marks).toEqual(['clueTogether']);
+    const second = state.spots.findIndex((s) => !s.done);
+    rules.worked(ctx, second, rook);
+    player.x = READING_TABLE.x + 6;
+    crew.length = 0;
+    rules.move(ctx, now);
+    expect(state.spots[second]?.done).toBe(false);
+    until(() => state.step === 'vote');
+    expect(state.step).toBe('vote');
+    rules.onStep(ctx, 'vote');
+    expect(marks.filter((m) => m === 'handsNone' || m === 'handsSome')).toHaveLength(1);
   });
 });

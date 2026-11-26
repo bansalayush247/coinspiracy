@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { matchMaker } from '@colyseus/core';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
-import { DEE_SHOP, DESKS, OLIVE_SHOP, WATCH_AT, WATCH_RANGE, DOORS, AERIAL, HATCH, BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
+import { BOOK_POSTS, READING_TABLE, VOTE_S, DEE_SHOP, DESKS, OLIVE_SHOP, WATCH_AT, WATCH_RANGE, DOORS, AERIAL, HATCH, BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
 import { canStand, findPath } from '@byzantine-council/shared/pathfinding';
 import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
@@ -129,6 +129,7 @@ async function main(): Promise<void> {
     await mkdir(`${evidence}dust/`, { recursive: true });
     await mkdir(`${evidence}envelope/`, { recursive: true });
     await mkdir(`${evidence}clock/`, { recursive: true });
+    await mkdir(`${evidence}book/`, { recursive: true });
     const errors: string[] = [];
 
     const { page, room } = await open(browser, 'Rook', { width: 1280, height: 800 }, errors);
@@ -730,6 +731,36 @@ async function main(): Promise<void> {
     check(((await clk.page.textContent('#story-end-title')) ?? '') === 'The Clock', 'Glasshouse loses Rook in the crowd and writes to the guardians');
     check(((await clk.page.textContent('#story-reward')) ?? '').includes('+450 play sats'), `it pays its first finish (${(await clk.page.textContent('#story-reward')) ?? ''})`);
     await clk.page.close();
+
+    const book = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-book');
+    check(book.room.state.act === 'book', 'the next tile opens season three, act four: The Little Book');
+    await answer(book.page, book.room, 'letter', 1);
+    for (const node of ['letterTogether', 'letterGo']) await read(book.page, book.room, node);
+    await until(() => book.room.state.step === 'letters', 'Mr Varnish on his rounds');
+    book.room.quietNight();
+    await until(() => book.room.state.spots.some((s) => !s.done), 'a letter handed over', 15_000);
+    const held = book.room.state.spots.findIndex((s) => !s.done);
+    const post = BOOK_POSTS[held];
+    if (post === undefined) throw new Error('post');
+    book.room.teleport(post.at.x, post.at.y);
+    await book.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Take ${label}’s letter`) === true, post.label, { timeout: 10_000 }).catch(() => undefined);
+    await until(() => book.room.state.spots.filter((s) => !s.done).length >= 2, 'a second letter out', 15_000);
+    await book.page.waitForTimeout(300);
+    await book.page.screenshot({ path: `${evidence}book/letters.png` });
+    await book.page.keyboard.press('e');
+    await until(() => book.room.state.spots[held]?.done === true, 'the letter taken');
+    book.room.teleport(READING_TABLE.x, READING_TABLE.y);
+    await until(() => book.room.state.marks.includes('clueTogether'), 'read out at the table');
+    check(book.room.state.marks.includes('clueTogether'), 'a letter read out at the table is the same letter every guardian got');
+    await until(() => book.room.state.step === 'vote', 'the vote at noon', (VOTE_S + 10) * 1000);
+    await answer(book.page, book.room, 'vote', 1);
+    await read(book.page, book.room, 'voteThank');
+    await answer(book.page, book.room, 'farewell', 1);
+    for (const node of ['farewellKind', 'closing']) await read(book.page, book.room, node);
+    await book.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await book.page.textContent('#story-end-title')) ?? '') === 'The Little Book', 'the guardians hold together and season three ends');
+    check(((await book.page.textContent('#story-reward')) ?? '').includes('+600 play sats'), `it pays its first finish (${(await book.page.textContent('#story-reward')) ?? ''})`);
+    await book.page.close();
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

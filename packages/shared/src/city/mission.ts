@@ -44,6 +44,8 @@ export const NPC_KINDS = [
   'glass',
   'lumley',
   'shopper',
+  'varnish',
+  'letter',
 ] as const;
 export type NpcKind = (typeof NPC_KINDS)[number];
 // The kinds that carry a torch, drawn as a cone the server uses to catch the crew.

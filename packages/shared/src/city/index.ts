@@ -21,6 +21,7 @@ export * from './alert.js';
 export * from './dust.js';
 export * from './envelope.js';
 export * from './clock.js';
+export * from './book.js';
 export * from './popcorn.js';
 export * from './number.js';
 export * from './coins.js';

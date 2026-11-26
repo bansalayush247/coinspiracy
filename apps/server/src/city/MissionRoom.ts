@@ -62,6 +62,7 @@ import { AlertRules } from './acts/alertRules.js';
 import { DustRules } from './acts/dustRules.js';
 import { EnvelopeRules } from './acts/envelopeRules.js';
 import { ClockRules } from './acts/clockRules.js';
+import { BookRules } from './acts/bookRules.js';
 import { near, type ActContext, type ActRules } from './acts/rules.js';
 
 interface Auth {
@@ -120,6 +121,7 @@ const RULES: Readonly<Record<ActId, () => ActRules>> = {
   dust: () => new DustRules(),
   envelope: () => new EnvelopeRules(),
   clock: () => new ClockRules(),
+  book: () => new BookRules(),
   popcorn: () => new PopcornRules(),
   number: () => new NumberRules(),
   coins: () => new CoinsRules(),

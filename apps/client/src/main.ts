@@ -273,6 +273,9 @@ class Controller {
     el('open-clock', HTMLButtonElement).addEventListener('click', () => {
       void this.#playStory({ act: 'clock' });
     });
+    el('open-book', HTMLButtonElement).addEventListener('click', () => {
+      void this.#playStory({ act: 'book' });
+    });
     el('open-cases', HTMLButtonElement).addEventListener('click', () => {
       this.#casebook.open();
     });

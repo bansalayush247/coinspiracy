@@ -5,6 +5,7 @@ import { DEADMAN_ACT } from './deadman.js';
 import { DUST_ACT } from './dust.js';
 import { ENVELOPE_ACT } from './envelope.js';
 import { CLOCK_ACT } from './clock.js';
+import { BOOK_ACT } from './book.js';
 import { DUMP_ACT } from './dump.js';
 import { FOUNDER_ACT } from './founder.js';
 import { INSIDER_ACT } from './insider.js';
@@ -30,6 +31,7 @@ export const STORY_ACTS: Readonly<Record<ActId, StoryAct>> = Object.freeze({
   dust: DUST_ACT,
   envelope: ENVELOPE_ACT,
   clock: CLOCK_ACT,
+  book: BOOK_ACT,
   popcorn: POPCORN_ACT,
   number: NUMBER_ACT,
   coins: COINS_ACT,

@@ -2,6 +2,17 @@
 
 ## 26 November 2026
 
+### Season three, act four: The Little Book
+- The end of season three. Perpetua Glass writes to the Mint's guardians asking them to keep a little book of names,
+  amounts and times, and sends her lawyer, Mr Varnish, round Mint Hall to call on each of them personally.
+- A new kind of play: carrying. Whoever Varnish stops beside gets a letter telling them they're the last one holding
+  out. Take it off them (one at a time) and carry it to the table on the steps, where it's read out to all five.
+  A letter left too long turns red; four red at once and he calls the vote early, and the clock starts again.
+- Changing the Mint's rules takes four of its five guardians, so pressure on one, two or even three can't start a
+  book. When the hall clock strikes, nobody votes for it, and Wren points out they never saw a name to write down.
+- Glass loses gracefully and remembers what Rook said to her at the olive shop in The Clock. Ivy closes the season.
+  Pays 600 play sats once. Inspired by threshold signing and blind signatures in federated mints.
+
 ### Season three, act three: The Clock
 - Glasshouse can't read the Mint's notes, so Mr Fennick sits at the Saltmarket gate with a stopwatch, matching who
   leaves the Mint and when against who spends, and how much.

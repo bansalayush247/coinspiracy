@@ -969,6 +969,7 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .dust-open { background: rgba(191, 227, 255, 0.14); color: #d6ecff; }
 .envelope-open { background: rgba(201, 164, 110, 0.16); color: #f0d9b5; }
 .clock-open { background: rgba(110, 190, 170, 0.16); color: #bff0e2; }
+.book-open { background: rgba(243, 245, 248, 0.12); color: #f3f5f8; }
 .cases-open { background: rgba(159, 180, 199, 0.14); color: #d8e4ef; }
 .modal.cases { width: min(620px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; gap: 10px; }
 .cases-intro { margin: 0; color: var(--muted); font-size: 14px; }

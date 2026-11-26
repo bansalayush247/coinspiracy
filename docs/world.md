@@ -321,3 +321,26 @@ Season three, act three, The Clock (`clock.ts`; rules `acts/clockRules.ts`): tim
 - Acts can now declare a `watch` ring: the client draws it around the named NPC's spot while that NPC's `chasing` is
   set, instead of a cone, and fades buildings in front of the watcher.
 - Glass remembers The Envelope: `politeGlass` and `gloatedGlass` carry as `pastPolite` and `pastGloated`.
+
+Season three, act four, The Little Book (`book.ts`; rules `acts/bookRules.ts`), the end of season three: a
+federation's threshold, and why blind signing leaves nothing to hand over.
+- Tuning in `tuning/book.json` (`BookTuningSchema`, plus `bookTuningProblems` for what the shape can't catch): the
+  reading table and its reach, how close and how long taking a letter is, Mr Varnish's round (a loop; points with a
+  `guardian` are where he stops to pitch), his speed and pitch time, how long a guardian can be alone with a letter
+  (`ALONE_S`), the vote clock (`VOTE_S`), seats for the vote, where Glass arrives, and the reward.
+- The new mechanic is carrying: the five guardians from act two (`GUARDIANS`, here `BOOK_POSTS`) are the work
+  spots, and a spot is done while its guardian holds no letter. `varnishAt(t)` and `handedBetween` are a pure
+  timeline of his round; `postsAfter` ages letters and hands out new ones (never a second to the same guardian).
+  Taking a letter (`TAKE_MS`) puts it over the taker's head; one at a time (`BOOK_HANDS_FULL`). Coming within
+  `TABLE_REACH` of `READING_TABLE` reads it out; the first read marks `clueTogether`.
+- A letter left `ALONE_S` turns red (its `letter` NPC's `chasing`), and the crew is told how many are alone. When
+  `MOTION_NEEDED` are alone at once, `threshold(5)` = 4, Varnish calls the vote early (`BOOK_RECALLED`, in `tick`):
+  every letter is cleared and the round and the clock start again. Otherwise the vote comes when the clock runs out,
+  marking `handsNone` or `handsSome` for the scene. Acts can now set `markers: 'none'` when the characters at the
+  spots carry their own markers.
+- Tests replay the round with walking crews: oldest-first or nearest-first holds until the vote solo, with two, and
+  with four (four never leave a guardian alone); waiting at the table or pocketing a letter lets the vote be called
+  early; and looking after only the two guardians on the west wall still holds, with three alone, which is the lesson.
+- Glass remembers The Clock: `refusedBook`, `askedBook` and `joinedQueue` carry as `pastRefusedBook`,
+  `pastAskedBook` and `pastOlive` (and `pastPolite` from The Envelope). The new speakers are Mr Varnish, Glass's
+  lawyer, and the guardians Wren and Marta.

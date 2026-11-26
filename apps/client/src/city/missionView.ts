@@ -16,7 +16,7 @@ const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 // Rays per sight cone; enough that a wall corner cuts it cleanly at the longest reach.
 const CONE_RAYS = 24;
 const PLAIN: Wear = { hat: '', shades: '', outfit: '' };
-const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan' | 'gull'>, { name: string; colors: GuardianColors; wear: Wear }>> = {
+const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan' | 'gull' | 'letter'>, { name: string; colors: GuardianColors; wear: Wear }>> = {
   dani: { name: 'Dani', colors: { lit: 0x4fb3a9, shadow: 0x2b6b66, highlight: 0xa6e3dc }, wear: PLAIN },
   mags: { name: 'Mags', colors: { lit: 0xd98c3f, shadow: 0x8a5426, highlight: 0xf2c491 }, wear: PLAIN },
   guard: { name: 'Ivor', colors: seatColors(7), wear: PLAIN },
@@ -48,6 +48,7 @@ const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan' | 'gull'>, { name: string
   glass: { name: 'Perpetua Glass', colors: { lit: 0xf3f5f8, shadow: 0xa9b2bf, highlight: 0xffffff }, wear: PLAIN },
   lumley: { name: 'Lumley', colors: { lit: 0xe6dcc4, shadow: 0x968a6c, highlight: 0xfff6e0 }, wear: PLAIN },
   shopper: { name: '', colors: seatColors(0), wear: PLAIN },
+  varnish: { name: 'Mr Varnish', colors: { lit: 0x3e4a63, shadow: 0x1f2533, highlight: 0x8b99b8 }, wear: PLAIN },
 };
 const ANIMAL_NAMES: Readonly<Record<'duncan' | 'gull', string>> = { duncan: 'Duncan', gull: 'Gull' };
 
@@ -110,6 +111,7 @@ export class MissionView {
     for (const mark of this.#digMarks) mark.destroy();
     this.#signs.length = 0;
     this.#digMarks.length = 0;
+    if (act.markers === 'none') return;
     const dig = act.markers === 'heaps';
     const labelled = act.markers !== 'badges';
     act.spots.forEach((spot, i) => {
@@ -140,11 +142,11 @@ export class MissionView {
     if (f === undefined) {
       const kind = npc.kind as NpcKind;
       const ring = new Phaser.GameObjects.Graphics(this.scene);
-      drawShadow(ring, false);
+      if (kind !== 'letter') drawShadow(ring, false);
       const body = new Phaser.GameObjects.Graphics(this.scene);
       const root = new Phaser.GameObjects.Container(this.scene, 0, 0, [ring, body]);
       this.entities.add(root);
-      const label = new Phaser.GameObjects.Text(this.scene, 0, 0, npc.name !== '' ? npc.name : kind === 'duncan' || kind === 'gull' ? ANIMAL_NAMES[kind] : LOOKS[kind].name, {
+      const label = new Phaser.GameObjects.Text(this.scene, 0, 0, npc.name !== '' ? npc.name : kind === 'letter' ? '' : kind === 'duncan' || kind === 'gull' ? ANIMAL_NAMES[kind] : LOOKS[kind].name, {
         fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffe3a8', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this.scene)),
       }).setOrigin(0.5, 1);
       this.names.add(label);
@@ -206,6 +208,7 @@ export class MissionView {
       f.label.setVisible(seen);
       f.root.setPosition(s.x, s.y).setDepth(this.depthOf(f.pos.x, f.pos.y));
       f.body.y = -trot;
+      if (f.kind === 'letter') f.body.setAlpha(f.chasing && !this.reduced ? 0.55 + 0.45 * Math.abs(Math.sin(time / 160)) : 1);
       f.label.setScale(1 / zoom).setPosition(s.x, s.y - (f.kind === 'duncan' ? 24 : f.kind === 'gull' ? 86 : GUARDIAN_HEIGHT / ART_SCALE + 8) * ART_SCALE);
     }
     for (const sign of this.#signs) sign.setScale(1 / zoom);
@@ -238,6 +241,10 @@ export class MissionView {
     }
     if (f.kind === 'gull') {
       drawGull(f.body, f.side);
+      return;
+    }
+    if (f.kind === 'letter') {
+      drawLetter(f.body, f.chasing);
       return;
     }
     const look = LOOKS[f.kind];
@@ -370,6 +377,25 @@ function drawGull(g: Phaser.GameObjects.Graphics, side: 1 | -1): void {
   g.fillTriangle(side * 15 * k, -39 * k, side * 21 * k, -37 * k, side * 15 * k, -36 * k);
   g.fillStyle(0x2a2a30, 0.9);
   g.fillTriangle(-side * 11 * k, -34 * k, -side * 17 * k, -36 * k, -side * 17 * k, -31 * k);
+}
+
+// A letter floating over whoever holds it: white with a gold seal, or red with a warning mark once its guardian is alone with it.
+function drawLetter(g: Phaser.GameObjects.Graphics, alone: boolean): void {
+  const k = ART_SCALE;
+  const top = -GUARDIAN_HEIGHT - 56 * k;
+  g.clear();
+  g.fillStyle(alone ? 0xff8a7a : 0xfff6e8, 1);
+  g.lineStyle(3 * k, 0x2a1a33, 1);
+  g.fillRect(-15 * k, top, 30 * k, 20 * k);
+  g.strokeRect(-15 * k, top, 30 * k, 20 * k);
+  g.lineBetween(-15 * k, top, 0, top + 11 * k);
+  g.lineBetween(15 * k, top, 0, top + 11 * k);
+  g.fillStyle(alone ? 0xb3261e : 0xe8c25a, 1);
+  g.fillCircle(0, top + 11 * k, 4 * k);
+  if (!alone) return;
+  g.fillStyle(0xb3261e, 1);
+  g.fillRect(-2 * k, top - 20 * k, 4 * k, 11 * k);
+  g.fillCircle(0, top - 5 * k, 2.2 * k);
 }
 
 // The sight cone a figure shows right now, if any: a torch, Mr Fennick's glance back, or Lumley's camera.
