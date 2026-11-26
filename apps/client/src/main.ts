@@ -26,6 +26,7 @@ import { MissionController } from './city/missionController.js';
 import type { ActId } from '@byzantine-council/shared/city';
 import { ISLAND_SCENE_KEY, IslandScene, type PreviewIslandId } from './explore/IslandScene.js';
 import { Wardrobe } from './profile/wardrobe.js';
+import { startPlatform, type Platform } from './platform/index.js';
 import { registerServiceWorker } from './pwa/register.js';
 import { resolveServerEndpoint } from './serverUrl.js';
 import { el, h } from './ui/dom.js';
@@ -946,10 +947,13 @@ function boot(): void {
   setupQuality();
   let session: Session;
   let profiles: ProfileApi;
+  let platform: Platform;
   try {
-    const endpoint = resolveServerEndpoint(import.meta.env.VITE_SERVER_URL, import.meta.env.DEV);
-    session = new Session(endpoint);
-    profiles = new ProfileApi(endpoint.httpBase);
+    platform = startPlatform(resolveServerEndpoint(import.meta.env.VITE_SERVER_URL, import.meta.env.DEV), (held) => {
+      audio.setHeld(held);
+    });
+    session = new Session(platform.server, platform.network);
+    profiles = new ProfileApi(platform.server.httpBase, platform.network);
   } catch {
     showFatal('This build doesn’t know which game server to use.');
     return;
@@ -963,7 +967,8 @@ function boot(): void {
       // Development only (stripped from builds): lets art checks switch the light.
       if (import.meta.env.DEV) Object.assign(window, { __bcScene: scene });
       new Controller(session, scene, profiles).start();
-      void registerServiceWorker();
+      platform.loaded();
+      if (platform.allows.pwa) void registerServiceWorker();
     })
     .catch(() => {
       showFatal('The game couldn’t start its renderer. Try reloading, or use another browser.');

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultClientConditions, defineConfig, loadEnv, type Plugin } from 'vite';
 import { renderHeadersFile, securityHeaders } from './csp.js';
+import { parseFrameAncestors } from './src/platform/frameAncestors.js';
 import { pwa } from './src/pwa/vitePlugin.js';
 import { DEV_SERVER_PATH, resolveServerEndpoint } from './src/serverUrl.js';
 
@@ -29,16 +30,20 @@ function headersFile(headers: Readonly<Record<string, string>>): Plugin {
 }
 
 export default defineConfig(({ command, mode }) => {
-  const env = loadEnv(mode, root, 'VITE_');
+  const env = loadEnv(mode, root, ['VITE_', 'FRAME_ANCESTORS']);
   // Builds and previews must name their server; dev and tests fall back to the proxy path.
   const strict = command === 'build' || mode === 'production';
   const server = resolveServerEndpoint(env['VITE_SERVER_URL'], !strict);
-  const headers = securityHeaders(server);
+  // Portal builds (`--mode portal` or VITE_PLATFORM=portal) are hosted by the portal: relative assets, no PWA, an absolute server.
+  const portal = mode === 'portal' || env['VITE_PLATFORM'] === 'portal';
+  if (portal && strict && server.connectSources.length === 0) throw new Error('portal builds need an absolute VITE_SERVER_URL (https://…), since the portal hosts the files');
+  const headers = securityHeaders(server, parseFrameAncestors(env['FRAME_ANCESTORS']));
   return {
     root,
     envPrefix: 'VITE_',
+    ...(portal ? { base: './', define: { 'import.meta.env.VITE_PLATFORM': JSON.stringify('portal') } } : {}),
     resolve: { conditions: ['source', ...defaultClientConditions] },
-    plugins: [headersFile(headers), ...pwa()],
+    plugins: portal ? [headersFile(headers)] : [headersFile(headers), ...pwa()],
     server: {
       host: '127.0.0.1',
       port: DEV_PORT,

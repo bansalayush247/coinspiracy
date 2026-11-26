@@ -1,9 +1,10 @@
-// The guest profile API. The session lives in an HTTP-only cookie the page never sees;
-// every response is validated before it reaches the UI.
+// The guest profile API. On the web the session lives in an HTTP-only cookie the page never sees (on Discord, a bearer
+// token from the host's sign-in); every response is validated before it reaches the UI.
 import { z } from 'zod';
 import { LookSchema } from '@byzantine-council/shared/economy';
 import { ProgressViewSchema } from '@byzantine-council/shared/progression';
 import { SEASON_PATH, SeasonReplySchema, type SeasonReply } from '@byzantine-council/shared/seasons';
+import type { PlatformNetwork } from '../platform/types.js';
 
 const TIMEOUT_MS = 8000;
 
@@ -17,15 +18,26 @@ export const ProfileSummarySchema = z.strictObject({
 export type ProfileSummary = z.infer<typeof ProfileSummarySchema>;
 
 export class ProfileApi {
-  constructor(private readonly base: string) {}
+  // On hosts without cookies the session is a bearer token from the host's sign-in, or there is no profile at all.
+  constructor(
+    private readonly base: string,
+    private readonly network: PlatformNetwork | null = null,
+  ) {}
 
   async #call(path: string, init: RequestInit = {}): Promise<ProfileSummary | null> {
+    if (this.network === null) return this.#send(path, { ...init, credentials: 'include' });
+    const credential = await this.network.credential;
+    if (credential.kind === 'none') return null;
+    return this.#send(path, { ...init, credentials: 'omit', headers: { ...(init.headers as Record<string, string> | undefined), authorization: `Bearer ${credential.token}` } });
+  }
+
+  async #send(path: string, init: RequestInit): Promise<ProfileSummary | null> {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       controller.abort();
     }, TIMEOUT_MS);
     try {
-      const res = await fetch(`${this.base}${path}`, { ...init, credentials: 'include', signal: controller.signal });
+      const res = await fetch(`${this.base}${path}`, { ...init, signal: controller.signal });
       if (!res.ok) return null;
       const parsed = ProfileSummarySchema.safeParse(await res.json());
       return parsed.success ? parsed.data : null;

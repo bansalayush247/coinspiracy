@@ -1,8 +1,10 @@
+import { frameAncestorsDirective } from './src/platform/frameAncestors.js';
 import type { ServerEndpoint } from './src/serverUrl.js';
 
 // No eval, no inline code, and only the game server as a network peer.
 // Phaser needs img-src data: for its built-in textures (verified).
-export function contentSecurityPolicy(server: ServerEndpoint): string {
+// frameAncestors comes from FRAME_ANCESTORS (Discord, portals); empty keeps 'none'.
+export function contentSecurityPolicy(server: ServerEndpoint, frameAncestors: readonly string[] = []): string {
   return [
     "default-src 'none'",
     "script-src 'self'",
@@ -15,14 +17,14 @@ export function contentSecurityPolicy(server: ServerEndpoint): string {
     "manifest-src 'self'",
     "base-uri 'none'",
     "form-action 'none'",
-    "frame-ancestors 'none'",
+    frameAncestorsDirective(frameAncestors),
   ].join('; ');
 }
 
 // Headers for every page response; preview sends them and the build writes them to dist/_headers.
-export function securityHeaders(server: ServerEndpoint): Record<string, string> {
+export function securityHeaders(server: ServerEndpoint, frameAncestors: readonly string[] = []): Record<string, string> {
   return {
-    'Content-Security-Policy': contentSecurityPolicy(server),
+    'Content-Security-Policy': contentSecurityPolicy(server, frameAncestors),
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer',
     'Cross-Origin-Opener-Policy': 'same-origin',

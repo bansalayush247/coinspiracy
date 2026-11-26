@@ -1,5 +1,6 @@
 import { createGameServer } from './app.js';
 import { loadConfig } from './config.js';
+import { discordConfig } from './discord/config.js';
 import { log } from './logger.js';
 import { openProfiles } from './profile/index.js';
 import { createScaling, loadScalingConfig } from './scaling/index.js';
@@ -18,6 +19,11 @@ const scaling = createScaling(scalingConfig);
 await scaling.start();
 log.info('scaling', { mode: scaling.mode });
 
+// A partial Discord setup must not stop the web game: the token route answers 503 and the log names what is missing.
+const discord = discordConfig(process.env);
+if (discord.state === 'broken') log.warn('Discord Activity sign-in is misconfigured', { problems: discord.problems.join('; ') });
+else log.info('Discord Activity sign-in', { on: discord.state === 'on' });
+
 const { listen } = createGameServer({
   profiles,
   scaling,
@@ -26,6 +32,8 @@ const { listen } = createGameServer({
   maxSeatsPerIp: config.maxSeatsPerIp,
   chainTipUrl: config.chainTipUrl,
   ...(config.bots ? { bots: {} } : {}),
+  frameAncestors: config.frameAncestors,
+  discord: { config: discord },
   gracefullyShutdown: true,
 });
 

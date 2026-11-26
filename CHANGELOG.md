@@ -2,6 +2,13 @@
 
 ## 26 November 2026
 
+### Discord Activity and web portals
+- The same game client now runs as a Discord Activity and inside web game portals. In Discord, players sign in with
+  the `identify` scope only and their progress is saved to a guest profile; other players still see only the nickname
+  they choose. Nothing stores a Discord id, token, name or avatar.
+- Portal builds (`--mode portal`) skip the offline service worker and report loading and gameplay to CrazyGames or
+  Poki when the portal provides them. Framing stays off unless `FRAME_ANCESTORS` allows it.
+
 ### Season three, act four: The Little Book
 - The end of season three. Perpetua Glass writes to the Mint's guardians asking them to keep a little book of names,
   amounts and times, and sends her lawyer, Mr Varnish, round Mint Hall to call on each of them personally.

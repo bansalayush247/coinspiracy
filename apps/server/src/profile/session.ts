@@ -37,14 +37,15 @@ export interface Session {
   readonly renew: boolean;
 }
 
-export function verifyCookie(keys: SessionKeys, value: string, nowMs: number): Session | null {
+// maxAgeS shortens the lifetime for session tokens held by page scripts (see bearer.ts).
+export function verifyCookie(keys: SessionKeys, value: string, nowMs: number, maxAgeS = COOKIE_MAX_AGE_S): Session | null {
   const parts = value.split('.');
   if (parts.length !== 3) return null;
   const [id = '', issuedText = '', sig = ''] = parts;
   if (!isProfileId(id) || !/^\d{1,12}$/.test(issuedText) || !/^[A-Za-z0-9_-]{43}$/.test(sig)) return null;
   const issued = Number(issuedText);
   const ageMs = nowMs - issued * 1000;
-  if (ageMs < -60_000 || ageMs > COOKIE_MAX_AGE_S * 1000) return null;
+  if (ageMs < -60_000 || ageMs > maxAgeS * 1000) return null;
   const given = Buffer.from(sig, 'base64url');
   for (const [key, isCurrent] of [[keys.current, true], [keys.previous, false]] as const) {
     if (key === null) continue;

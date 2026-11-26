@@ -4,6 +4,7 @@ import { ROOM_LOOKUP_PATH, ROOM_NAME, RoomLookupSchema, normalizeRoomCode, type 
 import { CitadelState } from '@byzantine-council/shared/state';
 import { BEACH_ROOM, HubState } from '@byzantine-council/shared/hub';
 import { CITY_ROOM, CityState, MISSION_ROOM, MissionState, type ActId } from '@byzantine-council/shared/city';
+import type { PlatformNetwork } from '../platform/types.js';
 import type { ServerEndpoint } from '../serverUrl.js';
 import { PlayerFacingError } from './errors.js';
 
@@ -66,44 +67,59 @@ function withTimeout<R extends { leave(): Promise<unknown> }>(attempt: Promise<R
 
 export class Session {
   readonly #client: Client;
+  readonly #signedIn: Promise<void> | null;
 
-  constructor(readonly server: ServerEndpoint) {
-    this.#client = new Client(server.endpoint);
+  constructor(
+    readonly server: ServerEndpoint,
+    network: PlatformNetwork | null = null,
+  ) {
+    this.#client = network?.urlBuilder === undefined ? new Client(server.endpoint) : new Client(server.endpoint, { urlBuilder: network.urlBuilder });
+    this.#signedIn =
+      network === null
+        ? null
+        : network.credential.then((credential) => {
+            if (credential.kind === 'bearer') this.#client.auth.token = credential.token;
+          });
+  }
+
+  // Hosts without cookies (Discord) sign in first; joins wait for it so the socket carries the session token.
+  #open<R extends { leave(): Promise<unknown> }>(join: () => Promise<R>): Promise<R> {
+    return withTimeout(this.#signedIn === null ? join() : this.#signedIn.then(join));
   }
 
   quickMatch(nickname: string): Promise<GameRoom> {
-    return withTimeout(openRoom(this.#client, nickname));
+    return this.#open(() => openRoom(this.#client, nickname));
   }
 
   // A private council room; `ceremony` marks it as the story's signing ceremony, opened from the end of act three.
   createPrivate(nickname: string, ceremony = false): Promise<GameRoom> {
-    return withTimeout(this.#client.create<CitadelState>(ROOM_NAME, ceremony ? { nickname, private: true, ceremony } : { nickname, private: true }, CitadelState));
+    return this.#open(() => this.#client.create<CitadelState>(ROOM_NAME, ceremony ? { nickname, private: true, ceremony } : { nickname, private: true }, CitadelState));
   }
 
   // Joins a council room found by its code; a story crew's code goes to mission() instead.
   joinCouncil(roomId: string, nickname: string): Promise<GameRoom> {
-    return withTimeout(this.#client.joinById<CitadelState>(roomId, { nickname }, CitadelState));
+    return this.#open(() => this.#client.joinById<CitadelState>(roomId, { nickname }, CitadelState));
   }
 
   // A private solo room for the Academy.
   academy(): Promise<Room> {
-    return withTimeout(this.#client.create(ACADEMY_ROOM, {}));
+    return this.#open(() => this.#client.create(ACADEMY_ROOM, {}));
   }
 
   // Beach Town: one public hub room shared by whoever is in town.
   beach(nickname: string) {
-    return withTimeout(this.#client.joinOrCreate<HubState>(BEACH_ROOM, { nickname }, HubState));
+    return this.#open(() => this.#client.joinOrCreate<HubState>(BEACH_ROOM, { nickname }, HubState));
   }
 
   // Port Concord: the open city, one region room shared by everyone in it.
   city(nickname: string) {
-    return withTimeout(this.#client.joinOrCreate<CityState>(CITY_ROOM, { nickname }, CityState));
+    return this.#open(() => this.#client.joinOrCreate<CityState>(CITY_ROOM, { nickname }, CityState));
   }
 
   // A story mission: a private night in Port Concord, a fresh one of the given act or a crew joined by room id.
   mission(nickname: string, start: { readonly act?: ActId; readonly roomId?: string }) {
     const { act, roomId } = start;
-    return withTimeout(
+    return this.#open(() =>
       roomId === undefined
         ? this.#client.create<MissionState>(MISSION_ROOM, act === undefined ? { nickname } : { nickname, act }, MissionState)
         : this.#client.joinById<MissionState>(roomId, { nickname }, MissionState),
@@ -111,7 +127,7 @@ export class Session {
   }
 
   resume(token: string): Promise<GameRoom> {
-    return withTimeout(this.#client.reconnect<CitadelState>(token, CitadelState));
+    return this.#open(() => this.#client.reconnect<CitadelState>(token, CitadelState));
   }
 
   // Resolves a typed code to a room through the server's rate-limited lookup.

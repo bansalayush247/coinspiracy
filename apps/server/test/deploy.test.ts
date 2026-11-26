@@ -29,7 +29,7 @@ describe('deploy/', () => {
 
   it('documents every variable the server reads', () => {
     const template = read('deploy/env/server.env.example');
-    for (const name of ['NODE_ENV', 'HOST', 'PORT', 'ALLOWED_ORIGINS', 'TRUSTED_PROXIES', 'MAX_SEATS_PER_IP', 'BLOCK_HEIGHT_URL', 'LOG_LEVEL', 'BOTS', 'DATABASE_URL', 'SESSION_SECRET', 'SESSION_SECRET_PREVIOUS', 'REDIS_URL', 'SCALING_KEY_SECRET', 'PUBLIC_ADDRESS']) {
+    for (const name of ['NODE_ENV', 'HOST', 'PORT', 'ALLOWED_ORIGINS', 'TRUSTED_PROXIES', 'MAX_SEATS_PER_IP', 'BLOCK_HEIGHT_URL', 'LOG_LEVEL', 'BOTS', 'DATABASE_URL', 'SESSION_SECRET', 'SESSION_SECRET_PREVIOUS', 'REDIS_URL', 'SCALING_KEY_SECRET', 'PUBLIC_ADDRESS', 'FRAME_ANCESTORS', 'DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET', 'DISCORD_PROFILE_SECRET']) {
       expect(template, name).toContain(name);
     }
   });

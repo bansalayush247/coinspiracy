@@ -11,6 +11,12 @@ interface ImportMetaEnv {
   readonly VITE_SITE_URL?: string;
   // Set only by the smoke test build; exposes read-only positions for assertions.
   readonly VITE_E2E?: string;
+  // "portal" for web game portal builds (also set by `vite build --mode portal`).
+  readonly VITE_PLATFORM?: string;
+  // Comma-separated domains whose iframes count as a portal at runtime.
+  readonly VITE_PORTAL_REFERRERS?: string;
+  // The Discord application id, for the Activity build; public, not a secret.
+  readonly VITE_DISCORD_CLIENT_ID?: string;
 }
 
 interface ImportMeta {

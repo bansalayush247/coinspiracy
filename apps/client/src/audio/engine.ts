@@ -93,6 +93,7 @@ export class AudioEngine {
   #rain: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
   #lastStep = 0;
   readonly #listeners = new Set<() => void>();
+  #held = false;
 
   get settings(): Readonly<Settings> {
     return this.#settings;
@@ -105,7 +106,7 @@ export class AudioEngine {
   // Browsers only allow sound after a user gesture; call this from one.
   unlock(): void {
     if (this.#ctx !== null) {
-      void this.#ctx.resume();
+      if (!this.#held) void this.#ctx.resume();
       return;
     }
     const Ctx = window.AudioContext as typeof AudioContext | undefined;
@@ -149,6 +150,16 @@ export class AudioEngine {
     this.#startWind();
     this.#mood = 'silent';
     this.#playMood(this.#selectedMood());
+    if (this.#held) void ctx.suspend();
+  }
+
+  /** Suspends all sound while a host asks for silence (hidden Activity, portal mute); never saved to settings. */
+  setHeld(held: boolean): void {
+    this.#held = held;
+    const ctx = this.#ctx;
+    if (ctx === null) return;
+    if (held) void ctx.suspend();
+    else void ctx.resume();
   }
 
   onChange(fn: () => void): () => void {

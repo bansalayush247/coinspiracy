@@ -1,5 +1,6 @@
 import { isIP } from 'node:net';
 import { z } from 'zod';
+import { parseFrameAncestors } from './frameAncestors.js';
 
 // Vite serves the client here in development (5199 is taken on the dev machine).
 export const DEV_CLIENT_ORIGINS = ['http://127.0.0.1:5180', 'http://localhost:5180'] as const;
@@ -54,6 +55,19 @@ const EnvSchema = z.object({
     .max(512)
     .default(DEFAULT_BLOCK_HEIGHT_URL)
     .refine((v) => v === 'off' || isHttpsUrl(v), 'must be an https URL or "off"'),
+  // Origins that may frame the game (Discord, web portals); unset keeps frame-ancestors 'none'.
+  FRAME_ANCESTORS: z
+    .string()
+    .max(4096)
+    .optional()
+    .transform((raw, ctx) => {
+      try {
+        return parseFrameAncestors(raw);
+      } catch (error) {
+        ctx.addIssue({ code: 'custom', message: error instanceof Error ? error.message : 'invalid' });
+        return z.NEVER;
+      }
+    }),
 });
 
 export interface ServerConfig {
@@ -65,6 +79,7 @@ export interface ServerConfig {
   readonly maxSeatsPerIp: number;
   readonly chainTipUrl: string | null;
   readonly bots: boolean;
+  readonly frameAncestors: readonly string[];
 }
 
 // Fails fast with the offending variable names; values are not echoed.
@@ -92,5 +107,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): ServerConfig {
     maxSeatsPerIp: cfg.MAX_SEATS_PER_IP,
     chainTipUrl: cfg.BLOCK_HEIGHT_URL === 'off' ? null : cfg.BLOCK_HEIGHT_URL,
     bots: cfg.BOTS === 'on',
+    frameAncestors: cfg.FRAME_ANCESTORS,
   };
 }

@@ -13,9 +13,13 @@ import { CITY_ROOM, MISSION_ROOM } from '@byzantine-council/shared/city';
 import { CityRoom } from './city/CityRoom.js';
 import { MissionRoom } from './city/MissionRoom.js';
 import { ipKey, requestIp, type ClientIpPolicy } from './clientIp.js';
+import type { DiscordConfig } from './discord/config.js';
+import type { FetchLike } from './discord/oauth.js';
+import { createDiscordRouter, type DiscordRouter } from './discord/router.js';
 import { installHttpGate, type HttpGate } from './httpGate.js';
 import { log } from './logger.js';
 import { configureRoomPolicy, roomPolicy, type RoomPolicyOptions } from './policy.js';
+import { applyBearerSession } from './profile/bearer.js';
 import { createProfileRouter, type ProfileRouter } from './profile/router.js';
 import { roomIdForCode } from './roomCodes.js';
 import { createScaling } from './scaling/index.js';
@@ -29,6 +33,10 @@ export interface GameServerOptions extends RoomPolicyOptions {
   readonly codeLookupsPerMinute?: number;
   // Practice bots the host can add to a lobby; off when omitted.
   readonly bots?: { readonly profile?: BotProfile; readonly maxPerProcess?: number };
+  /** Origins allowed to frame server responses (FRAME_ANCESTORS); absent keeps `'none'`. */
+  readonly frameAncestors?: readonly string[];
+  /** Discord Activity sign-in; absent or `off` means the token route does not exist. Needs `profiles`. */
+  readonly discord?: { readonly config: DiscordConfig; readonly fetch?: FetchLike; readonly perNetworkPerMinute?: number };
 }
 
 // Colyseus answers every OPTIONS itself and merges these into every HTTP response.
@@ -38,7 +46,7 @@ export interface GameServerOptions extends RoomPolicyOptions {
 export function restrictCors(allowedOrigins: ReadonlySet<string>): void {
   const controller = matchMaker.controller as { DEFAULT_CORS_HEADERS: Record<string, string> };
   controller.DEFAULT_CORS_HEADERS = {
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Max-Age': '600',
     Vary: 'Origin',
@@ -76,6 +84,18 @@ export function createGameServer(options: GameServerOptions) {
   restrictCors(options.allowedOrigins);
   const profileApi: ProfileRouter | null =
     options.profiles == null ? null : createProfileRouter({ store: options.profiles.store, keys: options.profiles.keys, allowedOrigins: options.allowedOrigins });
+  const discordApi: DiscordRouter | null =
+    options.profiles == null || options.discord === undefined
+      ? null
+      : createDiscordRouter({
+          config: options.discord.config,
+          keys: options.profiles.keys,
+          allowedOrigins: options.allowedOrigins,
+          perNetwork: scaling.rateLimiter('discord', options.discord.perNetworkPerMinute ?? 20, 60_000),
+          overall: scaling.rateLimiter('discordAll', 600, 60_000),
+          ...(options.discord.fetch === undefined ? {} : { fetch: options.discord.fetch }),
+        });
+  const sessionKeys = options.profiles?.keys ?? null;
 
   const server = defineServer({
     rooms: { [ROOM_NAME]: defineRoom(CitadelRoom), [ACADEMY_ROOM]: defineRoom(AcademyRoom), [BEACH_ROOM]: defineRoom(BeachRoom), [CITY_ROOM]: defineRoom(CityRoom), [MISSION_ROOM]: defineRoom(MissionRoom) },
@@ -95,6 +115,7 @@ export function createGameServer(options: GameServerOptions) {
         res.json({ ok: true });
       });
       if (profileApi !== null) app.use(profileApi.router);
+      if (discordApi !== null) app.use(discordApi.router);
       // The featured seasonal event for the menu banner; the same for everyone, so caches may keep it a minute.
       app.get(SEASON_PATH, async (req, res) => {
         if (!(await seasons.take(ipKey(requestIp(req))))) {
@@ -137,6 +158,7 @@ export function createGameServer(options: GameServerOptions) {
     lookups.stop();
     seasons.stop();
     profileApi?.stop();
+    discordApi?.stop();
     roomPolicy().chain.stop();
     void roomPolicy().ipSlots.stop();
     // Colyseus has closed presence and the driver by now; this stops the lane's own timers and connection.
@@ -155,6 +177,14 @@ export function createGameServer(options: GameServerOptions) {
       maxMatchmakeBodyBytes: 2048,
       // Each seat needs one socket, plus headroom for a reconnect overlapping the old socket.
       maxSocketsPerIp: 2 * (options.maxSeatsPerIp ?? 16),
+      ...(options.frameAncestors === undefined ? {} : { frameAncestors: options.frameAncestors }),
+      ...(sessionKeys === null
+        ? {}
+        : {
+            normalizeCredentials: (req, upgrade) => {
+              applyBearerSession(sessionKeys, req, Date.now(), upgrade);
+            },
+          }),
     });
     if (options.bots !== undefined) startBots(port, host);
   };
