@@ -10,3 +10,13 @@ coverage/
 
 # Smoke-test client build
 dist-e2e/
+
+# Claude Code Game Studios: local and per-session files
+.claude/settings.local.json
+CLAUDE.local.md
+project.local.yaml
+production/session-logs/
+production/session-state/
+.claude/agent-memory/
+.claude/worktrees/
+docs/consistency-failures.md
