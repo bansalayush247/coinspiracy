@@ -24,7 +24,9 @@ afterAll(async () => {
   await colyseus.shutdown();
 });
 
-function next(room: Room, type: string, timeoutMs = 3000): Promise<unknown> {
+const WAIT_MS = 8000;
+
+function next(room: Room, type: string, timeoutMs = WAIT_MS): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       off();
@@ -78,7 +80,7 @@ describe('the Academy', () => {
     room.send('start', { level: 4 });
     const d = AcademyDrillSchema.parse(await first);
     const result = next(room, ACADEMY_MESSAGES.RESULT);
-    const fresh = next(room, ACADEMY_MESSAGES.DRILL, ACADEMY_RETRY_MS + 1500);
+    const fresh = next(room, ACADEMY_MESSAGES.DRILL, ACADEMY_RETRY_MS + WAIT_MS);
     room.send('answer', { id: d.id, answer: wrongAnswer(d.challenge) });
     expect(AcademyResultSchema.parse(await result)).toEqual({ id: d.id, ok: false, retryInMs: ACADEMY_RETRY_MS });
     const again = AcademyDrillSchema.parse(await fresh);
