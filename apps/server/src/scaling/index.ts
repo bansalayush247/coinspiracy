@@ -8,7 +8,8 @@ import { isPublicAddress } from './config.js';
 import { RedisHealth } from './health.js';
 import { NetworkKeys } from './keys.js';
 import { LocalRateLimiter, RedisRateLimiter, type RateLimiter } from './limiter.js';
-import { errorName, ioredisRunner, isLoopbackHost, parseRedisUrl, redisOptions, type CommandRunner } from './redis.js';
+import { log } from '../logger.js';
+import { DEFAULT_TUNING, errorName, ioredisRunner, isLoopbackHost, parseRedisUrl, redisOptions, retryDelay, type CommandRunner } from './redis.js';
 import { LocalSeatCounter, RedisSeatCounter, type SeatCounter, type SeatTiming } from './seats.js';
 
 export { holdSeat, type CloseEmitter, type SeatCounter } from './seats.js';
@@ -37,17 +38,22 @@ export interface ScalingOptions {
   readonly keySecret?: string | null;
   readonly publicAddress?: string | undefined;
   readonly production?: boolean;
+  /** Heartbeat and startup timing; SCALING_TIMING when omitted. */
+  readonly timing?: ScalingTiming;
 }
 
 export interface ScalingTiming {
   // Heartbeat, lease refresh and breaker probe interval.
   readonly beatMs: number;
-  // start() gives up after this.
+  // start() gives up after this; Infinity waits for Redis as long as it takes.
   readonly startTimeoutMs: number;
+  /** While start() waits, a warning is logged at the first failure and then this often. */
+  readonly waitLogMs?: number;
   readonly seats?: SeatTiming;
 }
 
-export const SCALING_TIMING: ScalingTiming = Object.freeze({ beatMs: 5_000, startTimeoutMs: 10_000 });
+/** Default timing. Startup waits for Redis instead of exiting, so an outage never becomes a supervisor restart loop. */
+export const SCALING_TIMING: ScalingTiming = Object.freeze({ beatMs: 5_000, startTimeoutMs: Number.POSITIVE_INFINITY, waitLogMs: 30_000 });
 
 function checkedAddress(publicAddress: string | undefined): string | undefined {
   if (publicAddress !== undefined && !isPublicAddress(publicAddress)) throw new Error('invalid public address');
@@ -110,6 +116,31 @@ export interface RedisScalingDeps {
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Resolves once a connecting client is ready; rejects on its next error or after timeoutMs, so a ping never races the connect.
+function ready(client: Redis, timeoutMs: number): Promise<void> {
+  if (client.status === 'ready') return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const settle = (error: unknown): void => {
+      clearTimeout(timer);
+      client.off('ready', onReady);
+      client.off('error', onError);
+      if (error === null) resolve();
+      else reject(error instanceof Error ? error : new Error('redis not ready'));
+    };
+    const onReady = (): void => {
+      settle(null);
+    };
+    const onError = (error: unknown): void => {
+      settle(error);
+    };
+    const timer = setTimeout(() => {
+      settle(new Error('redis connect timed out'));
+    }, timeoutMs);
+    client.once('ready', onReady);
+    client.once('error', onError);
+  });
+}
 
 export class RedisScaling implements Scaling {
   readonly mode = 'redis';
@@ -202,18 +233,26 @@ export class RedisScaling implements Scaling {
     for (const client of colyseus) if (client.status !== 'end') client.disconnect();
   }
 
-  // Retries until every connection answers and the first heartbeat lands; the last error once the deadline passes.
+  // Retries with capped backoff until every connection answers and the first heartbeat lands; the last error once the deadline passes.
   async #waitForRedis(clients: readonly Redis[]): Promise<{ readonly error: unknown } | null> {
     const now = this.#deps.now ?? Date.now;
     const deadline = now() + this.#timing.startTimeoutMs;
-    for (;;) {
+    const logEvery = this.#timing.waitLogMs ?? 30_000;
+    let loggedAt = -Infinity;
+    for (let attempt = 1; ; attempt++) {
       try {
+        await Promise.all(clients.map((client) => ready(client, DEFAULT_TUNING.connectTimeoutMs)));
         await Promise.all(clients.map((client) => client.ping()));
         await this.#beatAll(false);
+        if (attempt > 1) log.info('scaling: redis answered, starting');
         return null;
       } catch (error) {
         if (now() >= deadline || this.#stopped) return { error };
-        await sleep(250);
+        if (now() - loggedAt >= logEvery) {
+          loggedAt = now();
+          log.warn('scaling: waiting for redis before accepting players', { error: errorName(error), attempt });
+        }
+        await sleep(retryDelay(attempt));
       }
     }
   }
@@ -265,5 +304,6 @@ export function createScaling(options: ScalingOptions = {}): Scaling {
     driver: new RedisDriver(driverClient),
     publicAddress,
     clients: [own, presenceClient, driverClient],
+    ...(options.timing === undefined ? {} : { timing: options.timing }),
   });
 }

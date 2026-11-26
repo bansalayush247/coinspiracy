@@ -1,0 +1,30 @@
+{
+  "tiers": [
+    {
+      "id": "apprentice",
+      "unlockIsland": null,
+      "ceremonies": false,
+      "forging": false,
+      "partition": false,
+      "freeze": false
+    },
+    {
+      "id": "journeyman",
+      "unlockIsland": "signing",
+      "ceremonies": true,
+      "forging": true,
+      "partition": false,
+      "freeze": false
+    },
+    {
+      "id": "full",
+      "unlockIsland": "watchtower",
+      "ceremonies": true,
+      "forging": true,
+      "partition": true,
+      "freeze": true
+    }
+  ],
+  "fallback": "full",
+  "ceremonyRoomMin": "journeyman"
+}

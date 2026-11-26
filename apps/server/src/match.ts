@@ -19,6 +19,7 @@ import {
   inStationRange,
   STATION_RANGE,
   taskBit,
+  tierRules,
   type Arena,
   type Guardian,
   type CeremonyTiming,
@@ -30,6 +31,7 @@ import {
   type TaskChallenge,
   type TaskKind,
   type TaskTiming,
+  type TierRules,
   type Vec2,
   type Winner,
 } from '@byzantine-council/shared';
@@ -110,6 +112,8 @@ export class Match {
   // Where the match is played: station positions and the gateway's routing difficulty.
   readonly #arena: Arena;
   readonly #tally = new Map<string, Tally>();
+  // The rule tier this match plays; fixed for the whole match.
+  readonly rules: TierRules;
 
   constructor(
     playerIds: readonly string[],
@@ -119,11 +123,13 @@ export class Match {
     rng: RandomSource = cryptoRandom,
     sabotageTiming: SabotageTiming = SABOTAGE_TIMING,
     arena: Arena = CITADEL,
+    rules: TierRules = tierRules('full'),
   ) {
     this.#timing = timing;
     this.#rng = rng;
     this.#arena = arena;
-    this.ceremony = new Ceremony(playerIds, ceremonyTiming, rng, now, arena);
+    this.rules = rules;
+    this.ceremony = new Ceremony(playerIds, ceremonyTiming, rng, now, arena, rules.ceremonies);
     this.sabotage = new Sabotage(sabotageTiming, now, arena.relays);
     let honestTotal = 0;
     for (const [id, role] of assignRoles(playerIds, rng)) {

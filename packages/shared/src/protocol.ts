@@ -41,4 +41,6 @@ export const SERVER_MESSAGES = Object.freeze({
   BOTS_REFUSED: 'botsRefused',
   // To the host: the arena could not be changed.
   ARENA_REFUSED: 'arenaRefused',
+  // To the host: the rule tier could not be changed.
+  TIER_REFUSED: 'tierRefused',
 } as const);

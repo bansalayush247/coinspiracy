@@ -23,6 +23,8 @@ import {
   hasTask,
   inSigningHall,
   stationNear,
+  tierRules,
+  TierIdSchema,
   type Arena,
   type CeremonyRefused,
   type CouncilRefused,
@@ -73,6 +75,8 @@ function sabotageRefusalText(r: SabotageRefused): string {
       return t('sabotage.notHere');
     case 'invalidTarget':
       return t('sabotage.invalidTarget');
+    case 'offTier':
+      return t('tier.offTier');
   }
 }
 
@@ -125,6 +129,8 @@ function refusalText(r: CeremonyRefused, action: CeremonyAction): string {
       return t('ceremonyRefused.audited');
     case 'partitioned':
       return t('ceremonyRefused.partitioned');
+    case 'offTier':
+      return t('tier.offTier');
   }
 }
 
@@ -531,7 +537,7 @@ export class MatchView {
     if (act !== this.#lastAct) {
       // The light follows the match: afternoon, then sunset with the withdrawals, then dusk for the final blocks.
       this.scene.setDaylight(act === 'proposals' ? 'sunset' : act === 'final' ? 'dusk' : 'day');
-      if (act === 'proposals' && this.#lastAct === 'calm') {
+      if (act === 'proposals' && this.#lastAct === 'calm' && this.#rules().ceremonies) {
         this.onToast(t('match.withdrawalsStart'));
         this.#coach.tip('withdrawals');
       }
@@ -647,13 +653,22 @@ export class MatchView {
     );
   }
 
+  // The joined room's rule tier; anything unexpected shows every control and leaves the refusals to the server.
+  #rules(): ReturnType<typeof tierRules> {
+    return tierRules(TierIdSchema.catch('full').parse(this.#room?.state.tier));
+  }
+
   // Byzantines only: the forge control, usable inside the Signing Hall.
   #updateForge(): void {
     const room = this.#room;
     const me = room?.state.players.get(room.sessionId);
-    const show = room !== null && room.state.phase === 'playing' && me?.role === 'byzantine' && !me.out;
+    const rules = this.#rules();
+    const show = room !== null && room.state.phase === 'playing' && me?.role === 'byzantine' && !me.out && (rules.forging || rules.partition || rules.freeze);
     this.#forgeBox.hidden = !show;
     if (!show) return;
+    this.#forge.hidden = !rules.forging;
+    this.#forgeHint.hidden = !rules.forging;
+    this.#cut.hidden = !rules.partition;
     const now = performance.now();
     const resting = now < this.#forgeWaitUntil;
     const able = me.status === 'active' && me.frozen === 0 && room.state.council.stage === '';
@@ -663,7 +678,7 @@ export class MatchView {
     this.#cut.textContent = room.state.partition > 0 ? t('match.networkCut') : cutIn > 0 && Number.isFinite(cutIn) ? t('match.cutIn', { seconds: String(cutIn) }) : t('match.cut');
     const target = this.#freezeTarget === null ? undefined : room.state.players.get(this.#freezeTarget);
     const freezeIn = Math.ceil((this.#freezeReadyAt - now) / 1000);
-    this.#freezeButton.hidden = target === undefined;
+    this.#freezeButton.hidden = target === undefined || !rules.freeze;
     this.#freezeButton.disabled = !able || freezeIn > 0;
     if (target !== undefined) this.#freezeButton.textContent = freezeIn > 0 && Number.isFinite(freezeIn) ? t('match.freezeIn', { name: target.name, seconds: String(freezeIn) }) : t('match.freeze', { name: target.name });
     this.#forgeHint.textContent = !this.#inHall ? t('match.goForge', { place: placeName('signingHall') }) : t(resting ? 'match.filing' : 'match.seen');

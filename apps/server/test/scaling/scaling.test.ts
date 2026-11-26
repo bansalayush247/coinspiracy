@@ -2,8 +2,10 @@ import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import { loadScalingConfig } from '../../src/scaling/config.js';
 import { RedisHealth } from '../../src/scaling/health.js';
-import { createScaling, holdSeat } from '../../src/scaling/index.js';
-import { NetworkKeys } from '../../src/scaling/keys.js';
+import { LocalDriver, LocalPresence } from '@colyseus/core';
+import { RedisScaling, createScaling, holdSeat } from '../../src/scaling/index.js';
+import { COLYSEUS_KEY_PREFIX, NetworkKeys } from '../../src/scaling/keys.js';
+import { parseRedisUrl, redisOptions } from '../../src/scaling/redis.js';
 import { RedisRateLimiter } from '../../src/scaling/limiter.js';
 import { RedisSeatCounter, type SeatTiming } from '../../src/scaling/seats.js';
 import { FakeRedis } from './fakeRedis.js';
@@ -124,5 +126,37 @@ describe('scaling setup', () => {
     expect(() => loadScalingConfig({ REDIS_URL: 'redis://127.0.0.1:6379', SCALING_KEY_SECRET: SECRET }, true)).toThrow(/PUBLIC_ADDRESS/);
     expect(loadScalingConfig({ REDIS_URL: 'redis://127.0.0.1:6379', SCALING_KEY_SECRET: SECRET, PUBLIC_ADDRESS: 'play.example.org/colyseus/s1' }, true).redisUrl).toBe('redis://127.0.0.1:6379');
     expect(() => loadScalingConfig({ PUBLIC_ADDRESS: 'https://play.example.org' }, true)).toThrow(/PUBLIC_ADDRESS/);
+  });
+
+  it('namespaces every Colyseus key and keeps the limits client fail-fast', () => {
+    const endpoint = parseRedisUrl('redis://127.0.0.1:6379/3');
+    expect(redisOptions(endpoint, 'presence').keyPrefix).toBe(COLYSEUS_KEY_PREFIX);
+    expect(redisOptions(endpoint, 'driver').keyPrefix).toBe(COLYSEUS_KEY_PREFIX);
+    expect(redisOptions(endpoint, 'presence').commandTimeout).toBeGreaterThan(0);
+    const own = redisOptions(endpoint, 'commands');
+    expect(own.keyPrefix).toBeUndefined();
+    expect(own.enableOfflineQueue).toBe(false);
+    expect(COLYSEUS_KEY_PREFIX.startsWith('bc:')).toBe(true);
+  });
+
+  it('waits for Redis at startup instead of exiting, and gives up only with a deadline', async () => {
+    const redis = new FakeRedis();
+    redis.down = true;
+    const deps = { runner: redis, keys: new NetworkKeys(SECRET), presence: new LocalPresence(), driver: new LocalDriver() };
+    const patient = new RedisScaling({ ...deps, timing: { beatMs: 5_000, startTimeoutMs: Number.POSITIVE_INFINITY, waitLogMs: 1_000 } });
+    let started = false;
+    const starting = patient.start().then(() => {
+      started = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(started).toBe(false);
+    redis.down = false;
+    await starting;
+    expect(patient.healthy()).toBe(true);
+    await patient.stop();
+    redis.down = true;
+    const hasty = new RedisScaling({ ...deps, timing: { beatMs: 5_000, startTimeoutMs: 300 } });
+    await expect(hasty.start()).rejects.toThrow(/^scaling: redis did not answer at startup \(Error\)$/);
+    await hasty.stop();
   });
 });

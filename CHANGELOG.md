@@ -2,6 +2,14 @@
 
 ## 26 November 2026
 
+### Rule tiers and Redis scaling
+- Council matches now come in rule tiers: Apprentice (tasks and council votes), Journeyman (adds signing ceremonies
+  and forgeries) and the Full council (adds network cuts and disconnects). Quick matches follow the least experienced
+  guardian in the room, and the host of a private lobby picks. The server refuses anything outside the match's tier,
+  and the tier picker and its notes are in English and Spanish.
+- Several server processes can now share one Redis: matchmaking, room codes and per-network limits work across
+  processes, Redis keys are namespaced and expire, and a Redis outage degrades instead of crash-looping.
+
 ### Spanish
 - The game now speaks Spanish as well as English. The menu, lobby, settings, HUD, toasts, error messages, end and
   reward cards, progress pages and the casebook follow your browser's language, and a new Language picker in Settings

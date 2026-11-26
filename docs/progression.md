@@ -269,6 +269,34 @@ Solo levels the server runs: it generates the challenges and checks the answers.
   - one level at a time;
   - message rate limits.
 
+## Rule tiers (added 26 Nov 2026)
+
+A council match has a lot of rules. A new guardian meets them a few at a time, in the order the islands teach them.
+Tasks and councils are in every tier, so both sides can always win. The table is data:
+`packages/shared/src/tuning/tiers.json`, checked by `TierTableSchema` (`packages/shared/src/tiers.ts`) and frozen at load.
+
+| Tier | A player has it once | Tasks and councils | Signing ceremonies (withdrawals, sign or refuse, audits, liveness) | Forged withdrawals | Network cuts | Disconnects |
+|---|---|---|---|---|---|---|
+| Apprentice | always | yes | no | no | no | no |
+| Journeyman | Signing Isle is open (Rank 2 or 3 Academy stars) | yes | yes | yes | no | no |
+| Full council | Watchtower Peaks is open (Rank 6 or 9 stars) | yes | yes | yes | yes | yes |
+
+- **Quick match** plays the lowest tier anyone seated has (a person, with a known profile). Bots and players without
+  a profile do not count; with nobody known (profiles off) it plays the Full council, as before. Apprentice lasts one
+  match and Journeyman about five, so a newcomer slows a mixed room only briefly.
+- **Private lobbies** follow the same rule until the host picks a tier; the pick stays for the room. A story signing
+  ceremony never plays below Journeyman, and its host cannot pick Apprentice.
+- The tier is settled in the lobby and fixed when the match starts. The server enforces it: no withdrawal is filed
+  without ceremonies, and signing, refusing, auditing, forging, cutting and disconnecting outside the tier are refused
+  with `offTier` before anything else looks at them. Sabotage readiness is never sent in a tier without sabotage.
+- **Win conditions per tier.** Apprentice ends on consensus, all Byzantines rotated out, a halt, or the last block.
+  Journeyman adds a passed forgery and lost liveness. Full adds outages from cuts. `packages/shared/test/tiers.test.ts`
+  plays every reason in every tier for 5–9 guardians with the shared rules, and checks that no other reason can occur.
+- **Guardrail.** "Ranks never change match rules" is about advantage: a tier applies to everyone in the room alike,
+  gives nobody an edge, and never reveals a role. Rank only decides which rules a newcomer has met.
+- **Later.** Matchmaking could group quick-match players by tier; XP lines for ceremonies and sabotage simply do not
+  occur in lower tiers, which the role-parity simulation should cover next.
+
 ## Screens
 
 - **Rewards panel**, inside the result card after roles are revealed:

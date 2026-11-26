@@ -3,7 +3,8 @@ import './zod-jitless.js';
 import './style.css';
 import Phaser from 'phaser';
 import { Callbacks } from '@colyseus/sdk';
-import { ArenaRefusedSchema, BotsRefusedSchema, SERVER_MESSAGES, arenaById, type ArenaRefused, type BotsRefused } from '@byzantine-council/shared';
+import { ArenaRefusedSchema, BotsRefusedSchema, SERVER_MESSAGES, TierIdSchema, TierRefusedSchema, arenaById, type ArenaRefused, type BotsRefused } from '@byzantine-council/shared';
+import { tierRefusal } from './ui/tierText.js';
 import type { CouncilState, PlayerState, ProposalState } from '@byzantine-council/shared/state';
 import { CitadelScene, SCENE_KEY } from './game/CitadelScene.js';
 import { REG_DPR, hiDpiScaleConfig, installHiDpi } from './game/hidpi.js';
@@ -375,6 +376,9 @@ class Controller {
     this.#hud.onArena = (arena) => {
       this.#room?.send('setArena', { arena });
     };
+    this.#hud.onTier = (tier) => {
+      this.#room?.send('setTier', { tier });
+    };
     el('game', HTMLDivElement).addEventListener(
       'wheel',
       (e) => {
@@ -674,6 +678,10 @@ class Controller {
       const parsed = ArenaRefusedSchema.safeParse(payload);
       if (parsed.success) this.#hud.toast(t(ARENA_REFUSAL_TEXT[parsed.data.reason]));
     });
+    room.onMessage(SERVER_MESSAGES.TIER_REFUSED, (payload: unknown) => {
+      const parsed = TierRefusedSchema.safeParse(payload);
+      if (parsed.success) this.#hud.toast(tierRefusal(parsed.data.reason));
+    });
     room.onMessage(SERVER_MESSAGES.BOTS_REFUSED, (payload: unknown) => {
       const parsed = BotsRefusedSchema.safeParse(payload);
       if (!parsed.success) return;
@@ -704,7 +712,7 @@ class Controller {
       refresh();
       if (id !== room.sessionId) this.#hud.toast(t('hud.left', { name: player.name }));
     });
-    for (const field of ['hostId', 'phase', 'consensus', 'byzantines', 'winner', 'winReason', 'blockHeight', 'chainLive', 'signaturesNeeded', 'livenessStrikes', 'partition', 'repair', 'relays', 'outages', 'act', 'blocksLeft', 'reefOpen', 'peaksOpen', 'isPrivate'] as const) {
+    for (const field of ['hostId', 'phase', 'consensus', 'byzantines', 'winner', 'winReason', 'blockHeight', 'chainLive', 'signaturesNeeded', 'livenessStrikes', 'partition', 'repair', 'relays', 'outages', 'act', 'blocksLeft', 'reefOpen', 'peaksOpen', 'isPrivate', 'tier', 'ceremony'] as const) {
       callbacks.listen(field, refresh);
     }
     callbacks.listen('arena', () => {
@@ -784,6 +792,8 @@ class Controller {
       arena: arenaById(room.state.arena).id,
       reefOpen: room.state.reefOpen,
       peaksOpen: room.state.peaksOpen,
+      tier: TierIdSchema.catch('full').parse(room.state.tier),
+      ceremony: room.state.ceremony,
     };
   }
 

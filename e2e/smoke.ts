@@ -501,6 +501,12 @@ async function main(): Promise<void> {
     const eve = await joinByLink(browser, 'Eve', code, PHONE);
     const everyone = [alice, bob, cara, dan, eve];
     for (const p of everyone) await rosterSize(p, 5);
+    step('the host picks the full council rules');
+    check(((await bob.page.textContent('#tier-badge')) ?? '') === 'Apprentice rules', 'bob: new guardians start on apprentice rules');
+    check(await bob.page.locator('#tier-choices button', { hasText: 'Full council' }).isDisabled(), 'bob: only the host picks the rules');
+    await alice.page.locator('#tier-choices button', { hasText: 'Full council' }).click();
+    await bob.page.waitForFunction(() => document.getElementById('tier-badge')?.textContent === 'Full council', undefined, { timeout: 10_000 });
+    check(true, 'everyone sees the full council rules');
     await alice.page.waitForFunction(() => !(document.getElementById('start-match') as HTMLButtonElement | null)?.disabled, undefined, { timeout: 10_000 });
     await shoot(alice, 'lobby-ready.png');
     await alice.page.click('#start-match');

@@ -241,6 +241,7 @@ input::placeholder { color: rgba(226, 207, 214, 0.45); }
 .chain-label { color: var(--gold); font-weight: 700; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
 .roster .start { width: 100%; margin-top: 10px; }
 .tag.bot { background: rgba(169, 131, 255, 0.2); color: #cbb8ff; }
+.tag.tier { justify-self: start; background: rgba(127, 216, 255, 0.16); color: #9fe0ff; }
 .roster .add-bot { width: 100%; margin-top: 10px; background: transparent; color: var(--text); border: 1px dashed var(--edge); border-radius: 10px; padding: 8px; font: inherit; font-size: 13px; cursor: pointer; }
 .roster .add-bot:hover { background: rgba(255, 236, 214, 0.06); }
 /* Map picker in a private lobby: two segments, the chosen one lit in gold. */

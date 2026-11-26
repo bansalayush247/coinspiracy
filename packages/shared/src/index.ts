@@ -17,6 +17,7 @@ export * from './roles.js';
 export * from './sabotage.js';
 export * from './schemas.js';
 export * from './tasks.js';
+export * from './tiers.js';
 export * from './ticks.js';
 export * from './types.js';
 export * from './win.js';

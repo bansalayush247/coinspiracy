@@ -5,7 +5,19 @@ import { log } from './logger.js';
 import { openProfiles } from './profile/index.js';
 import { createScaling, loadScalingConfig } from './scaling/index.js';
 
-const config = loadConfig(process.env);
+const EX_CONFIG = 78;
+
+// Exits with sysexits EX_CONFIG, which systemd does not restart; config errors never echo values, so they are logged.
+function configured<T>(load: () => T): T {
+  try {
+    return load();
+  } catch (error) {
+    log.error('configuration error, not starting', undefined, { reason: error instanceof Error ? error.message : 'invalid configuration' });
+    process.exit(EX_CONFIG);
+  }
+}
+
+const config = configured(() => loadConfig(process.env));
 
 // Room failures are isolated by onUncaughtException; a stray rejection should not end every match.
 process.on('unhandledRejection', (reason) => {
@@ -14,8 +26,7 @@ process.on('unhandledRejection', (reason) => {
 
 const profiles = await openProfiles(process.env);
 // Redis-backed presence, room listing and limits when REDIS_URL is set; this process alone otherwise.
-const scalingConfig = loadScalingConfig(process.env, config.production);
-const scaling = createScaling(scalingConfig);
+const scaling = configured(() => createScaling(loadScalingConfig(process.env, config.production)));
 await scaling.start();
 log.info('scaling', { mode: scaling.mode });
 

@@ -181,7 +181,104 @@ VITE_SERVER_URL=https://play.example.org/colyseus npm run build -w @byzantine-co
 
 ## More than one server process
 
-One process handles many rooms. When it is not enough, set `REDIS_URL`, `SCALING_KEY_SECRET` and a per-process
-`PUBLIC_ADDRESS` (for example `play.example.org/colyseus/s1`), run one unit per process on its own port, and route
-`/colyseus/s1/` to process 1 and so on in nginx. Matchmaking and the per-network limits then go through Redis. See
-`docs/lanes/scaling.md`.
+One process holds about 200 rooms on a laptop core (see the load test in `docs/lanes/scaling.md`). Beyond that, run one
+process per core and let them share Redis. Without `REDIS_URL` nothing below applies: presence, the room listing, room
+codes and every limit stay inside the one process.
+
+With `REDIS_URL` set, each process uses Colyseus's Redis presence and Redis driver, so quick match, `joinById`, room
+codes, the per-network seat cap and the matchmake, reservation and lookup limits all hold across processes. A seat
+reservation names the process that owns the room, and the client opens its socket at that process's
+`PUBLIC_ADDRESS`.
+
+### Redis
+
+- Redis 7.0 or newer (`PEXPIRE … NX`), or Valkey 7.2 or newer. One instance per deployment: pub/sub channels ignore
+  the database number, so two deployments on one instance would hear each other's process calls.
+- Bind it to loopback, or reach it over `rediss://`. In production the server refuses plain `redis://` to anything
+  but loopback. Custom CAs go in `NODE_EXTRA_CA_CERTS`.
+- Persistence off (`save ""`, `appendonly no`): everything in it is ephemeral and rebuilt by the running processes.
+- `maxmemory` with `maxmemory-policy volatile-ttl`, so only keys with a TTL can be evicted.
+- A user of its own, confined to the game's keys:
+  `user bcouncil on >LONG_RANDOM_PASSWORD ~bc:* &* +@all -@admin -@dangerous +info`, plus `default off`. `+info`
+  lets the client's ready check run; any key outside `bc:` is refused (`NOPERM`).
+  Put the password in `REDIS_URL` (`rediss://bcouncil:PASSWORD@host:6380/0`, percent-encoded). The server parses the
+  URL itself: no query string, no fragment, database 0-15.
+
+Every key is under `bc:`, and nothing a player sends becomes part of a key unchecked:
+
+| Keys | What | TTL |
+|---|---|---|
+| `bc:rl:<limit>:<token>` | Rate-limit windows | the window (8 s to 1 min) |
+| `bc:{seats}:n:<token>` | Seats a network holds, per process | 120 s, refreshed while held |
+| `bc:{seats}:procs` | Process heartbeats for the seat count | 10 min, refreshed every 5 s; dead entries pruned |
+| `bc:cy:code:<CODE>` | Room code to room id | 15 min, refreshed every minute by the owning process |
+| `bc:cy:roomcaches`, `bc:cy:roomcount`, `bc:cy:…` | Colyseus's room listing and process stats | none: Colyseus removes a dead process's rooms when its health check fails |
+
+`<token>` is an HMAC of the player's network under `SCALING_KEY_SECRET`, so Redis never holds an IP address.
+`<CODE>` is only ever a validated six-character code. A crashed process's seats stop counting after 30 s and its room
+codes free themselves within 15 minutes.
+
+### Processes
+
+Every process gets the same `server.env` plus three settings of its own. Generate the shared secret once with
+`openssl rand -base64 48`:
+
+```sh
+# /etc/byzantine-council/server.env (shared)
+REDIS_URL=rediss://bcouncil:PASSWORD@redis.internal:6380/0
+SCALING_KEY_SECRET=...
+
+# /etc/byzantine-council/process-1.env
+PORT=2567
+PUBLIC_ADDRESS=play.example.org/colyseus/s1
+```
+
+Copy `deploy/systemd/byzantine-council.service` to `byzantine-council@.service`, add
+`EnvironmentFile=/etc/byzantine-council/process-%i.env` after the shared `EnvironmentFile=` line, and run
+`systemctl enable --now byzantine-council@1 byzantine-council@2 …`, one per core.
+
+- **Startup.** A process waits for Redis before it listens, logging `scaling: waiting for redis` at once and every
+  30 s. It does not exit, so a Redis outage never becomes a restart loop; `/healthz` stays unreachable until it is
+  ready.
+- **Configuration errors** (a bad `REDIS_URL`, a missing or short `SCALING_KEY_SECRET`, no `PUBLIC_ADDRESS` in
+  production) exit with status 78 and one log line naming the variable, never its value. The unit's
+  `RestartPreventExitStatus=78` keeps systemd from restarting it until the setting is fixed.
+- **Redis trouble while running.** The limits fall back to per-process limits (`scaling: redis limits degraded`), and
+  the seat cap applies per process. When Redis answers again they go back to shared limits (`… restored`). Matchmaking
+  needs Redis: while it is unreachable, matchmake and code lookups fail after at most 5 s, and running matches go on.
+
+### nginx
+
+Matchmaking and the API can reach any process. Each process's room sockets must reach that process, through an
+explicit list; never build an upstream port from the request:
+
+```nginx
+upstream bc_game    { least_conn; server 127.0.0.1:2567; server 127.0.0.1:2568; keepalive 16; }
+upstream bc_game_s1 { server 127.0.0.1:2567; keepalive 8; }
+upstream bc_game_s2 { server 127.0.0.1:2568; keepalive 8; }
+
+location /colyseus/s1/ {
+    limit_conn bc_conn 32;
+    limit_req zone=bc_api burst=30 nodelay;
+    access_log /var/log/nginx/bc-play.log bc_game;
+    include /etc/nginx/snippets/bc-proxy-s1.conf;
+}
+```
+
+`bc-proxy-s1.conf` is a copy of `bc-proxy.conf` with `proxy_pass http://bc_game_s1;`. The server only reads the last
+two path segments of a socket URL, so the `/s1` prefix needs no rewrite, and reconnects reuse the same URL.
+
+### Checking it
+
+From `apps/server`, against a throwaway Redis (database 15):
+
+```sh
+docker run -d --rm --name bc-scaling-redis -p 127.0.0.1:6390:6379 redis:7.4-alpine redis-server --save "" --appendonly no
+REDIS_URL=redis://127.0.0.1:6390/15 npx vitest run test/scaling/redis.test.ts
+docker stop bc-scaling-redis
+```
+
+The test starts two real server processes on ports 3881 and 3882. It creates rooms until each process owns one,
+looks each room's code up through the other process, joins through the other process, and checks that the seat cap
+holds across both. Without `REDIS_URL` it is skipped. After a production change, also create a private room in one
+browser and join it by code from another.

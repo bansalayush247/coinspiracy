@@ -5,6 +5,7 @@ import type { CouncilStage } from './meeting.js';
 import type { Act } from './pacing.js';
 import type { ProposalStatus } from './proposals.js';
 import type { Role } from './types.js';
+import type { TierId } from './tiers.js';
 import type { Side, WinReason } from './win.js';
 
 export const PLAYER_STATUSES = ['active', 'disconnected'] as const;
@@ -139,6 +140,8 @@ export const CitadelState = schema(
     reefOpen: t.boolean().default(false),
     // The same for Watchtower Peaks.
     peaksOpen: t.boolean().default(false),
+    // The rule tier: follows the room's players (or the host's pick) in the lobby, fixed while a match runs.
+    tier: t.string<TierId>().default('full'),
   },
   'CitadelState',
 );

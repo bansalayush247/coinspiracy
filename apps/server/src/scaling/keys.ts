@@ -36,3 +36,6 @@ export function seatKey(token: string): string {
 }
 
 export const PROCS_KEY = 'bc:{seats}:procs';
+
+/** Prefix ioredis puts on every key Colyseus writes (room listing, process stats, room codes); channels are not keys. */
+export const COLYSEUS_KEY_PREFIX = 'bc:cy:';

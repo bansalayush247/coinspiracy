@@ -28,6 +28,7 @@ import {
   SERVER_MESSAGES,
   SERVER_TICK_HZ,
   SetArenaPayloadSchema,
+  SetTierPayloadSchema,
   TICK_SECONDS,
   TaskAnswerPayloadSchema,
   ARENAS,
@@ -40,8 +41,13 @@ import {
   actAt,
   blocksLeft,
   livenessStrikes,
+  messageAllowed,
+  playerTier,
+  roomTier,
   stepMovement,
   threshold,
+  tierPickable,
+  tierRules,
   uniqueNickname,
   type Arena,
   type ArenaId,
@@ -50,6 +56,7 @@ import {
   type BotsRefused,
   type ChatLine,
   type ChatMessage,
+  type ClientMessageType,
   type CouncilRefused,
   type SabotageReady,
   type SabotageRefused,
@@ -63,6 +70,8 @@ import {
   type TaskOpened,
   type TaskRefused,
   type TaskResult,
+  type TierId,
+  type TierRefused,
   type Role,
   type Vec2,
   type Winner,
@@ -123,6 +132,8 @@ interface PlayerSim {
   readonly profileId: string | null;
   // Arenas this guest's profile has opened (checked server-side from their progress).
   opened: ReadonlySet<ArenaId>;
+  // The highest rule tier this guest has learned, from their progress; null until known (and for bots).
+  tier: TierId | null;
 }
 
 // Typed server-to-client payloads.
@@ -140,6 +151,7 @@ interface ServerPayloads {
   [SERVER_MESSAGES.MATCH_REWARDS]: Award;
   [SERVER_MESSAGES.BOTS_REFUSED]: BotsRefused;
   [SERVER_MESSAGES.ARENA_REFUSED]: ArenaRefused;
+  [SERVER_MESSAGES.TIER_REFUSED]: TierRefused;
 }
 
 // Bots seated per host network in this process, so one network cannot take every bot (one room's worth at most).
@@ -191,6 +203,8 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
   #matchStartedAt = 0;
   // The arena the current match started on, for its rewards.
   #matchArena: ArenaId = 'citadel';
+  // The host's rule tier in a private lobby; null follows the players (see roomTier).
+  #tierPick: TierId | null = null;
   #dealt = 0;
   #dealtHumans = 0;
   readonly #idled = new Set<string>();
@@ -250,6 +264,9 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     setArena: validate(SetArenaPayloadSchema, (client: CitadelClient, payload: { arena: ArenaId }) => {
       this.#setArena(client, payload.arena);
     }),
+    setTier: validate(SetTierPayloadSchema, (client: CitadelClient, payload: { tier: TierId }) => {
+      this.#setTier(client, payload.tier);
+    }),
   };
 
   // HTTP matchmake time, before any room or seat exists; the IP comes from the sanitized headers.
@@ -276,6 +293,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
       this.state.ceremony = parsed.data.ceremony === true;
       await this.setPrivate(true);
     }
+    this.#syncTier();
     // Order matters: start the loop, then disable timed patches, then patch once per step.
     this.setFixedTimestep(() => {
       this.step();
@@ -322,7 +340,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     view.add(player, VIEW_TAGS.OWNER);
     client.view = view;
     client.userData = { kicked: false };
-    this.#sims.set(client.sessionId, { inputs: new InputQueue(), ipKey: auth.ipKey, lastActiveMs: Date.now(), holdingSlot: false, view, profileId: auth.profileId, opened: new Set<ArenaId>() });
+    this.#sims.set(client.sessionId, { inputs: new InputQueue(), ipKey: auth.ipKey, lastActiveMs: Date.now(), holdingSlot: false, view, profileId: auth.profileId, opened: new Set<ArenaId>(), tier: null });
     if (this.state.hostId === '' && !auth.bot) this.state.hostId = client.sessionId;
     if (auth.profileId !== null) void this.#wearLook(client.sessionId, auth.profileId);
     // Bots dress up from the shop shelves, so practice lobbies look lived in.
@@ -400,6 +418,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     this.#sims.delete(client.sessionId);
     this.#syncBotCount();
     this.#syncArenaAccess();
+    this.#syncTier();
     this.#lobbyChatAt.delete(client.sessionId);
     client.view?.dispose();
     if (this.state.hostId === client.sessionId) this.state.hostId = this.#nextHost();
@@ -511,7 +530,9 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
         const opened = new Set<ArenaId>();
         for (const arena of ARENA_IDS) if (islandOpenFor(ARENAS[arena].island, data.progress.xp, data.progress.academy)) opened.add(arena);
         sim.opened = opened;
+        sim.tier = playerTier(data.progress.xp, data.progress.academy);
         this.#syncArenaAccess();
+        this.#syncTier();
       }
     } catch (error) {
       log.warn('look not loaded', { roomId: this.roomId, error: error instanceof Error ? error.name : 'unknown' });
@@ -606,6 +627,43 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     else if (arena !== this.state.arena) this.#moveTo(arena);
   }
 
+  // The host of a private lobby picks the rule tier; a story signing ceremony keeps its ceremonies.
+  #setTier(client: CitadelClient, tier: TierId): void {
+    const refusal: TierRefused['reason'] | null =
+      this.#active(client) === null || client.auth?.bot === true || client.sessionId !== this.state.hostId
+        ? 'notHost'
+        : !this.state.isPrivate
+          ? 'notPrivate'
+          : this.state.phase !== 'lobby' || this.#match !== null
+            ? 'notLobby'
+            : !tierPickable(tier, this.state.ceremony)
+              ? 'locked'
+              : null;
+    if (refusal !== null) {
+      this.#sendTo(client.sessionId, SERVER_MESSAGES.TIER_REFUSED, { reason: refusal });
+      return;
+    }
+    this.#tierPick = tier;
+    this.#syncTier();
+    log.info('tier picked', { roomId: this.roomId, tier });
+  }
+
+  // Lobby only: the tier follows who is seated (and the host's pick); a running match keeps the tier it started with.
+  #syncTier(): void {
+    if (this.state.phase !== 'lobby' || this.#match !== null) return;
+    const players = [...this.#sims.values()].map((sim) => sim.tier);
+    const tier = roomTier({ players, picked: this.state.isPrivate ? this.#tierPick : null, ceremonyRoom: this.state.ceremony });
+    if (this.state.tier !== tier) this.state.tier = tier;
+  }
+
+  // A Byzantine or ceremony action this match's tier does not have is refused before anything else looks at it.
+  #offTier(client: CitadelClient, type: ClientMessageType): boolean {
+    if (messageAllowed(this.state.tier, type)) return false;
+    if (type === 'partition' || type === 'freeze') this.#sabotageRefuse(client, { ok: false, reason: 'offTier' });
+    else this.#refuse(client, { ok: false, reason: 'offTier' });
+    return true;
+  }
+
   // Everyone in the lobby walks over to the new arena's square, each to their own seat's spot.
   #moveTo(arena: ArenaId): void {
     this.state.arena = arena;
@@ -630,7 +688,8 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
 
     const policy = roomPolicy();
     const arena = this.#arena();
-    const match = new Match(players.map(([id]) => id), policy.taskTiming, policy.ceremonyTiming, taskClock(), cryptoRandom, policy.sabotageTiming, arena);
+    this.#syncTier();
+    const match = new Match(players.map(([id]) => id), policy.taskTiming, policy.ceremonyTiming, taskClock(), cryptoRandom, policy.sabotageTiming, arena, tierRules(this.state.tier));
     this.#match = match;
     this.#desk = new MeetingDesk(policy.councilTiming, taskClock(), arena.seal);
     this.#clockStart = taskClock();
@@ -681,7 +740,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     this.#matchLock = true;
     void this.lock();
     this.#sendReadiness(match);
-    log.info('match started', { roomId: this.roomId, players: players.length, arena: arena.id });
+    log.info('match started', { roomId: this.roomId, players: players.length, arena: arena.id, tier: this.state.tier });
   }
 
   #openTask(client: CitadelClient, payload: OpenTaskPayload): void {
@@ -718,7 +777,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
   // A guardian signs or refuses an open withdrawal, from anywhere in the citadel.
   #respond(client: CitadelClient, proposalId: string, sign: boolean): void {
     const play = this.#inPlay(client);
-    if (play === null) return;
+    if (play === null || this.#offTier(client, sign ? 'signProposal' : 'refuseProposal')) return;
     const { match } = play;
     // A partitioned federation cannot gather signatures; the deadlines keep running.
     if (match.sabotage.partitioned) {
@@ -737,7 +796,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
 
   #forge(client: CitadelClient): void {
     const play = this.#inPlay(client);
-    if (play === null) return;
+    if (play === null || this.#offTier(client, 'forgeProposal')) return;
     const { player, match } = play;
     const outcome = match.ceremony.forge(client.sessionId, match.role(client.sessionId), { x: player.x, y: player.y }, taskClock(), this.#ticks);
     if (!outcome.ok) {
@@ -752,7 +811,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
 
   #audit(client: CitadelClient, proposalId: string): void {
     const play = this.#inPlay(client);
-    if (play === null) return;
+    if (play === null || this.#offTier(client, 'auditProposal')) return;
     const { player, match } = play;
     const outcome = match.ceremony.startAudit(client.sessionId, proposalId, { x: player.x, y: player.y }, taskClock());
     if (!outcome.ok) {
@@ -997,6 +1056,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     this.state.proposals.clear();
     this.state.livenessStrikes = 0;
     this.state.signaturesNeeded = 0;
+    this.#syncTier();
     // A full room stays locked until someone leaves (see onLeave).
     if (this.#matchLock && !this.hasReachedMaxClients()) {
       this.#matchLock = false;
@@ -1006,7 +1066,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
 
   #partition(client: CitadelClient): void {
     const play = this.#inPlay(client);
-    if (play === null) return;
+    if (play === null || this.#offTier(client, 'partition')) return;
     const { match } = play;
     const outcome = match.sabotage.partition(match.role(client.sessionId), taskClock(), client.sessionId);
     if (!outcome.ok) {
@@ -1020,7 +1080,7 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
 
   #freeze(client: CitadelClient, targetId: string): void {
     const play = this.#inPlay(client);
-    if (play === null) return;
+    if (play === null || this.#offTier(client, 'freeze')) return;
     const { player, match } = play;
     const target = this.state.players.get(targetId);
     const targetPos = target === undefined || target.status !== 'active' ? undefined : { x: target.x, y: target.y };
@@ -1043,8 +1103,9 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     client.send(SERVER_MESSAGES.SABOTAGE_REFUSED, refusal);
   }
 
-  // Each Byzantine learns when their own actions are ready again; nobody else gets this.
+  // Each Byzantine learns when their own actions are ready again; nobody else gets this, nor anyone in a tier without sabotage.
   #sendReadiness(match: Match): void {
+    if (!match.rules.partition && !match.rules.freeze) return;
     const now = taskClock();
     for (const id of match.byzantines()) {
       if (match.isMember(id)) this.#sendTo(id, SERVER_MESSAGES.SABOTAGE_READY, match.sabotage.readiness(id, now));
@@ -1142,6 +1203,8 @@ export class CitadelRoom extends Room<{ state: CitadelState; client: CitadelClie
     awardMatch(profiles.store, facts, payees, now)
       .then((awards) => {
         for (const [sessionId, award] of awards) this.#sendTo(sessionId, SERVER_MESSAGES.MATCH_REWARDS, award);
+        // A rank-up can open the next tier's island; reload so the next match in this room plays it.
+        for (const payee of payees) void this.#wearLook(payee.sessionId, payee.profileId);
       })
       .catch((error: unknown) => {
         log.error('match payout failed', error, { roomId: this.roomId });

@@ -2,6 +2,7 @@
 import { isIP } from 'node:net';
 import type { Redis, RedisOptions } from 'ioredis';
 import { z } from 'zod';
+import { COLYSEUS_KEY_PREFIX } from './keys.js';
 
 export type RedisArg = string | number;
 export type RedisCommand = readonly [name: string, ...args: RedisArg[]];
@@ -115,9 +116,11 @@ export interface ConnectionTuning {
   // Limit and seat commands give up after this; the caller then uses the local fallback.
   readonly commandTimeoutMs: number;
   readonly connectTimeoutMs: number;
+  /** Colyseus presence and room-listing commands give up after this, so a stalled Redis fails matchmaking instead of hanging it. */
+  readonly colyseusCommandTimeoutMs: number;
 }
 
-export const DEFAULT_TUNING: ConnectionTuning = Object.freeze({ commandTimeoutMs: 500, connectTimeoutMs: 5_000 });
+export const DEFAULT_TUNING: ConnectionTuning = Object.freeze({ commandTimeoutMs: 500, connectTimeoutMs: 5_000, colyseusCommandTimeoutMs: 5_000 });
 
 // Reconnects forever with capped backoff: 200 ms, 400 ms, ... up to 2 s.
 export function retryDelay(times: number): number {
@@ -141,7 +144,7 @@ export function redisOptions(endpoint: RedisEndpoint, role: RedisRole, tuning: C
     // Colyseus calls queue briefly across a reconnect, then fail instead of hanging matchmaking.
     maxRetriesPerRequest: 3,
   };
-  if (role !== 'commands') return base;
+  if (role !== 'commands') return { ...base, keyPrefix: COLYSEUS_KEY_PREFIX, commandTimeout: tuning.colyseusCommandTimeoutMs };
   // A resent INCR would count twice, and an answer after the timeout is no longer wanted.
   return { ...base, enableOfflineQueue: false, commandTimeout: tuning.commandTimeoutMs, autoResendUnfulfilledCommands: false, maxRetriesPerRequest: 0 };
 }

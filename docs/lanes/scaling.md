@@ -3,7 +3,7 @@
 Horizontal scaling for the game server, a load test with a capacity estimate, and seasonal events
 driven by the live block height and the UTC date.
 
-Status: wired (23 Nov 2026). The room policy, code lookups, presence, driver and public address come from `createScaling()`; `index.ts` starts it before `listen()`. Tested on the in-memory Redis fake (`test/scaling/scaling.test.ts`); the real-Redis suite and the load test have not been run yet.
+Status: done (26 Nov 2026). The room policy, code lookups, presence, driver and public address come from `createScaling()`; `index.ts` starts it before `listen()`. Tested on the in-memory Redis fake (`test/scaling/scaling.test.ts`) and on a real Redis 7.4: `test/scaling/redis.test.ts` runs two server processes on ports 3881 and 3882 and passes (see Verification). Setup for operators is in `docs/deploy.md`, "More than one server process".
 
 ## Scope and files
 
@@ -31,7 +31,8 @@ One Node process per core, all equal. Each process hosts its own rooms. Colyseus
 things to spread across processes, and this lane provides all of them:
 
 1. **Presence** (`RedisPresence`): pub/sub for inter-process calls (remote room creation, seat
-   reservations, health checks) and the shared hashes room codes already use (`bc:code-*`).
+   reservations, health checks) and room codes (`bc:cy:code:<CODE>`, one hash per code with a 15-minute TTL that
+   the owning process refreshes every minute).
 2. **Driver** (`RedisDriver`): the room listing (`roomcaches` hash), so quick match and code
    lookups see rooms on every process.
 3. **Public address** per process: a seat reservation carries the address of the process that
@@ -154,8 +155,14 @@ On recovery the seat counter rotates to a new generation and rewrites every loca
 also drops anything written before or during the outage. Transitions are logged once each
 (`scaling: redis limits degraded` / `restored`) with the error class only.
 
-At startup the process fails closed: `start()` throws if Redis does not answer within 10 s, and
-the supervisor restarts it.
+At startup the process fails closed without exiting: `start()` waits for Redis with capped backoff, logging
+`scaling: waiting for redis before accepting players` at once and every 30 s, and the server only listens once Redis
+answers. Exiting instead would turn an outage into a supervisor restart loop. Configuration errors exit with status 78,
+which the systemd unit does not restart (`RestartPreventExitStatus=78`).
+
+Colyseus's own clients (presence and room listing) have a 5 s command timeout, so a stalled Redis fails matchmaking and
+code lookups instead of hanging them; their keys are namespaced with the ioredis `keyPrefix` `bc:cy:` (pub/sub
+channels are not keys, which is why each deployment needs its own Redis instance).
 
 ### Process layout and public address
 
@@ -280,11 +287,28 @@ economy catalogue's `category:value` form so the catalogue can add them later.
 
 ## Integration
 
-Filled at the end of the lane.
+- `index.ts`: `createScaling(loadScalingConfig(...))` and `await scaling.start()` before `listen()`, both behind the
+  exit-78 configuration guard.
+- `app.ts` and `policy.ts`: presence, driver, public address and every limiter come from the `Scaling` passed in.
+- `roomCodes.ts`: one presence hash per code. On shared presence each claim is an atomic `HINCRBY` + `EXPIRE`, and a
+  process-wide timer refreshes the codes its rooms hold; a code that expired during an outage is claimed back if still
+  free. On `LocalPresence` there is no TTL and no timer, exactly as before.
+- `deploy/systemd/byzantine-council.service`: `RestartPreventExitStatus=78`.
 
 ## Verification
 
-Filled at the end of the lane.
+26 Nov 2026, Redis 7.4.12 in a throwaway container on `127.0.0.1:6390`, database 15:
+
+- `REDIS_URL=redis://127.0.0.1:6390/15 npx vitest run test/scaling/redis.test.ts`: 3 of 3 passed, three runs in a row.
+  Two scaling instances share a rate window and a seat cap; two real server processes (3881, 3882) each own a room,
+  each room's code resolves through the other process, a guest joins through the other process (the reservation
+  carries the owner's `PUBLIC_ADDRESS`), and a third seat from one network is refused (4105) across both processes.
+- The same suite as an ACL user `~bc:* &* +@all -@admin -@dangerous +info` passes, and that user gets `NOPERM` on any
+  key outside `bc:`.
+- After a run, Redis holds only `bc:rl:*` windows with TTLs; graceful shutdown removes rooms, codes and seats.
+- With Redis unreachable at startup the process stays up, waits and logs; with Redis paused mid-run the limits log
+  `degraded`, code lookups fail with 500 after 5 s, `/healthz` keeps answering, and `restored` follows the unpause.
+- A bad `REDIS_URL` exits 78 with one line naming the variable, never its value.
 
 ## Load test results (23 Nov 2026)
 
@@ -308,4 +332,5 @@ silicon laptop, no Redis:
   on this hardware. Plan for half that on a small cloud vCPU, and run one process per core with Redis (Part 1)
   beyond it.
 - Lag p99 stays at the timer resolution (about 13 ms) throughout, so players see no added latency at these loads.
-- Not yet measured: multiple processes on a real Redis (none on the test machine), and the bot manager under load.
+- Not yet measured: the load test spread over several processes on Redis, and the bot manager under load. The
+  two-process functional check is in Verification above.

@@ -290,6 +290,7 @@
             <div class="room-meta">
               <span id="room-kind" class="eyebrow" data-i18n="hud.room">Room</span>
               <b id="room-code-text" class="code">······</b>
+              <span id="tier-badge" class="tag tier" hidden></span>
             </div>
             <button id="copy-invite" type="button" data-i18n="hud.copyInvite">Copy invite link</button>
             <input id="invite-field" class="invite-field" readonly aria-label="Invite link" data-i18n-aria-label="hud.inviteLink" hidden />
@@ -313,6 +314,11 @@
                 <button type="button" data-arena="peaks" aria-pressed="false">Watchtower Peaks</button>
               </div>
               <p id="arena-note" class="hint"></p>
+            </div>
+            <div id="tier-pick" class="arena-pick" hidden>
+              <span id="tier-label" class="arena-label"></span>
+              <div id="tier-choices" class="arena-choices" role="group"></div>
+              <p id="tier-note" class="hint"></p>
             </div>
             <button id="add-bot" type="button" class="add-bot" hidden data-i18n="hud.addBot">Add a practice bot</button>
             <button id="start-match" type="button" class="cta start" hidden data-i18n="hud.start">Start match</button>

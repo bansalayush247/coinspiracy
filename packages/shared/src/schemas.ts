@@ -4,6 +4,7 @@ import { ArenaIdSchema } from './arena.js';
 import { TaskAnswerSchema, TaskChallengeSchema } from './minigames.js';
 import { err, ok, type Result } from './result.js';
 import { TASK_KINDS } from './tasks.js';
+import { TierIdSchema } from './tiers.js';
 
 // Opaque server ids; the 8-char minimum keeps them clear of 'skip'.
 export const PlayerIdSchema = z.string().regex(/^[A-Za-z0-9_-]{8,32}$/);
@@ -43,6 +44,8 @@ export const FreezePayloadSchema = z.strictObject({ targetId: PlayerIdSchema });
 export const RemoveBotPayloadSchema = z.strictObject({ targetId: PlayerIdSchema });
 // The host of a private lobby picks where the match is played.
 export const SetArenaPayloadSchema = z.strictObject({ arena: ArenaIdSchema });
+/** The host of a private lobby picks the rule tier (see tiers.ts). */
+export const SetTierPayloadSchema = z.strictObject({ tier: TierIdSchema });
 export const TaskKindSchema = z.enum(TASK_KINDS);
 // Server-issued per challenge, so an answer can only ever apply to the challenge it was for.
 export const TaskIdSchema = z.string().regex(/^[A-Za-z0-9_-]{8,24}$/);
@@ -68,6 +71,7 @@ export const CLIENT_MESSAGE_PAYLOADS = {
   addBot: NoPayloadSchema,
   removeBot: RemoveBotPayloadSchema,
   setArena: SetArenaPayloadSchema,
+  setTier: SetTierPayloadSchema,
 } as const;
 export type ClientMessageType = keyof typeof CLIENT_MESSAGE_PAYLOADS;
 export type MovePayload = z.infer<typeof MovePayloadSchema>;
@@ -94,6 +98,7 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   EmptyPayloadSchema.extend({ type: z.literal('addBot') }),
   RemoveBotPayloadSchema.extend({ type: z.literal('removeBot') }),
   SetArenaPayloadSchema.extend({ type: z.literal('setArena') }),
+  SetTierPayloadSchema.extend({ type: z.literal('setTier') }),
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -124,7 +129,8 @@ export const AuditSchema = z.discriminatedUnion('status', [
   z.strictObject({ status: z.literal('cancelled'), proposalId: EntityIdSchema }),
   z.strictObject({ status: z.literal('done'), proposalId: EntityIdSchema, forged: z.boolean() }),
 ]);
-export const CEREMONY_REFUSALS = ['notOpen', 'alreadyResponded', 'cannotAct', 'notHere', 'cooldown', 'busy', 'tooMany', 'notYet', 'audited', 'partitioned'] as const;
+/** Ceremony refusals; `offTier` means this match's rule tier has no signing ceremonies (or no forgeries). */
+export const CEREMONY_REFUSALS = ['notOpen', 'alreadyResponded', 'cannotAct', 'notHere', 'cooldown', 'busy', 'tooMany', 'notYet', 'audited', 'partitioned', 'offTier'] as const;
 export const CeremonyRefusedSchema = z.strictObject({
   reason: z.enum(CEREMONY_REFUSALS),
   retryInMs: RetryInMs.optional(),
@@ -136,7 +142,8 @@ export const CouncilRefusedSchema = z.strictObject({
   reason: z.enum(COUNCIL_REFUSALS),
   retryInMs: RetryInMs.optional(),
 });
-export const SABOTAGE_REFUSALS = ['cannotAct', 'notYet', 'cooldown', 'active', 'notHere', 'invalidTarget'] as const;
+/** Sabotage refusals; `offTier` means this match's rule tier has no such sabotage. */
+export const SABOTAGE_REFUSALS = ['cannotAct', 'notYet', 'cooldown', 'active', 'notHere', 'invalidTarget', 'offTier'] as const;
 export const SabotageRefusedSchema = z.strictObject({
   reason: z.enum(SABOTAGE_REFUSALS),
   retryInMs: RetryInMs.optional(),
@@ -156,6 +163,12 @@ export const BotsRefusedSchema = z.strictObject({ reason: z.enum(BOT_REFUSALS) }
 export const ARENA_REFUSALS = ['notHost', 'notLobby', 'notPrivate', 'locked'] as const;
 export const ArenaRefusedSchema = z.strictObject({ reason: z.enum(ARENA_REFUSALS) });
 export type ArenaRefused = z.infer<typeof ArenaRefusedSchema>;
+/** Why the host's tier pick was refused: only a private lobby's host may pick, and a signing-ceremony room keeps its ceremonies. */
+export const TIER_REFUSALS = ['notHost', 'notLobby', 'notPrivate', 'locked'] as const;
+/** Sent to the host when the rule tier could not change. */
+export const TierRefusedSchema = z.strictObject({ reason: z.enum(TIER_REFUSALS) });
+/** A refused tier pick. */
+export type TierRefused = z.infer<typeof TierRefusedSchema>;
 export type BotsRefused = z.infer<typeof BotsRefusedSchema>;
 export type ChatLine = z.infer<typeof ChatLineSchema>;
 export type CouncilRefused = z.infer<typeof CouncilRefusedSchema>;

@@ -147,6 +147,8 @@ describe('Watchtower Peaks', () => {
     await waitFor(() => rooms.every((r) => r.state.players.size === 5), 'everyone synced');
     host.send('setArena', { arena: 'peaks' });
     await waitFor(() => rooms.every((r) => r.state.arena === 'peaks'), 'peaks chosen');
+    host.send('setTier', { tier: 'full' });
+    await waitFor(() => rooms.every((r) => r.state.tier === 'full'), 'full rules picked');
     host.send('startMatch');
     await waitFor(() => rooms.every((r) => r.state.players.get(r.sessionId)?.role !== undefined), 'roles dealt');
     const byz = rooms.find((r) => r.state.players.get(r.sessionId)?.role === 'byzantine');

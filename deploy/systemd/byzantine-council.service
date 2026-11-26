@@ -14,6 +14,8 @@ EnvironmentFile=/etc/byzantine-council/server.env
 ExecStart=/usr/bin/node dist/index.js
 Restart=on-failure
 RestartSec=2
+# 78 is a configuration error: restarting would only repeat it.
+RestartPreventExitStatus=78
 # The server drains rooms on SIGTERM and caps the drain at 10 s.
 KillSignal=SIGTERM
 TimeoutStopSec=20

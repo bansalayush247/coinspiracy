@@ -1,9 +1,10 @@
-import { ArenaIdSchema, MAX_PLAYERS, MIN_PLAYERS, formatRoomCode, isRoomCode, type ArenaId, type Role } from '@byzantine-council/shared';
+import { ArenaIdSchema, MAX_PLAYERS, MIN_PLAYERS, TIER_IDS, formatRoomCode, isRoomCode, tierPickable, type ArenaId, type Role, type TierId } from '@byzantine-council/shared';
 import type { MatchPhase } from '@byzantine-council/shared/state';
 import { cssColor, seatColors } from '../game/palette.js';
 import { inviteLink } from '../net/invite.js';
 import { onLocaleChange, t } from '../i18n/index.js';
 import { el, h } from './dom.js';
+import { tierName, tierSummary } from './tierText.js';
 
 export interface RosterEntry {
   readonly id: string;
@@ -30,6 +31,10 @@ export interface LobbyInfo {
   // Someone in the room has opened Lightning Reef, or Watchtower Peaks.
   readonly reefOpen: boolean;
   readonly peaksOpen: boolean;
+  /** The room's rule tier; the host of a private lobby picks it. */
+  readonly tier: TierId;
+  /** A story signing ceremony, which keeps its withdrawals. */
+  readonly ceremony: boolean;
 }
 
 export type ConnectionState = 'connected' | 'reconnecting';
@@ -53,6 +58,11 @@ export class Hud {
   readonly #addBot = el('add-bot', HTMLButtonElement);
   readonly #arenaPick = el('arena-pick', HTMLDivElement);
   readonly #arenaNote = el('arena-note', HTMLParagraphElement);
+  readonly #tierBadge = el('tier-badge', HTMLSpanElement);
+  readonly #tierPick = el('tier-pick', HTMLDivElement);
+  readonly #tierNote = el('tier-note', HTMLParagraphElement);
+  readonly #tierButtons: readonly HTMLButtonElement[];
+  #lastLobby: LobbyInfo | null = null;
   readonly #toasts = el('toasts', HTMLDivElement);
   #code = '';
   #ping: number | null = null;
@@ -61,6 +71,7 @@ export class Hud {
   onStart: () => void = () => undefined;
   onAddBot: () => void = () => undefined;
   onArena: (arena: ArenaId) => void = () => undefined;
+  onTier: (tier: TierId) => void = () => undefined;
   onRemoveBot: (id: string) => void = () => undefined;
 
   constructor() {
@@ -83,10 +94,50 @@ export class Hud {
         if (parsed.success) this.onArena(parsed.data);
       });
     }
+    const choices = el('tier-choices', HTMLDivElement);
+    this.#tierButtons = TIER_IDS.map((tier) => {
+      const b = h('button', undefined, tierName(tier));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => {
+        this.onTier(tier);
+      });
+      return b;
+    });
+    choices.replaceChildren(...this.#tierButtons);
+    this.#labelTiers();
     onLocaleChange(() => {
       this.refreshStreamerMode();
       this.#renderConnection();
+      this.#labelTiers();
+      if (this.#lastLobby !== null) this.#renderTier(this.#lastLobby);
     });
+  }
+
+  #labelTiers(): void {
+    const label = t('tier.label');
+    el('tier-label', HTMLSpanElement).textContent = label;
+    el('tier-choices', HTMLDivElement).setAttribute('aria-label', label);
+    this.#tierButtons.forEach((b, i) => {
+      b.textContent = tierName(TIER_IDS[i] ?? 'full');
+    });
+  }
+
+  // Everyone sees the room's rules on a badge; the host of a private lobby picks them.
+  #renderTier(lobby: LobbyInfo): void {
+    this.#lastLobby = lobby;
+    this.#tierBadge.hidden = false;
+    this.#tierBadge.textContent = tierName(lobby.tier);
+    this.#tierBadge.title = lobby.isPrivate ? tierSummary(lobby.tier) : `${tierSummary(lobby.tier)} ${t('tier.quickMatch')}`;
+    this.#tierPick.hidden = lobby.phase !== 'lobby' || !lobby.isPrivate;
+    if (this.#tierPick.hidden) return;
+    this.#tierButtons.forEach((b, i) => {
+      const tier = TIER_IDS[i] ?? 'full';
+      b.setAttribute('aria-pressed', String(tier === lobby.tier));
+      b.disabled = !lobby.amHost || !tierPickable(tier, lobby.ceremony);
+    });
+    const note = lobby.amHost ? tierSummary(lobby.tier) : t('tier.hostPicks', { host: lobby.hostName });
+    this.#tierNote.textContent = lobby.ceremony ? `${note} ${t('tier.ceremony')}` : note;
   }
 
   #arenaButtons(): HTMLButtonElement[] {
@@ -114,6 +165,7 @@ export class Hud {
   hide(): void {
     this.#root.hidden = true;
     this.#inviteField.hidden = true;
+    this.#tierBadge.hidden = true;
     this.#roster.replaceChildren();
     this.#code = '';
     this.#ping = null;
@@ -189,6 +241,7 @@ export class Hud {
     this.#start.hidden = !inLobby || !lobby.amHost;
     this.#addBot.hidden = !inLobby || !lobby.amHost || !lobby.botsAvailable || entries.length >= MAX_PLAYERS;
     this.#renderArena(lobby);
+    this.#renderTier(lobby);
     this.#start.disabled = missing > 0 || !everyoneHere;
     this.#hint.textContent = !inLobby
       ? t(lobby.phase === 'playing' ? 'hud.inProgress' : 'hud.matchOver')

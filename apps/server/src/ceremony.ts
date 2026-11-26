@@ -67,8 +67,11 @@ export class Ceremony {
   #nextSpawnAt: number;
   // Spawn gaps are multiplied by this; the final blocks speed withdrawals up.
   #pace = 1;
+  // False in rule tiers without signing ceremonies: no withdrawal is ever filed.
+  readonly #withdrawals: boolean;
 
-  constructor(playerIds: readonly string[], timing: CeremonyTiming, rng: RandomSource, now: number, arena: Arena = CITADEL) {
+  constructor(playerIds: readonly string[], timing: CeremonyTiming, rng: RandomSource, now: number, arena: Arena = CITADEL, withdrawals = true) {
+    this.#withdrawals = withdrawals;
     this.#arena = arena;
     this.#timing = timing;
     this.#rng = rng;
@@ -180,7 +183,7 @@ export class Ceremony {
 
   // Spawns real withdrawals, settles proposals against the current members, and finishes audits.
   tick(now: number, nowTick: number, guardians: readonly Guardian[], positionOf: (id: string) => Vec2 | undefined): CeremonyEvents {
-    if (this.#started(now) && now >= this.#nextSpawnAt) {
+    if (this.#withdrawals && this.#started(now) && now >= this.#nextSpawnAt) {
       const gap = this.#timing.spawnMinMs + this.#rng.int(Math.max(1, this.#timing.spawnMaxMs - this.#timing.spawnMinMs + 1));
       this.#nextSpawnAt = now + Math.round(gap * this.#pace);
       if (this.#open() < this.#timing.maxOpen && this.#proposals.length < MAX_PROPOSALS) {
