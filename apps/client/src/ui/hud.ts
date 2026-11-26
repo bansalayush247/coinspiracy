@@ -2,6 +2,7 @@ import { ArenaIdSchema, MAX_PLAYERS, MIN_PLAYERS, formatRoomCode, isRoomCode, ty
 import type { MatchPhase } from '@byzantine-council/shared/state';
 import { cssColor, seatColors } from '../game/palette.js';
 import { inviteLink } from '../net/invite.js';
+import { onLocaleChange, t } from '../i18n/index.js';
 import { el, h } from './dom.js';
 
 export interface RosterEntry {
@@ -82,6 +83,10 @@ export class Hud {
         if (parsed.success) this.onArena(parsed.data);
       });
     }
+    onLocaleChange(() => {
+      this.refreshStreamerMode();
+      this.#renderConnection();
+    });
   }
 
   #arenaButtons(): HTMLButtonElement[] {
@@ -98,14 +103,8 @@ export class Hud {
       b.disabled = !lobby.amHost || (id === 'reef' && !lobby.reefOpen) || (id === 'peaks' && !lobby.peaksOpen);
     }
     this.#arenaNote.textContent = !lobby.amHost
-      ? `${lobby.hostName} picks the map.`
-      : lobby.arena === 'reef'
-        ? 'Islets, plank bridges and tight Lightning routes at the harbour.'
-        : lobby.arena === 'peaks'
-          ? 'Mountain tops on rope bridges. A partition cuts the bridges between the two ranges.'
-          : !lobby.peaksOpen || !lobby.reefOpen
-            ? 'Island maps open for the whole room once anyone here has opened the island: Watchtower Peaks at Rank 6 or 9 stars, Lightning Reef at Rank 8 or 12.'
-            : 'Pick a map for this room.';
+      ? t('hud.arenaHostPicks', { name: lobby.hostName })
+      : t(lobby.arena === 'reef' ? 'hud.arenaReef' : lobby.arena === 'peaks' ? 'hud.arenaPeaks' : !lobby.peaksOpen || !lobby.reefOpen ? 'hud.arenaLocked' : 'hud.arenaPick');
   }
 
   show(): void {
@@ -124,7 +123,7 @@ export class Hud {
     this.#code = isRoomCode(code) ? code : '';
     this.#isPrivate = isPrivate;
     this.#renderCode();
-    this.#kind.textContent = isPrivate ? 'Private room' : 'Public room';
+    this.#kind.textContent = t(isPrivate ? 'hud.privateRoom' : 'hud.publicRoom');
     this.#copy.disabled = this.#code === '';
   }
 
@@ -133,13 +132,13 @@ export class Hud {
   #renderCode(): void {
     const streaming = document.documentElement.dataset['streamer'] === 'on';
     this.#codeText.textContent = this.#code === '' ? '······' : streaming ? '•••-•••' : formatRoomCode(this.#code);
-    this.#codeText.title = streaming ? 'Hidden in streamer mode. Copy the invite to share it privately.' : '';
+    this.#codeText.title = streaming ? t('hud.codeHidden') : '';
     if (streaming) this.#inviteField.hidden = true;
   }
 
   refreshStreamerMode(): void {
     this.#renderCode();
-    this.#kind.textContent = this.#isPrivate ? 'Private room' : 'Public room';
+    this.#kind.textContent = t(this.#isPrivate ? 'hud.privateRoom' : 'hud.publicRoom');
   }
 
   setConnection(state: ConnectionState): void {
@@ -161,16 +160,16 @@ export class Hud {
         dot.style.background = cssColor(seatColors(p.seat).lit);
         const name = h('span', 'name', p.name);
         li.append(dot, name);
-        if (p.isMe) li.append(h('span', 'tag me', 'You'));
-        if (p.isHost) li.append(h('span', 'tag host', 'Host'));
-        if (p.bot) li.append(h('span', 'tag bot', 'Bot'));
-        if (p.role === 'byzantine') li.append(h('span', 'tag byzantine', 'Byzantine'));
-        else if (p.role === 'honest' && lobby.phase === 'ended') li.append(h('span', 'tag honest', 'Honest'));
-        if (!p.active) li.append(h('span', 'tag away', 'Away'));
+        if (p.isMe) li.append(h('span', 'tag me', t('tag.you')));
+        if (p.isHost) li.append(h('span', 'tag host', t('tag.host')));
+        if (p.bot) li.append(h('span', 'tag bot', t('tag.bot')));
+        if (p.role === 'byzantine') li.append(h('span', 'tag byzantine', t('tag.byzantine')));
+        else if (p.role === 'honest' && lobby.phase === 'ended') li.append(h('span', 'tag honest', t('tag.honest')));
+        if (!p.active) li.append(h('span', 'tag away', t('tag.away')));
         if (p.bot && lobby.amHost && lobby.phase === 'lobby') {
           const remove = h('button', 'remove-bot', '×');
           remove.type = 'button';
-          remove.setAttribute('aria-label', `Remove ${p.name}`);
+          remove.setAttribute('aria-label', t('hud.removeBot', { name: p.name }));
           remove.addEventListener('click', () => {
             remove.disabled = true;
             this.onRemoveBot(p.id);
@@ -192,16 +191,14 @@ export class Hud {
     this.#renderArena(lobby);
     this.#start.disabled = missing > 0 || !everyoneHere;
     this.#hint.textContent = !inLobby
-      ? lobby.phase === 'playing'
-        ? 'Match in progress.'
-        : 'Match over.'
+      ? t(lobby.phase === 'playing' ? 'hud.inProgress' : 'hud.matchOver')
       : missing > 0
-        ? `A match needs ${String(MIN_PLAYERS)} guardians. Invite ${String(missing)} more${lobby.amHost && lobby.botsAvailable ? ', or add practice bots' : ''}.`
+        ? t(lobby.amHost && lobby.botsAvailable ? 'hud.needMoreBots' : 'hud.needMore', { min: String(MIN_PLAYERS), missing: String(missing) })
         : !everyoneHere
-          ? 'Waiting for everyone to reconnect.'
+          ? t('hud.reconnectWait')
           : lobby.amHost
-            ? 'Everyone’s here. Start when you’re ready.'
-            : `Waiting for ${lobby.hostName} to start the match.`;
+            ? t('hud.ready')
+            : t('hud.waitHost', { name: lobby.hostName });
   }
 
   toast(message: string): void {
@@ -217,10 +214,10 @@ export class Hud {
     this.#conn.dataset['state'] = this.#state;
     this.#connText.textContent =
       this.#state === 'reconnecting'
-        ? 'Reconnecting…'
+        ? t('hud.reconnecting')
         : this.#ping === null
-          ? 'Connected'
-          : `Connected · ${String(Math.round(this.#ping))} ms`;
+          ? t('hud.connected')
+          : t('hud.connectedPing', { ms: String(Math.round(this.#ping)) });
   }
 
   async #copyInvite(): Promise<void> {
@@ -228,17 +225,17 @@ export class Hud {
     const link = inviteLink(window.location.href, this.#code);
     try {
       await navigator.clipboard.writeText(link);
-      this.toast('Invite link copied. Send it to your friends.');
+      this.toast(t('hud.copied'));
     } catch {
       // Clipboard refused: show the link selected so it can be copied by hand (never on stream).
       if (document.documentElement.dataset['streamer'] === 'on') {
-        this.toast('Copying failed. Turn off streamer mode to see the invite link.');
+        this.toast(t('hud.copyFailedStreamer'));
         return;
       }
       this.#inviteField.value = link;
       this.#inviteField.hidden = false;
       this.#inviteField.select();
-      this.toast('Copy the highlighted link and send it to your friends.');
+      this.toast(t('hud.copyManual'));
     }
   }
 }

@@ -1,4 +1,5 @@
 import type { Role, Side, WinReason } from '@byzantine-council/shared';
+import { t, tn, type PlainKey } from '../i18n/index.js';
 import { el, h } from './dom.js';
 import { shareResult, type ShareInfo } from './shareCard.js';
 import { CODEX_FOR_REASON, SITE_URL } from '../siteUrl.js';
@@ -26,13 +27,13 @@ export class RoleCard {
   show(role: Role, fellows: readonly string[], byzantines: number): void {
     this.#root.dataset['role'] = role;
     if (role === 'byzantine') {
-      this.#title.textContent = 'You are a Byzantine guardian';
-      this.#text.textContent = 'Blend in with the honest guardians. Your tasks are fake, so fake them convincingly and don’t get caught.';
-      this.#team.textContent = fellows.length > 0 ? `Your fellow Byzantine: ${fellows.join(', ')}` : 'You are the only Byzantine guardian.';
+      this.#title.textContent = t('role.byzTitle');
+      this.#text.textContent = t('role.byzText');
+      this.#team.textContent = fellows.length > 0 ? t('role.fellows', { names: fellows.join(', ') }) : t('role.alone');
     } else {
-      this.#title.textContent = 'You are an honest guardian';
-      this.#text.textContent = 'Do your tasks to fill the Consensus bar. Keep an eye on the others.';
-      this.#team.textContent = `${String(byzantines)} Byzantine guardian${byzantines === 1 ? ' is' : 's are'} hiding among you.`;
+      this.#title.textContent = t('role.honestTitle');
+      this.#text.textContent = t('role.honestText');
+      this.#team.textContent = tn('role.hiding', byzantines);
     }
     this.#root.hidden = false;
     this.#ok.focus();
@@ -55,13 +56,13 @@ export interface ResultEntry {
   readonly left: boolean;
 }
 
-const REASONS: Readonly<Record<WinReason, string>> = {
-  consensusReached: 'The honest guardians finished their work and reached consensus.',
-  allByzantineRotatedOut: 'No Byzantine guardians are left in the federation.',
-  federationHalted: 'Byzantine guardians made up a third of the federation, so it halted.',
-  forgedProposalPassed: 'A forged withdrawal collected enough signatures.',
-  livenessLost: 'Real withdrawals kept failing or the network stayed split, so users lost access to their money.',
-  outOfTime: 'The final block arrived before the honest guardians reached consensus.',
+const REASONS: Readonly<Record<WinReason, PlainKey>> = {
+  consensusReached: 'reason.consensusReached',
+  allByzantineRotatedOut: 'reason.allByzantineRotatedOut',
+  federationHalted: 'reason.federationHalted',
+  forgedProposalPassed: 'reason.forgedProposalPassed',
+  livenessLost: 'reason.livenessLost',
+  outOfTime: 'reason.outOfTime',
 };
 
 export class ResultCard {
@@ -91,10 +92,10 @@ export class ResultCard {
   show(winner: Side, reason: WinReason | '', mine: Role | undefined, entries: readonly ResultEntry[]): void {
     const appearing = this.#root.hidden;
     this.#root.dataset['winner'] = winner;
-    this.#title.textContent = winner === 'honest' ? 'Honest guardians win' : 'Byzantine guardians win';
-    this.#verdict.textContent = mine === undefined ? '' : mine === winner ? 'Your side won.' : 'Your side lost this time.';
-    this.#reason.textContent = reason === '' ? '' : REASONS[reason];
-    this.#info = { won: mine === winner, winner, role: mine, reason: reason === '' ? '' : REASONS[reason] };
+    this.#title.textContent = t(winner === 'honest' ? 'result.honestWin' : 'result.byzWin');
+    this.#verdict.textContent = mine === undefined ? '' : t(mine === winner ? 'result.won' : 'result.lost');
+    this.#reason.textContent = reason === '' ? '' : t(REASONS[reason]);
+    this.#info = { won: mine === winner, winner, role: mine, reason: reason === '' ? '' : t(REASONS[reason]) };
     const slug = reason === '' ? undefined : CODEX_FOR_REASON[reason];
     this.#learn.hidden = SITE_URL === null || slug === undefined;
     if (SITE_URL !== null && slug !== undefined) this.#learn.href = `${SITE_URL}/codex/${slug}/`;
@@ -103,8 +104,8 @@ export class ResultCard {
       .map((e) => {
         const li = h('li', e.isMe ? 'me' : '');
         const tags = h('span', 'tags');
-        if (e.left) tags.append(h('span', 'tag left', 'Left'));
-        tags.append(h('span', `tag ${e.role}`, e.role === 'byzantine' ? 'Byzantine' : 'Honest'));
+        if (e.left) tags.append(h('span', 'tag left', t('tag.left')));
+        tags.append(h('span', `tag ${e.role}`, t(e.role === 'byzantine' ? 'tag.byzantine' : 'tag.honest')));
         li.append(h('span', 'name', e.name), tags);
         return li;
       });

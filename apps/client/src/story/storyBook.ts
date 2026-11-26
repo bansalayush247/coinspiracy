@@ -2,6 +2,7 @@
 import { ISLANDS, islandOpen } from '@byzantine-council/shared/progression';
 import { audio } from '../audio/engine.js';
 import { el, h } from '../ui/dom.js';
+import { t } from '../i18n/index.js';
 import { svg } from '../ui/svg.js';
 import { SITE_URL } from '../siteUrl.js';
 import { CHAPTERS, NARRATOR, type Chapter, type Motif } from './chapters.js';
@@ -72,7 +73,7 @@ export class StoryBook {
     this.#chapter = chapter;
     this.#page = 0;
     this.#art.replaceChildren(illustration(chapter.motif));
-    this.#title.textContent = chapter.number === 0 ? `Prologue · ${chapter.title}` : `Chapter ${String(chapter.number)} · ${chapter.title}`;
+    this.#title.textContent = chapter.number === 0 ? t('book.prologue', { title: chapter.title }) : t('book.chapter', { n: String(chapter.number), title: chapter.title });
     this.#root.hidden = false;
     this.#render();
     this.#root.focus();
@@ -115,9 +116,9 @@ export class StoryBook {
     this.#text.getBoundingClientRect();
     this.#text.classList.add('turn');
     if (last) {
-      this.#text.replaceChildren(h('span', 'story-idea-label', 'The real idea'), h('span', 'story-idea', c.idea));
+      this.#text.replaceChildren(h('span', 'story-idea-label', t('book.idea')), h('span', 'story-idea', c.idea));
       if (SITE_URL !== null) {
-        const link = h('a', 'story-codex', 'Read more in the Codex');
+        const link = h('a', 'story-codex', t('book.codex'));
         link.href = `${SITE_URL}/codex/${c.codex}/`;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
@@ -128,7 +129,7 @@ export class StoryBook {
     }
     this.#pageNo.textContent = last ? `— ${NARRATOR}` : `${String(this.#page + 1)} / ${String(c.pages.length)}`;
     this.#back.disabled = this.#page === 0;
-    this.#next.textContent = last ? 'Close the book' : 'Next page';
+    this.#next.textContent = t(last ? 'book.close' : 'book.next');
   }
 }
 

@@ -17,26 +17,33 @@
         <div id="achievements" class="achievements" aria-live="polite"></div>
         <div id="coach" class="panel coach" role="status" hidden>
           <p id="coach-text"></p>
-          <button id="coach-ok" type="button" class="cta">Got it</button>
+          <button id="coach-ok" type="button" class="cta" data-i18n="common.gotIt">Got it</button>
         </div>
         <details class="corner-settings">
-          <summary aria-label="Settings">⚙ Settings</summary>
+          <summary aria-label="Settings" data-i18n="settings.summary" data-i18n-aria-label="settings.title">⚙ Settings</summary>
           <div class="corner-toggles">
             <button id="streamer" type="button" class="corner-toggle" aria-pressed="false">Streamer mode: Off</button>
             <button id="quality" type="button" class="corner-toggle">Graphics: High</button>
             <label class="music-picker">
-              <span>Music</span>
+              <span data-i18n="settings.music">Music</span>
               <select id="music">
-                <option value="dynamic">Adaptive</option>
-                <option value="menu">Mint Citadel</option>
-                <option value="calm">Calm Consensus</option>
-                <option value="proposals">Signing Tension</option>
-                <option value="final">Final Blocks</option>
-                <option value="council">Council Chamber</option>
-                <option value="beach">Beach Town</option>
-                <option value="academy">Academy</option>
-                <option value="story">Storybook</option>
-                <option value="off">Off</option>
+                <option value="dynamic" data-i18n="music.dynamic">Adaptive</option>
+                <option value="menu" data-i18n="music.menu">Mint Citadel</option>
+                <option value="calm" data-i18n="music.calm">Calm Consensus</option>
+                <option value="proposals" data-i18n="music.proposals">Signing Tension</option>
+                <option value="final" data-i18n="music.final">Final Blocks</option>
+                <option value="council" data-i18n="music.council">Council Chamber</option>
+                <option value="beach" data-i18n="music.beach">Beach Town</option>
+                <option value="academy" data-i18n="music.academy">Academy</option>
+                <option value="story" data-i18n="music.story">Storybook</option>
+                <option value="off" data-i18n="music.off">Off</option>
+              </select>
+            </label>
+            <label class="music-picker">
+              <span data-i18n="settings.language">Language</span>
+              <select id="language">
+                <option value="en" lang="en">English</option>
+                <option value="es" lang="es">Español</option>
               </select>
             </label>
             <button id="sound" type="button" class="corner-toggle" aria-label="Sound: on">Sound on</button>
@@ -44,65 +51,65 @@
         </details>
         <section id="menu" class="panel menu" aria-labelledby="menu-title" hidden>
           <header class="brand">
-            <p class="eyebrow">A game about federated ecash</p>
+            <p class="eyebrow" data-i18n="menu.eyebrow">A game about federated ecash</p>
             <h1 id="menu-title">Byzantine Council</h1>
-            <p class="tagline">Guardians keep the mint honest. A few of them are lying.</p>
+            <p class="tagline" data-i18n="menu.tagline">Guardians keep the mint honest. A few of them are lying.</p>
           </header>
           <form id="menu-form" novalidate autocomplete="off">
-            <label for="nickname">Nickname</label>
+            <label for="nickname" data-i18n="menu.nickname">Nickname</label>
             <input id="nickname" name="nickname" maxlength="16" required spellcheck="false" autocapitalize="off" placeholder="Satoshi" />
             <div class="actions">
-              <button type="submit" class="cta" data-action="quick">Quick match</button>
-              <button type="submit" data-action="create">Create private room</button>
+              <button type="submit" class="cta" data-action="quick" data-i18n="menu.quick">Quick match</button>
+              <button type="submit" data-action="create" data-i18n="menu.create">Create private room</button>
             </div>
-            <div class="divider"><span>or join friends</span></div>
-            <label for="room-code">Room code</label>
+            <div class="divider"><span data-i18n="menu.orJoin">or join friends</span></div>
+            <label for="room-code" data-i18n="menu.roomCode">Room code</label>
             <div class="join-row">
               <input id="room-code" name="code" maxlength="8" placeholder="K7Q-X9M" autocapitalize="characters" spellcheck="false" />
-              <button type="submit" data-action="join">Join</button>
+              <button type="submit" data-action="join" data-i18n="menu.join">Join</button>
             </div>
             <p id="menu-error" class="error" role="alert"></p>
             <p id="menu-status" class="status" aria-live="polite"></p>
           </form>
           <button id="open-progress" type="button" class="progress-chip" hidden></button>
           <div class="menu-tiles">
-            <button id="open-city" type="button" class="city-open">Port Concord<small>Open city</small></button>
-            <button id="open-story" type="button" class="story-open">The Dump<small>Story · act one · crew of 4</small></button>
-            <button id="open-ransom" type="button" class="story-open ransom-open">The Ransom Call<small>Story · act two · crew of 4</small></button>
-            <button id="open-insider" type="button" class="story-open insider-open">The Insider<small>Story · act three · crew of 4</small></button>
-            <button id="open-founder" type="button" class="story-open founder-open">The Founder’s Coins<small>Story · act four · crew of 4</small></button>
-            <button id="open-overflow" type="button" class="story-open overflow-open">The Overflow<small>Season two · act one · crew of 4</small></button>
-            <button id="open-split" type="button" class="story-open split-open">The Split<small>Season two · act two · crew of 4</small></button>
-            <button id="open-receipt" type="button" class="story-open receipt-open">The Old Receipt<small>Season two · act three · crew of 4</small></button>
-            <button id="open-alert" type="button" class="story-open alert-open">The Last Alert<small>Season two · act four · crew of 4</small></button>
-            <button id="open-dust" type="button" class="story-open dust-open">The Dust<small>Season three · act one · crew of 4</small></button>
-            <button id="open-envelope" type="button" class="story-open envelope-open">The Envelope<small>Season three · act two · crew of 4</small></button>
-            <button id="open-clock" type="button" class="story-open clock-open">The Clock<small>Season three · act three · crew of 4</small></button>
-            <button id="open-book" type="button" class="story-open book-open">The Little Book<small>Season three · act four · crew of 4</small></button>
-            <button id="open-cases" type="button" class="story-open cases-open">Casebook<small>Side cases · crew of 4</small></button>
-            <button id="open-academy" type="button" class="academy-open">Academy<small>Play solo</small></button>
+            <button id="open-city" type="button" class="city-open">Port Concord<small data-i18n="tile.city">Open city</small></button>
+            <button id="open-story" type="button" class="story-open">The Dump<small data-i18n="tile.story1">Story · act one · crew of 4</small></button>
+            <button id="open-ransom" type="button" class="story-open ransom-open">The Ransom Call<small data-i18n="tile.story2">Story · act two · crew of 4</small></button>
+            <button id="open-insider" type="button" class="story-open insider-open">The Insider<small data-i18n="tile.story3">Story · act three · crew of 4</small></button>
+            <button id="open-founder" type="button" class="story-open founder-open">The Founder’s Coins<small data-i18n="tile.story4">Story · act four · crew of 4</small></button>
+            <button id="open-overflow" type="button" class="story-open overflow-open">The Overflow<small data-i18n="tile.season2act1">Season two · act one · crew of 4</small></button>
+            <button id="open-split" type="button" class="story-open split-open">The Split<small data-i18n="tile.season2act2">Season two · act two · crew of 4</small></button>
+            <button id="open-receipt" type="button" class="story-open receipt-open">The Old Receipt<small data-i18n="tile.season2act3">Season two · act three · crew of 4</small></button>
+            <button id="open-alert" type="button" class="story-open alert-open">The Last Alert<small data-i18n="tile.season2act4">Season two · act four · crew of 4</small></button>
+            <button id="open-dust" type="button" class="story-open dust-open">The Dust<small data-i18n="tile.season3act1">Season three · act one · crew of 4</small></button>
+            <button id="open-envelope" type="button" class="story-open envelope-open">The Envelope<small data-i18n="tile.season3act2">Season three · act two · crew of 4</small></button>
+            <button id="open-clock" type="button" class="story-open clock-open">The Clock<small data-i18n="tile.season3act3">Season three · act three · crew of 4</small></button>
+            <button id="open-book" type="button" class="story-open book-open">The Little Book<small data-i18n="tile.season3act4">Season three · act four · crew of 4</small></button>
+            <button id="open-cases" type="button" class="story-open cases-open" data-i18n="tile.casebook">Casebook<small data-i18n="tile.casebookCaption">Side cases · crew of 4</small></button>
+            <button id="open-academy" type="button" class="academy-open" data-i18n="tile.academy">Academy<small data-i18n="tile.academyCaption">Play solo</small></button>
             <button id="open-world" type="button" class="world-open" hidden>Explore<small>Island map</small></button>
-            <button id="open-wardrobe" type="button" class="wardrobe-open" hidden>Wardrobe<small>Your look</small></button>
+            <button id="open-wardrobe" type="button" class="wardrobe-open" hidden data-i18n="tile.wardrobe">Wardrobe<small data-i18n="tile.wardrobeCaption">Your look</small></button>
           </div>
           <aside id="season" class="season" aria-labelledby="season-title" hidden>
             <p id="season-title" class="season-title"></p>
             <p id="season-headline" class="season-headline"></p>
             <p id="season-blurb" class="season-blurb"></p>
           </aside>
-          <p class="fine">Play money only. No sign-up and no personal data.</p>
+          <p class="fine" data-i18n="menu.fine">Play money only. No sign-up and no personal data.</p>
         </section>
 
         <section id="world" class="panel modal world" role="dialog" aria-modal="true" aria-labelledby="world-title" tabindex="-1" hidden>
           <header class="progress-head">
             <div>
-              <p class="eyebrow">Your journey</p>
-              <h2 id="world-title">The archipelago</h2>
+              <p class="eyebrow" data-i18n="world.eyebrow">Your journey</p>
+              <h2 id="world-title" data-i18n="world.title">The archipelago</h2>
             </div>
-            <button id="world-close" type="button">Close</button>
+            <button id="world-close" type="button" data-i18n="common.close">Close</button>
           </header>
           <div class="world-progress">
-            <div><b id="world-progress-text">Loading islands…</b><span id="world-progress-left"></span></div>
-            <div id="world-progress-bar" class="bar" role="progressbar" aria-label="Islands open" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0"><div id="world-progress-fill" class="fill"></div></div>
+            <div><b id="world-progress-text" data-i18n="world.loading">Loading islands…</b><span id="world-progress-left"></span></div>
+            <div id="world-progress-bar" class="bar" role="progressbar" aria-label="Islands open" data-i18n-aria-label="world.islandsOpen" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0"><div id="world-progress-fill" class="fill"></div></div>
           </div>
           <div class="world-layout">
             <div id="world-map" class="world-map"></div>
@@ -112,18 +119,18 @@
 
         <section id="island-hud" class="panel island-hud" aria-labelledby="island-hud-title" hidden>
           <div>
-            <p class="eyebrow">Island explorer</p>
+            <p class="eyebrow" data-i18n="island.eyebrow">Island explorer</p>
             <h2 id="island-hud-title"></h2>
             <p id="island-hud-concept"></p>
           </div>
-          <button id="island-back" type="button">Back to map</button>
+          <button id="island-back" type="button" data-i18n="island.back">Back to map</button>
           <div class="island-objective">
             <b id="island-objective"></b>
             <span id="island-objective-progress"></span>
           </div>
           <p id="island-status" class="island-status" role="status"></p>
           <div class="island-actions">
-            <span class="island-controls">Walk with WASD or arrows · interact with E</span>
+            <span class="island-controls" data-i18n="island.controls">Walk with WASD or arrows · interact with E</span>
             <button id="island-action" type="button" class="cta" disabled>Interact (E)</button>
           </div>
         </section>
@@ -134,42 +141,42 @@
             <p id="city-was" class="city-was"></p>
             <p id="city-pop" class="city-pop"></p>
             <p id="city-zone" class="city-zone" data-rough="false">Safe streets</p>
-            <p class="city-pocket"><span class="eyebrow">Pocket</span><span class="city-pocket-row"><svg class="coin-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="15.5" fill="#2a1a33"/><circle cx="16" cy="16" r="14.5" fill="#b8862f"/><circle cx="16" cy="15.5" r="12.5" fill="#ffd27a"/><path transform="translate(15.25 15.5) rotate(14) scale(0.25)" d="M-14 -26V26M-14 -26H4A13 13 0 0 1 4 0H-14M-14 0H6A13 13 0 0 1 6 26H-14M-8 -26V-38M2 -26V-38M-8 26V38M2 26V38" fill="none" stroke="#8a5a14" stroke-width="10" stroke-linejoin="round"/></svg><b id="city-pocket">0</b></span></p>
-            <button id="city-leave" type="button">Back to the map</button>
+            <p class="city-pocket"><span class="eyebrow" data-i18n="city.pocket">Pocket</span><span class="city-pocket-row"><svg class="coin-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="15.5" fill="#2a1a33"/><circle cx="16" cy="16" r="14.5" fill="#b8862f"/><circle cx="16" cy="15.5" r="12.5" fill="#ffd27a"/><path transform="translate(15.25 15.5) rotate(14) scale(0.25)" d="M-14 -26V26M-14 -26H4A13 13 0 0 1 4 0H-14M-14 0H6A13 13 0 0 1 6 26H-14M-8 -26V-38M2 -26V-38M-8 26V38M2 26V38" fill="none" stroke="#8a5a14" stroke-width="10" stroke-linejoin="round"/></svg><b id="city-pocket">0</b></span></p>
+            <button id="city-leave" type="button" data-i18n="common.backToMap">Back to the map</button>
           </div>
-          <button id="city-punch" class="city-punch" type="button" aria-keyshortcuts="F" disabled>Punch<small>F</small></button>
+          <button id="city-punch" class="city-punch" type="button" aria-keyshortcuts="F" disabled data-i18n="city.punch">Punch<small>F</small></button>
           <button id="city-ride" class="city-ride" type="button" aria-keyshortcuts="E" hidden>Get in<small>E</small></button>
-          <button id="city-deposit" class="city-deposit" type="button" aria-keyshortcuts="E" hidden>Vault my pocket<small>E · at the Mint Hall</small></button>
-          <p id="city-down" class="panel city-down" role="status" hidden>Knocked out! Your pocket hit the pavement. Back on your feet at home in a moment.</p>
+          <button id="city-deposit" class="city-deposit" type="button" aria-keyshortcuts="E" hidden data-i18n="city.vault">Vault my pocket<small data-i18n="city.vaultHint">E · at the Mint Hall</small></button>
+          <p id="city-down" class="panel city-down" role="status" hidden data-i18n="city.down">Knocked out! Your pocket hit the pavement. Back on your feet at home in a moment.</p>
           <div class="panel city-map" aria-hidden="true">
             <canvas id="city-minimap"></canvas>
             <canvas id="city-dots"></canvas>
           </div>
-          <div id="city-emotes" class="panel beach-emotes city-emotes" role="group" aria-label="Emotes"></div>
+          <div id="city-emotes" class="panel beach-emotes city-emotes" role="group" aria-label="Emotes" data-i18n-aria-label="common.emotes"></div>
         </section>
         <section id="story-hud" class="city-hud story-hud" aria-label="The Cold Key" hidden>
           <div class="panel story-bar">
             <span id="story-eyebrow" class="eyebrow">The Cold Key</span>
             <p id="story-objective" class="story-objective" aria-live="polite"></p>
-            <ul id="story-clues" class="story-clues" aria-label="Clues"></ul>
+            <ul id="story-clues" class="story-clues" aria-label="Clues" data-i18n-aria-label="story.clues"></ul>
             <p id="story-goal" class="story-goal"></p>
             <p id="story-clock" class="story-clock" role="timer" aria-live="off"></p>
             <p id="story-caught" class="story-caught"></p>
             <div class="story-crew">
-              <span>Crew code <b id="story-code" class="story-code">······</b></span>
-              <button id="story-invite" type="button" disabled>Invite friends</button>
+              <span data-i18n="story.crewCode">Crew code <b id="story-code" class="story-code">······</b></span>
+              <button id="story-invite" type="button" disabled data-i18n="story.invite">Invite friends</button>
             </div>
-            <ul id="story-crew" class="story-crew-list" aria-label="Your crew"></ul>
-            <button id="story-leave" type="button">Leave the story</button>
+            <ul id="story-crew" class="story-crew-list" aria-label="Your crew" data-i18n-aria-label="story.yourCrew"></ul>
+            <button id="story-leave" type="button" data-i18n="story.leave">Leave the story</button>
           </div>
           <div class="panel city-map story-map" aria-hidden="true">
             <canvas id="story-minimap"></canvas>
             <canvas id="story-dots"></canvas>
           </div>
-          <button id="story-dig" class="city-deposit story-dig" type="button" aria-keyshortcuts="E" hidden>Work here<small>E · hold still</small></button>
-          <section id="story-talk" class="panel story-talk" aria-live="polite" aria-label="Story" hidden>
+          <button id="story-dig" class="city-deposit story-dig" type="button" aria-keyshortcuts="E" hidden>Work here<small data-i18n="story.digHint">E · hold still</small></button>
+          <section id="story-talk" class="panel story-talk" aria-live="polite" aria-label="Story" data-i18n-aria-label="story.talk" hidden>
             <div id="story-log" class="story-log"></div>
-            <div id="story-choices" class="story-choices" role="group" aria-label="Your answer"></div>
+            <div id="story-choices" class="story-choices" role="group" aria-label="Your answer" data-i18n-aria-label="story.yourAnswer"></div>
             <p id="story-hint" class="story-hint"></p>
           </section>
           <section id="story-end" class="panel story-end" role="dialog" aria-labelledby="story-end-title" hidden>
@@ -181,17 +188,17 @@
             <p id="story-reward" class="story-reward"></p>
             <p id="story-end-next" class="story-next"></p>
             <button id="story-finale" type="button" class="cta" hidden></button>
-            <button id="story-end-leave" type="button">Back to the map</button>
+            <button id="story-end-leave" type="button" data-i18n="common.backToMap">Back to the map</button>
           </section>
         </section>
         <section id="beach-hud" class="beach-hud" aria-label="Beach Town" hidden>
           <div class="panel beach-bar">
             <div><span class="eyebrow">Beach Town</span><b id="beach-wallet" class="beach-wallet"></b></div>
             <p id="beach-job" class="beach-job"></p>
-            <button id="beach-wardrobe" type="button">Wardrobe</button>
-            <button id="beach-leave" type="button">Back to the map</button>
+            <button id="beach-wardrobe" type="button" data-i18n="tile.wardrobe">Wardrobe</button>
+            <button id="beach-leave" type="button" data-i18n="common.backToMap">Back to the map</button>
           </div>
-          <div id="beach-emotes" class="panel beach-emotes" role="group" aria-label="Emotes"></div>
+          <div id="beach-emotes" class="panel beach-emotes" role="group" aria-label="Emotes" data-i18n-aria-label="common.emotes"></div>
           <div id="beach-prompt" class="panel beach-prompt" hidden>
             <span id="beach-prompt-text"></span>
             <div class="beach-prompt-actions">
@@ -206,51 +213,51 @@
           <div id="shop-items" class="shop-items"></div>
           <div id="shop-pay" class="shop-pay" hidden>
             <p id="shop-pay-title" class="shop-pay-title"></p>
-            <p class="hint">Pick notes from your wallet that cover the price. You cannot hand over a note you do not need; the mint reissues your change.</p>
+            <p class="hint" data-i18n="shop.payHint">Pick notes from your wallet that cover the price. You cannot hand over a note you do not need; the mint reissues your change.</p>
             <div id="shop-notes" class="shop-notes"></div>
             <p id="shop-pay-status" class="shop-pay-status" aria-live="polite"></p>
             <div class="shop-pay-actions">
-              <button id="shop-pay-back" type="button">Back</button>
-              <button id="shop-pay-go" type="button" class="cta">Pay</button>
+              <button id="shop-pay-back" type="button" data-i18n="common.back">Back</button>
+              <button id="shop-pay-go" type="button" class="cta" data-i18n="shop.pay">Pay</button>
             </div>
           </div>
-          <button id="shop-close" type="button">Close</button>
+          <button id="shop-close" type="button" data-i18n="common.close">Close</button>
         </section>
         <section id="wardrobe" class="panel modal wardrobe" role="dialog" aria-modal="true" aria-labelledby="wardrobe-title" tabindex="-1" hidden>
-          <h2 id="wardrobe-title">Wardrobe</h2>
-          <p class="hint">What you wear shows on your guardian in every match.</p>
+          <h2 id="wardrobe-title" data-i18n="tile.wardrobe">Wardrobe</h2>
+          <p class="hint" data-i18n="wardrobe.hint">What you wear shows on your guardian in every match.</p>
           <div id="wardrobe-body" class="wardrobe-body"></div>
-          <button id="wardrobe-close" type="button" class="cta">Done</button>
+          <button id="wardrobe-close" type="button" class="cta" data-i18n="common.done">Done</button>
         </section>
         <section id="story" class="panel modal story" role="dialog" aria-modal="true" aria-labelledby="story-title" tabindex="-1" hidden>
           <div id="story-art" class="story-art"></div>
           <h2 id="story-title" class="story-title"></h2>
           <p id="story-text" class="story-text" aria-live="polite"></p>
           <div class="story-nav">
-            <button id="story-back" type="button">Back</button>
+            <button id="story-back" type="button" data-i18n="common.back">Back</button>
             <span id="story-page" class="story-page"></span>
             <button id="story-next" type="button" class="cta">Next page</button>
           </div>
-          <button id="story-close" type="button" class="story-close" aria-label="Close the book">×</button>
+          <button id="story-close" type="button" class="story-close" aria-label="Close the book" data-i18n-aria-label="book.close">×</button>
         </section>
         <section id="cases" class="panel modal cases" role="dialog" aria-modal="true" aria-labelledby="cases-title" tabindex="-1" hidden>
           <header class="progress-head">
             <div>
-              <p class="eyebrow">Ripped from the ledger</p>
-              <h2 id="cases-title">The casebook</h2>
+              <p class="eyebrow" data-i18n="cases.eyebrow">Ripped from the ledger</p>
+              <h2 id="cases-title" data-i18n="cases.title">The casebook</h2>
             </div>
-            <button id="cases-close" type="button">Close</button>
+            <button id="cases-close" type="button" data-i18n="common.close">Close</button>
           </header>
-          <p class="cases-intro">One-night stories, each inspired by a real event and retold with invented people. Play them in any order, alone or with a crew of up to four.</p>
+          <p class="cases-intro" data-i18n="cases.intro">One-night stories, each inspired by a real event and retold with invented people. Play them in any order, alone or with a crew of up to four.</p>
           <ul id="cases-list" class="cases-list"></ul>
         </section>
         <section id="academy" class="panel modal academy" role="dialog" aria-modal="true" aria-labelledby="academy-title" tabindex="-1" hidden>
           <header class="progress-head">
             <div>
-              <p class="eyebrow">Play solo</p>
-              <h2 id="academy-title">The Academy</h2>
+              <p class="eyebrow" data-i18n="tile.academyCaption">Play solo</p>
+              <h2 id="academy-title" data-i18n="academy.title">The Academy</h2>
             </div>
-            <button id="academy-close" type="button">Close</button>
+            <button id="academy-close" type="button" data-i18n="common.close">Close</button>
           </header>
           <div id="academy-body" class="academy-body"></div>
           <p id="academy-status" class="task-status" aria-live="polite"></p>
@@ -259,16 +266,16 @@
         <section id="progress" class="panel modal progress" role="dialog" aria-modal="true" aria-labelledby="progress-title" tabindex="-1" hidden>
           <header class="progress-head">
             <div>
-              <p class="eyebrow">Your progress</p>
+              <p class="eyebrow" data-i18n="progress.eyebrow">Your progress</p>
               <h2 id="progress-title"></h2>
             </div>
-            <button id="progress-close" type="button">Close</button>
+            <button id="progress-close" type="button" data-i18n="common.close">Close</button>
           </header>
-          <div class="progress-tabs" role="tablist" aria-label="Progress">
-            <button type="button" role="tab" data-tab="rank" aria-selected="true">Rank Road</button>
-            <button type="button" role="tab" data-tab="seals" aria-selected="false">Seals</button>
-            <button type="button" role="tab" data-tab="quests" aria-selected="false">Quests</button>
-            <button type="button" role="tab" data-tab="epoch" aria-selected="false">Epoch Road</button>
+          <div class="progress-tabs" role="tablist" aria-label="Progress" data-i18n-aria-label="progress.tabs">
+            <button type="button" role="tab" data-tab="rank" aria-selected="true" data-i18n="progress.tabRank">Rank Road</button>
+            <button type="button" role="tab" data-tab="seals" aria-selected="false" data-i18n="progress.tabSeals">Seals</button>
+            <button type="button" role="tab" data-tab="quests" aria-selected="false" data-i18n="progress.tabQuests">Quests</button>
+            <button type="button" role="tab" data-tab="epoch" aria-selected="false" data-i18n="progress.tabEpoch">Epoch Road</button>
           </div>
           <div id="progress-body" class="progress-body" role="tabpanel"></div>
         </section>
@@ -281,55 +288,55 @@
         <section id="hud" aria-label="Room" hidden>
           <div class="panel room-card">
             <div class="room-meta">
-              <span id="room-kind" class="eyebrow">Room</span>
+              <span id="room-kind" class="eyebrow" data-i18n="hud.room">Room</span>
               <b id="room-code-text" class="code">······</b>
             </div>
-            <button id="copy-invite" type="button">Copy invite link</button>
-            <input id="invite-field" class="invite-field" readonly aria-label="Invite link" hidden />
+            <button id="copy-invite" type="button" data-i18n="hud.copyInvite">Copy invite link</button>
+            <input id="invite-field" class="invite-field" readonly aria-label="Invite link" data-i18n-aria-label="hud.inviteLink" hidden />
           </div>
           <div class="hud-right">
-            <div class="panel chain" id="chain" hidden><span class="chain-label">Block</span> <b id="chain-height"></b></div>
+            <div class="panel chain" id="chain" hidden><span class="chain-label" data-i18n="hud.block">Block</span> <b id="chain-height"></b></div>
             <div class="panel conn" id="conn" data-state="connected" role="status">
-              <span class="dot" aria-hidden="true"></span><span id="conn-text">Connected</span>
+              <span class="dot" aria-hidden="true"></span><span id="conn-text" data-i18n="hud.connected">Connected</span>
             </div>
-            <button id="leave" type="button" class="leave">Leave room</button>
+            <button id="leave" type="button" class="leave" data-i18n="hud.leave">Leave room</button>
           </div>
           <aside class="panel roster" aria-labelledby="roster-title">
-            <h2 id="roster-title">Guardians <span id="roster-count">0/9</span></h2>
+            <h2 id="roster-title" data-i18n="hud.guardians">Guardians <span id="roster-count">0/9</span></h2>
             <ul id="roster"></ul>
             <p id="lobby-hint" class="hint"></p>
             <div id="arena-pick" class="arena-pick" hidden>
-              <span class="arena-label">Map</span>
-              <div class="arena-choices" role="group" aria-label="Map">
+              <span class="arena-label" data-i18n="hud.map">Map</span>
+              <div class="arena-choices" role="group" aria-label="Map" data-i18n-aria-label="hud.map">
                 <button type="button" data-arena="citadel" aria-pressed="true">Mint Citadel</button>
                 <button type="button" data-arena="reef" aria-pressed="false">Lightning Reef</button>
                 <button type="button" data-arena="peaks" aria-pressed="false">Watchtower Peaks</button>
               </div>
               <p id="arena-note" class="hint"></p>
             </div>
-            <button id="add-bot" type="button" class="add-bot" hidden>Add a practice bot</button>
-            <button id="start-match" type="button" class="cta start" hidden>Start match</button>
+            <button id="add-bot" type="button" class="add-bot" hidden data-i18n="hud.addBot">Add a practice bot</button>
+            <button id="start-match" type="button" class="cta start" hidden data-i18n="hud.start">Start match</button>
           </aside>
           <div id="consensus" class="panel consensus" hidden>
-            <div class="consensus-label"><span>Consensus</span><b id="consensus-value">0%</b></div>
-            <div id="consensus-bar" class="bar" role="progressbar" aria-label="Consensus" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="consensus-fill" class="fill"></div></div>
+            <div class="consensus-label"><span data-i18n="hud.consensus">Consensus</span><b id="consensus-value">0%</b></div>
+            <div id="consensus-bar" class="bar" role="progressbar" aria-label="Consensus" data-i18n-aria-label="hud.consensus" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="consensus-fill" class="fill"></div></div>
             <div id="clock" class="clock" hidden><span id="act-name"></span><b id="blocks-left"></b></div>
           </div>
           <div id="partition-banner" class="panel partition-banner" role="status" hidden>
-            <div class="partition-label"><b>Network partition</b><span id="partition-time"></span></div>
+            <div class="partition-label"><b data-i18n="hud.partition">Network partition</b><span id="partition-time"></span></div>
             <p id="partition-text"></p>
             <div class="bar"><div id="repair-fill" class="fill"></div></div>
           </div>
           <aside id="match-panel" class="panel match-panel" aria-labelledby="tasks-title" hidden>
             <div id="role-badge" class="role-badge"></div>
-            <h2 id="tasks-title">Tasks</h2>
+            <h2 id="tasks-title" data-i18n="hud.tasks">Tasks</h2>
             <ul id="task-list"></ul>
             <p id="task-note" class="hint"></p>
-            <p id="out-note" class="out-note" hidden>Your key was rotated out. You can watch how the match ends.</p>
+            <p id="out-note" class="out-note" hidden data-i18n="hud.out">Your key was rotated out. You can watch how the match ends.</p>
             <p id="frozen-note" class="out-note frozen-note" role="status" hidden></p>
             <div id="forge-box" class="forge-box" hidden>
-              <p class="eyebrow">Sabotage</p>
-              <button id="forge" type="button" class="forge">Forge a withdrawal</button>
+              <p class="eyebrow" data-i18n="hud.sabotage">Sabotage</p>
+              <button id="forge" type="button" class="forge" data-i18n="hud.forge">Forge a withdrawal</button>
               <p id="forge-hint" class="hint"></p>
               <button id="cut" type="button" class="forge">Cut the network</button>
               <button id="freeze" type="button" class="forge" hidden></button>
@@ -337,17 +344,17 @@
           </aside>
           <aside id="proposals" class="panel proposals" aria-labelledby="proposals-title" hidden>
             <div class="proposals-head">
-              <h2 id="proposals-title">Withdrawals</h2>
+              <h2 id="proposals-title" data-i18n="hud.withdrawals">Withdrawals</h2>
               <div id="liveness" class="liveness"></div>
             </div>
-            <p id="proposals-empty" class="hint">No withdrawals yet. Users will ask soon: sign the real ones, refuse the forged ones.</p>
+            <p id="proposals-empty" class="hint" data-i18n="hud.noWithdrawals">No withdrawals yet. Users will ask soon: sign the real ones, refuse the forged ones.</p>
             <ul id="proposal-list"></ul>
           </aside>
-          <p class="keys-hint">Move with WASD or the arrow keys · E to use a station · scroll to zoom</p>
+          <p class="keys-hint" data-i18n="hud.keys">Move with WASD or the arrow keys · E to use a station · scroll to zoom</p>
         </section>
 
         <button id="interact" type="button" class="cta interact" aria-keyshortcuts="E" hidden></button>
-        <button id="call-council" type="button" class="cta interact council-call" hidden>Call a council</button>
+        <button id="call-council" type="button" class="cta interact council-call" hidden data-i18n="hud.callCouncil">Call a council</button>
 
         <section id="task" class="panel modal task" role="dialog" aria-modal="true" aria-labelledby="task-title" tabindex="-1" hidden>
           <header>
@@ -355,20 +362,20 @@
             <h2 id="task-title"></h2>
             <p id="task-concept" class="concept"></p>
           </header>
-          <p id="task-fake" class="fake" hidden>You’re Byzantine: this task is fake and adds no consensus. Finish it anyway, so you look busy.</p>
+          <p id="task-fake" class="fake" hidden data-i18n="task.fake">You’re Byzantine: this task is fake and adds no consensus. Finish it anyway, so you look busy.</p>
           <div id="task-body" class="task-body"></div>
           <footer>
             <p id="task-status" class="task-status" aria-live="polite"></p>
-            <button id="task-close" type="button">Close</button>
+            <button id="task-close" type="button" data-i18n="common.close">Close</button>
           </footer>
         </section>
 
         <section id="role-card" class="panel modal role-card" role="dialog" aria-labelledby="role-title" hidden>
-          <p class="eyebrow">Your secret role</p>
+          <p class="eyebrow" data-i18n="role.eyebrow">Your secret role</p>
           <h2 id="role-title"></h2>
           <p id="role-text"></p>
           <p id="role-team" class="team"></p>
-          <button id="role-ok" type="button" class="cta">Got it</button>
+          <button id="role-ok" type="button" class="cta" data-i18n="common.gotIt">Got it</button>
         </section>
 
         <section id="council" class="panel modal council" role="dialog" aria-labelledby="council-title" tabindex="-1" hidden>
@@ -377,31 +384,31 @@
               <p id="council-kind" class="eyebrow">Council</p>
               <h2 id="council-title"></h2>
             </div>
-            <b id="council-timer" class="council-timer" aria-label="Seconds left"></b>
+            <b id="council-timer" class="council-timer" aria-label="Seconds left" data-i18n-aria-label="council.secondsLeft"></b>
           </header>
           <p id="council-lead" class="concept"></p>
           <ul id="council-members" class="council-members"></ul>
-          <button id="council-skip" type="button" class="council-skip">Skip vote</button>
+          <button id="council-skip" type="button" class="council-skip" data-i18n="council.skip">Skip vote</button>
           <p id="council-outcome" class="council-outcome" role="status" hidden></p>
           <div class="chat">
-            <ol id="chat-log" class="chat-log" aria-live="polite" aria-label="Council chat"></ol>
+            <ol id="chat-log" class="chat-log" aria-live="polite" aria-label="Council chat" data-i18n-aria-label="council.chat"></ol>
             <div id="chat-compose" class="chat-compose"></div>
           </div>
         </section>
 
         <section id="result" class="panel modal result" role="dialog" aria-labelledby="result-title" tabindex="-1" hidden>
-          <p class="eyebrow">Match over</p>
+          <p class="eyebrow" data-i18n="result.eyebrow">Match over</p>
           <h2 id="result-title"></h2>
           <p id="result-verdict" class="verdict"></p>
           <p id="result-reason"></p>
-          <a id="result-learn" class="result-learn" target="_blank" rel="noopener noreferrer" hidden>Learn the idea behind this result</a>
+          <a id="result-learn" class="result-learn" target="_blank" rel="noopener noreferrer" hidden data-i18n="result.learn">Learn the idea behind this result</a>
           <ul id="result-roles"></ul>
           <section id="rewards" class="rewards" aria-labelledby="rewards-title" hidden>
-            <h3 id="rewards-title">Your rewards</h3>
+            <h3 id="rewards-title" data-i18n="result.rewards">Your rewards</h3>
             <div id="rewards-body"></div>
           </section>
-          <button id="result-share" type="button" class="share-result">Share result</button>
-          <p class="hint">Back to the lobby in a few seconds.</p>
+          <button id="result-share" type="button" class="share-result" data-i18n="result.share">Share result</button>
+          <p class="hint" data-i18n="result.back">Back to the lobby in a few seconds.</p>
         </section>
 
         <div id="toasts" aria-live="polite"></div>

@@ -1,4 +1,5 @@
 import { NicknameSchema, normalizeRoomCode } from '@byzantine-council/shared';
+import { t } from '../i18n/index.js';
 import { el } from './dom.js';
 
 export type MenuAction =
@@ -60,7 +61,7 @@ export class Menu {
 
   prefillCode(code: string): void {
     this.#code.value = code;
-    this.#status.textContent = 'Enter a nickname and press Join to enter your friend’s room.';
+    this.#status.textContent = t('menu.prefilled');
   }
 
   setBusy(busy: boolean, status = ''): void {
@@ -85,7 +86,7 @@ export class Menu {
     this.clearMessages();
     const nickname = NicknameSchema.safeParse(this.#nickname.value);
     if (!nickname.success) {
-      this.showError('Pick a nickname of 2–16 letters, numbers, spaces, _ or -.');
+      this.showError(t('menu.badNickname'));
       this.#nickname.focus();
       return null;
     }
@@ -97,7 +98,7 @@ export class Menu {
     this.clearMessages();
     const nickname = NicknameSchema.safeParse(this.#nickname.value);
     if (!nickname.success) {
-      this.showError('Pick a nickname of 2–16 letters, numbers, spaces, _ or -.');
+      this.showError(t('menu.badNickname'));
       this.#nickname.focus();
       return;
     }
@@ -109,7 +110,7 @@ export class Menu {
     }
     const code = normalizeRoomCode(this.#code.value);
     if (code === null) {
-      this.showError('Room codes are 6 letters and numbers, like K7Q-X9M.');
+      this.showError(t('menu.badCode'));
       this.#code.focus();
       return;
     }

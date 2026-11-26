@@ -1,8 +1,8 @@
+import { t } from '../i18n/index.js';
 import { h } from '../ui/dom.js';
 import './pwa.css';
 
 export const PROMPT_ID = 'pwa-update';
-export const PROMPT_TEXT = 'A new version of Byzantine Council is ready.';
 // The text lands after the live region exists, so screen readers announce it.
 const ANNOUNCE_DELAY_MS = 100;
 
@@ -13,14 +13,14 @@ export function showUpdatePrompt(apply: () => void): void {
   box.id = PROMPT_ID;
   box.setAttribute('role', 'status');
   const text = h('p', 'pwa-update-text');
-  const reload = h('button', 'pwa-update-reload', 'Reload');
+  const reload = h('button', 'pwa-update-reload', t('pwa.reload'));
   reload.type = 'button';
-  const later = h('button', 'pwa-update-later', 'Later');
+  const later = h('button', 'pwa-update-later', t('pwa.later'));
   later.type = 'button';
   reload.addEventListener('click', () => {
     reload.disabled = true;
     later.disabled = true;
-    text.textContent = 'Updating…';
+    text.textContent = t('pwa.updating');
     apply();
   });
   later.addEventListener('click', () => {
@@ -29,6 +29,6 @@ export function showUpdatePrompt(apply: () => void): void {
   box.append(text, reload, later);
   document.body.append(box);
   window.setTimeout(() => {
-    if (!reload.disabled) text.textContent = PROMPT_TEXT;
+    if (!reload.disabled) text.textContent = t('pwa.ready');
   }, ANNOUNCE_DELAY_MS);
 }

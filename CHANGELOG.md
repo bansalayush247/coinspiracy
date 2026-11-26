@@ -2,6 +2,11 @@
 
 ## 26 November 2026
 
+### Spanish
+- The game now speaks Spanish as well as English. The menu, lobby, settings, HUD, toasts, error messages, end and
+  reward cards, progress pages and the casebook follow your browser's language, and a new Language picker in Settings
+  lets you switch at any time and remembers your pick. Story dialogue and act text stay in English for now.
+
 ### Discord Activity and web portals
 - The same game client now runs as a Discord Activity and inside web game portals. In Discord, players sign in with
   the `identify` scope only and their progress is saved to a guest profile; other players still see only the nickname

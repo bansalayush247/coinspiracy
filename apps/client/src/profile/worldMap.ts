@@ -1,6 +1,7 @@
 // The archipelago on the menu: every island visible, the open ones bright, the rest showing how to open them.
 import { ISLANDS, islandOpen, type Island } from '@byzantine-council/shared/progression';
 import { el, h } from '../ui/dom.js';
+import { t } from '../i18n/index.js';
 import { svg } from '../ui/svg.js';
 import type { ProfileSummary } from './api.js';
 import { CHAPTERS, chapterOpen, type StoryBook } from '../story/storyBook.js';
@@ -45,7 +46,9 @@ export class WorldMap {
     });
     if (previewAll) {
       this.#root.dataset['preview'] = 'all';
-      el('world-title', HTMLElement).textContent = 'The archipelago · Explorer preview';
+      const title = el('world-title', HTMLElement);
+      title.removeAttribute('data-i18n');
+      title.textContent = t('world.titlePreview');
     }
   }
 
@@ -114,24 +117,24 @@ export class WorldMap {
     const v = this.#profile?.progress;
     const rank = v?.rank ?? 1;
     const stars = v?.academy.reduce((a, l) => a + l.stars, 0) ?? 0;
-    if (!island.ready) return { open: false, text: `Coming soon · opens at Rank ${String(island.rank)}` };
-    if (this.#previewAll) return { open: true, text: 'Explorer preview · progression locks ignored' };
+    if (!island.ready) return { open: false, text: t('world.comingSoon', { rank: String(island.rank) }) };
+    if (this.#previewAll) return { open: true, text: t('world.previewStatus') };
     const open = islandOpen(island, rank, stars);
-    if (open) return { open: true, text: island.id === 'mint' ? 'Open · you start here' : 'Open' };
-    return { open: false, text: `Opens at Rank ${String(island.rank)} or with ${String(island.stars)} Academy stars (you have Rank ${String(rank)}, ${String(stars)} stars)` };
+    if (open) return { open: true, text: t(island.id === 'mint' ? 'world.openStart' : 'world.open') };
+    return { open: false, text: t('world.opensAt', { rank: String(island.rank), stars: String(island.stars), myRank: String(rank), myStars: String(stars) }) };
   }
 
   #render(): void {
     const ready = ISLANDS.filter((island) => island.ready);
     const openCount = ready.filter((island) => this.#status(island).open).length;
     const left = ready.length - openCount;
-    this.#progressText.textContent = this.#previewAll ? `All ${String(ready.length)} islands open for review` : `${String(openCount)} of ${String(ready.length)} islands open`;
-    this.#progressLeft.textContent = this.#previewAll ? 'Explorer preview does not change progress' : left === 0 ? 'Archipelago complete' : `${String(left)} left to unlock`;
+    this.#progressText.textContent = this.#previewAll ? t('world.allOpenReview', { total: String(ready.length) }) : t('world.openCount', { open: String(openCount), total: String(ready.length) });
+    this.#progressLeft.textContent = this.#previewAll ? t('world.previewNoProgress') : left === 0 ? t('world.complete') : t('world.leftToUnlock', { left: String(left) });
     this.#progressBar.setAttribute('aria-valuemax', String(ready.length));
     this.#progressBar.setAttribute('aria-valuenow', String(openCount));
     this.#progressFill.style.width = `${String((openCount / Math.max(1, ready.length)) * 100)}%`;
-    this.#openButton.replaceChildren('Explore', Object.assign(document.createElement('small'), { textContent: left === 0 ? 'All unlocked' : `${String(left)} to unlock` }));
-    const drawing = svg('svg', { viewBox: '0 0 100 100', class: 'world-svg', role: 'group', 'aria-label': 'Islands' });
+    this.#openButton.replaceChildren(t('world.explore'), Object.assign(document.createElement('small'), { textContent: left === 0 ? t('world.allUnlocked') : t('world.toUnlock', { left: String(left) }) }));
+    const drawing = svg('svg', { viewBox: '0 0 100 100', class: 'world-svg', role: 'group', 'aria-label': t('world.islands') });
     drawing.append(worldDefs());
     // Sky above a sea of cloud, then drifting cloud banks.
     drawing.append(svg('rect', { x: 0, y: 0, width: 100, height: 100, rx: 4, fill: 'url(#wm-sky)' }));
@@ -171,7 +174,7 @@ export class WorldMap {
     }
     const event = this.#season?.featured ?? null;
     if (event !== null) {
-      const g = svg('g', { class: `island open event${this.#selected === 'event' ? ' selected' : ''}`, tabindex: 0, role: 'button', 'aria-label': `${event.title}: a seasonal event island` });
+      const g = svg('g', { class: `island open event${this.#selected === 'event' ? ' selected' : ''}`, tabindex: 0, role: 'button', 'aria-label': t('world.eventAria', { title: event.title }) });
       const [a, b] = event.colors;
       g.append(svg('ellipse', { cx: 61, cy: 13, rx: 12, ry: 6.5, fill: a, opacity: 0.4, filter: 'url(#wm-glow)', class: 'halo' }));
       g.append(svg('path', { d: 'M54 12 L57 16 L60 20 L63 16 L66 12 Z', fill: 'url(#wm-cliff)' }), svg('ellipse', { cx: 61, cy: 12, rx: 7.5, ry: 3.2, fill: b, class: 'rim' }));
@@ -200,7 +203,7 @@ export class WorldMap {
     }
     this.#map.replaceChildren(drawing);
     if (this.#selected === 'event' && event !== null) {
-      this.#card.replaceChildren(h('b', '', event.title), h('span', 'concept', event.headline), h('p', '', event.blurb), h('span', 'tag me', 'Event island · finish a match while it lasts to earn a hidden seal'));
+      this.#card.replaceChildren(h('b', '', event.title), h('span', 'concept', event.headline), h('p', '', event.blurb), h('span', 'tag me', t('world.eventTag')));
       return;
     }
     const island = ISLANDS.find((i) => i.id === this.#selected) ?? ISLANDS[0];
@@ -208,7 +211,7 @@ export class WorldMap {
     const status = this.#status(island);
     this.#card.replaceChildren(h('b', '', island.name), h('span', 'concept', island.concept), h('p', '', island.about), h('span', status.open ? 'tag honest' : 'tag left', status.text));
     if (status.open) {
-      const visit = h('button', 'cta world-visit', island.id === 'beach' ? 'Visit Beach Town' : `Explore ${island.name}`);
+      const visit = h('button', 'cta world-visit', island.id === 'beach' ? t('world.visitBeach') : t('world.exploreIsland', { name: island.name }));
       visit.type = 'button';
       visit.addEventListener('click', () => {
         this.close();
@@ -220,9 +223,9 @@ export class WorldMap {
     if (chapters.length > 0 && this.#story !== null) {
       const list = h('div', 'world-chapters');
       for (const c of chapters) {
-        const b = h('button', '', c.number === 0 ? `Prologue: ${c.title}` : `Chapter ${String(c.number)}: ${c.title}`);
+        const b = h('button', '', c.number === 0 ? t('world.prologue', { title: c.title }) : t('world.chapter', { n: String(c.number), title: c.title }));
         b.type = 'button';
-        if (!this.#story.isRead(c.id)) b.append(h('span', 'tag me', 'New'));
+        if (!this.#story.isRead(c.id)) b.append(h('span', 'tag me', t('tag.new')));
         b.addEventListener('click', () => {
           this.#story?.open(c);
         });

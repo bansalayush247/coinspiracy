@@ -3,6 +3,7 @@
 import { SIDE_CASES, type ActId } from '@byzantine-council/shared/city';
 import type { ProfileSummary } from '../profile/api.js';
 import { el, h } from '../ui/dom.js';
+import { t } from '../i18n/index.js';
 
 export class Casebook {
   readonly #root = el('cases', HTMLElement);
@@ -39,14 +40,15 @@ export class Casebook {
       ...SIDE_CASES.map((c) => {
         const solved = this.#solved.has(c.id);
         const li = h('li', solved ? 'case solved' : 'case');
-        const play = h('button', '', solved ? 'Play again' : 'Take the case');
+        const action = t(solved ? 'cases.again' : 'cases.take');
+        const play = h('button', '', action);
         play.type = 'button';
-        play.setAttribute('aria-label', `${solved ? 'Play again' : 'Take the case'}: ${c.title}`);
+        play.setAttribute('aria-label', t('cases.playAria', { action, title: c.title }));
         play.addEventListener('click', () => {
           this.close();
           this.onPlay(c.id);
         });
-        li.append(h('h3', '', c.title), h('p', '', c.blurb), h('p', 'meta', solved ? 'Solved' : `${String(c.rewardSats)} play sats for the first solve`), play);
+        li.append(h('h3', '', c.title), h('p', '', c.blurb), h('p', 'meta', solved ? t('cases.solved') : t('cases.reward', { sats: String(c.rewardSats) })), play);
         return li;
       }),
     );

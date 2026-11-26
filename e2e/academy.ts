@@ -96,7 +96,7 @@ async function main(): Promise<void> {
     web = await preview({ root: clientRoot, logLevel: 'warn', build: { outDir: OUT }, preview: { host: '127.0.0.1', port: WEB_PORT, strictPort: true } });
     browser = await chromium.launch({ executablePath: BRAVE, headless: true, chromiumSandbox: true, timeout: 30_000 });
     await mkdir(shots, { recursive: true });
-    const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+    const page = await browser.newPage({ viewport: { width: 1280, height: 860 }, locale: 'en-US' });
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     page.on('console', (m) => {

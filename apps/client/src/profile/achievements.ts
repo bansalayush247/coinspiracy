@@ -1,6 +1,7 @@
 // Achievement cards that slide in when a seal is earned or a look is unlocked, one after another.
 import { audio } from '../audio/engine.js';
 import { el, h } from '../ui/dom.js';
+import { t } from '../i18n/index.js';
 
 const SHOW_MS = 4200;
 const GAP_MS = 500;
@@ -13,7 +14,7 @@ export class Achievements {
 
   announce(kind: 'seal' | 'look' | 'rank', name: string): void {
     if (this.#queue.length >= MAX_QUEUE) return;
-    const title = kind === 'seal' ? 'Seal earned!' : kind === 'look' ? 'New look unlocked!' : 'Rank up!';
+    const title = t(kind === 'seal' ? 'achievement.seal' : kind === 'look' ? 'achievement.look' : 'achievement.rank');
     this.#queue.push({ title, name, kind });
     if (!this.#busy) this.#next();
   }

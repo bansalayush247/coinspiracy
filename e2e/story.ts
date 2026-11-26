@@ -53,7 +53,7 @@ async function open(
   tile = '#open-story',
   caseTitle?: string,
 ): Promise<{ page: Page; room: MissionRoom }> {
-  const page = await browser.newPage({ viewport });
+  const page = await browser.newPage({ viewport, locale: 'en-US' });
   page.on('pageerror', (e) => errors.push(`${name}: ${String(e)}`));
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`${name}: ${m.text()}`);
@@ -220,7 +220,7 @@ async function main(): Promise<void> {
     const code = lead.room.state.code;
     await lead.page.waitForFunction((c) => document.getElementById('story-code')?.textContent.replace('-', '') === c, code, { timeout: 10_000 }).catch(() => undefined);
     check(((await lead.page.textContent('#story-code')) ?? '').replace('-', '') === code, 'the story bar shows the crew code');
-    const friend = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const friend = await browser.newPage({ viewport: { width: 1280, height: 800 }, locale: 'en-US' });
     friend.on('pageerror', (e) => errors.push(`Bo: ${String(e)}`));
     friend.on('console', (m) => {
       if (m.type() === 'error') errors.push(`Bo: ${m.text()}`);

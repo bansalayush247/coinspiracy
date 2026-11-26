@@ -34,7 +34,7 @@ const chunks = (page: Page): Promise<number> => page.evaluate(() => (window as u
 const population = (page: Page): Promise<string> => page.textContent('#city-pop').then((t) => t ?? '');
 
 async function enter(browser: Browser, name: string, viewport: { width: number; height: number }, errors: string[]): Promise<Page> {
-  const page = await browser.newPage({ viewport });
+  const page = await browser.newPage({ viewport, locale: 'en-US' });
   page.on('pageerror', (e) => errors.push(`${name}: ${String(e)}`));
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`${name}: ${m.text()}`);

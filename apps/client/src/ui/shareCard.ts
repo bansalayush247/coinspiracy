@@ -1,5 +1,6 @@
 // A 1200×630 share card for a finished match, drawn on a canvas and shared as an image.
 // It names no other player and carries no room code: only your side, your role and the result.
+import { t } from '../i18n/index.js';
 
 export interface ShareInfo {
   readonly won: boolean;
@@ -71,19 +72,31 @@ export function drawShareCard(info: ShareInfo): HTMLCanvasElement {
   c.font = '700 26px system-ui, sans-serif';
   c.fillText('BYZANTINE COUNCIL', 100, 130);
   c.fillStyle = '#fff1de';
-  c.font = '800 64px system-ui, sans-serif';
-  c.fillText(info.winner === 'honest' ? 'Honest guardians' : 'Byzantine guardians', 100, 215);
-  c.fillText('win!', 100, 290);
+  const winners = t(info.winner === 'honest' ? 'share.honestWinners' : 'share.byzWinners');
+  const win = t('share.win');
+  let size = 64;
+  c.font = `800 ${String(size)}px system-ui, sans-serif`;
+  while (size > 40 && Math.max(c.measureText(winners).width, c.measureText(win).width) > 700) {
+    size -= 2;
+    c.font = `800 ${String(size)}px system-ui, sans-serif`;
+  }
+  c.fillText(winners, 100, 215);
+  c.fillText(win, 100, 290);
   c.fillStyle = info.won ? '#5fd3b0' : '#ff9a6a';
   c.font = '700 34px system-ui, sans-serif';
-  const who = info.role === undefined ? 'I watched the federation' : `I played ${info.role === 'byzantine' ? 'a Byzantine' : 'an honest'} guardian`;
-  c.fillText(`${who}${info.role === undefined ? '' : info.won ? ' and won.' : ' and lost.'}`, 100, 360);
+  const who =
+    info.role === undefined
+      ? t('share.watched')
+      : info.role === 'byzantine'
+        ? t(info.won ? 'share.byzWon' : 'share.byzLost')
+        : t(info.won ? 'share.honestWon' : 'share.honestLost');
+  c.fillText(who, 100, 360);
   c.fillStyle = '#e2cfd6';
   c.font = '400 26px system-ui, sans-serif';
   wrap(c, info.reason, 100, 410, 620, 34);
   c.fillStyle = '#ffd27a';
   c.font = '600 24px system-ui, sans-serif';
-  c.fillText('A free social-deduction game about federated ecash', 100, 515);
+  c.fillText(t('share.tagline'), 100, 515);
   return canvas;
 }
 
@@ -109,7 +122,7 @@ export async function shareResult(info: ShareInfo): Promise<'shared' | 'saved' |
   });
   if (blob === null) return 'failed';
   const file = new File([blob], 'byzantine-council.png', { type: 'image/png' });
-  const text = info.winner === 'honest' ? 'The honest guardians held the mint in Byzantine Council.' : 'The Byzantines slipped one past the council in Byzantine Council.';
+  const text = t(info.winner === 'honest' ? 'share.textHonest' : 'share.textByz');
   try {
     if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], text, url: window.location.origin });

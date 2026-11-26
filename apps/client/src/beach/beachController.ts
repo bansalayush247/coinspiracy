@@ -11,6 +11,7 @@ import type { PlayerInput } from '../game/input.js';
 import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { el, h } from '../ui/dom.js';
+import { t, type PlainKey } from '../i18n/index.js';
 import type { BeachScene } from './BeachScene.js';
 
 type BeachRoom = Awaited<ReturnType<Session['beach']>>;
@@ -18,12 +19,12 @@ type BeachRoom = Awaited<ReturnType<Session['beach']>>;
 const SHOP_NAMES = new Map(SHOPS.map((s) => [s.id, s.name]));
 const name = (shop: ShopId): string => SHOP_NAMES.get(shop) ?? shop;
 
-const REFUSALS: Readonly<Record<string, string>> = {
-  notHere: 'Stand at a shop counter to take a delivery.',
-  busy: 'You are already carrying a parcel.',
-  noJob: 'You have no parcel to deliver.',
-  wrongShop: 'This parcel is for another shop.',
-  tooFast: 'That was quicker than anyone can walk. Try again.',
+const REFUSALS: Readonly<Record<string, PlainKey>> = {
+  notHere: 'beach.notHere',
+  busy: 'beach.busy',
+  noJob: 'beach.noJob',
+  wrongShop: 'beach.wrongShop',
+  tooFast: 'beach.tooFast',
 };
 
 export class BeachController {
@@ -132,7 +133,7 @@ export class BeachController {
 
   setProfile(p: ProfileSummary | null): void {
     this.#profile = p;
-    this.#wallet.textContent = p === null ? 'No wallet' : `${p.balance.toLocaleString('en-US')} play sats`;
+    this.#wallet.textContent = p === null ? t('beach.noWallet') : t('beach.wallet', { sats: p.balance });
     this.scene.setHutDecor(p?.owned ?? []);
   }
 
@@ -167,14 +168,14 @@ export class BeachController {
       this.#job = job.data;
       this.scene.setTarget(job.data.to);
       audio.play('click');
-      this.onToast(`Parcel for the ${name(job.data.to)}: ${String(job.data.reward)} sats on delivery.`);
+      this.onToast(t('beach.jobTaken', { shop: name(job.data.to), sats: String(job.data.reward) }));
       this.#render();
     });
     room.onMessage(BEACH_MESSAGES.DONE, (payload: unknown) => {
       const done = CourierDoneSchema.safeParse(payload);
       if (!done.success) return;
       if (done.data.reason === 'error') {
-        this.onToast('The mint couldn’t pay just now. You still have the parcel: try delivering again in a moment.');
+        this.onToast(t('beach.payError'));
         return;
       }
       const to = this.#job?.to;
@@ -184,9 +185,9 @@ export class BeachController {
       for (const seal of done.data.seals) this.#achievements.announce('seal', sealName(seal));
       if (done.data.paid > 0) {
         audio.play('coin');
-        this.onToast(`Delivered! +${String(done.data.paid)} play sats (${String(done.data.deliveredToday)} today).`);
+        this.onToast(t('beach.delivered', { paid: String(done.data.paid), today: String(done.data.deliveredToday) }));
       } else {
-        this.onToast(done.data.reason === 'dailyLimit' ? 'Delivered, with thanks. You have done today’s paid deliveries; come back tomorrow.' : 'Delivered, with thanks.');
+        this.onToast(t(done.data.reason === 'dailyLimit' ? 'beach.deliveredLimit' : 'beach.deliveredThanks'));
       }
       void this.profiles.profile().then((p) => {
         if (p !== null) this.onProfile(p);
@@ -195,7 +196,7 @@ export class BeachController {
     });
     room.onMessage(BEACH_MESSAGES.REFUSED, (payload: unknown) => {
       const r = CourierRefusedSchema.safeParse(payload);
-      if (r.success) this.onToast(REFUSALS[r.data.reason] ?? 'That did not work.');
+      if (r.success) this.onToast(t(REFUSALS[r.data.reason] ?? 'beach.failed'));
     });
     room.onMessage(BEACH_MESSAGES.EMOTE, (payload: unknown) => {
       const line = EmoteLineSchema.safeParse(payload);
@@ -248,7 +249,7 @@ export class BeachController {
       this.scene.setFocusShop(here);
     }
     const job = this.#job;
-    this.#jobLine.textContent = job === null ? 'Courier jobs: take a parcel at any shop counter and carry it to another for play sats.' : `Carrying a parcel to the ${name(job.to)} for ${String(job.reward)} sats.`;
+    this.#jobLine.textContent = job === null ? t('beach.jobsHint') : t('beach.carrying', { shop: name(job.to), sats: String(job.reward) });
     const home = here === null && pos !== null && atHome(pos);
     if (home !== this.#home) {
       this.#home = home;
@@ -258,20 +259,20 @@ export class BeachController {
     }
     this.#prompt.hidden = (here === null && !home) || !this.#shopRoot.hidden;
     if (home) {
-      this.#promptText.textContent = 'Your hut · Rest, try on your look or reread the Chronicle';
-      this.#browse.textContent = 'Wardrobe (E)';
-      this.#jobAction.textContent = 'Read the Chronicle';
+      this.#promptText.textContent = t('beach.hut');
+      this.#browse.textContent = t('beach.wardrobeKey');
+      this.#jobAction.textContent = t('beach.readChronicle');
       this.#jobAction.hidden = false;
       return;
     }
     if (here === null) return;
-    this.#browse.textContent = 'Browse (E)';
+    this.#browse.textContent = t('beach.browse');
     this.#promptText.textContent = `${name(here)} · ${getShop(here)?.sells ?? ''}`;
     if (job === null) {
-      this.#jobAction.textContent = 'Take a delivery';
+      this.#jobAction.textContent = t('beach.takeJob');
       this.#jobAction.hidden = false;
     } else if (job.to === here) {
-      this.#jobAction.textContent = `Deliver the parcel (+${String(job.reward)} sats)`;
+      this.#jobAction.textContent = t('beach.deliver', { sats: String(job.reward) });
       this.#jobAction.hidden = false;
     } else {
       this.#jobAction.hidden = true;
@@ -305,13 +306,13 @@ export class BeachController {
       const swatch = h('span', 'swatch');
       swatch.style.background = item.hints.swatch;
       const have = item.category !== 'food' && ownsItem(owned, item.id);
-      const buy = h('button', have ? '' : 'cta', have ? 'Owned' : 'Buy');
+      const buy = h('button', have ? '' : 'cta', t(have ? 'beach.owned' : 'beach.buy'));
       buy.type = 'button';
       buy.disabled = have || this.#profile === null;
       buy.addEventListener('click', () => {
         this.#startPay(item, shop, price);
       });
-      row.append(swatch, h('span', 'name', item.name), h('span', 'price', `${String(price)} sats`), buy);
+      row.append(swatch, h('span', 'name', item.name), h('span', 'price', t('progress.sats', { sats: String(price) })), buy);
       return [row];
     });
     this.#shopItems.replaceChildren(...rows);
@@ -331,7 +332,7 @@ export class BeachController {
   #startPay(item: CatalogItem, shop: ShopId, price: number): void {
     this.#buying = { item, shop, price };
     this.#selected = [];
-    this.#payTitle.textContent = `${item.name}: ${String(price)} sats`;
+    this.#payTitle.textContent = t('beach.payTitle', { name: item.name, sats: String(price) });
     this.#shopItems.hidden = true;
     this.#pay.hidden = false;
     this.#renderNotes();
@@ -360,14 +361,14 @@ export class BeachController {
     const sum = chosen.reduce((a, n) => a + n, 0);
     const check = chosen.length === 0 ? null : payWithNotes(p.notes, chosen, b.price);
     this.#payStatus.classList.toggle('ok', check?.ok === true);
-    if (check === null) this.#payStatus.textContent = `Selected 0 of ${String(b.price)} sats.`;
+    if (check === null) this.#payStatus.textContent = t('beach.selectedNone', { price: String(b.price) });
     else if (check.ok) {
       const change = sum - b.price;
-      this.#payStatus.textContent = change === 0 ? 'Exact. No change needed.' : `That covers it. Change: ${String(change)} sats, reissued as ${toDenominations(change).join(' + ')}.`;
-    } else if (check.error === 'underpaid') this.#payStatus.textContent = `Selected ${String(sum)} of ${String(b.price)} sats. Add another note.`;
-    else if (check.error === 'overpaid') this.#payStatus.textContent = 'One of these notes is not needed. Take the smallest back.';
-    else if (check.error === 'insufficientFunds') this.#payStatus.textContent = 'Your wallet does not hold enough for this yet. Courier jobs and matches earn more.';
-    else this.#payStatus.textContent = 'Pick notes from your wallet.';
+      this.#payStatus.textContent = change === 0 ? t('beach.exact') : t('beach.change', { change: String(change), notes: toDenominations(change).join(' + ') });
+    } else if (check.error === 'underpaid') this.#payStatus.textContent = t('beach.underpaid', { sum: String(sum), price: String(b.price) });
+    else if (check.error === 'overpaid') this.#payStatus.textContent = t('beach.overpaid');
+    else if (check.error === 'insufficientFunds') this.#payStatus.textContent = t('beach.insufficient');
+    else this.#payStatus.textContent = t('beach.pickNotes');
     this.#payGo.disabled = check?.ok !== true;
   }
 
@@ -380,13 +381,13 @@ export class BeachController {
     this.#payGo.disabled = true;
     const next = await this.profiles.buy(b.item.id, b.shop, chosen);
     if (next === null) {
-      this.#payStatus.textContent = 'The mint refused that payment. Check the notes and try again.';
+      this.#payStatus.textContent = t('beach.refused');
       this.#payGo.disabled = false;
       return;
     }
     audio.play('coin');
     this.onProfile(next);
-    this.onToast(b.item.category === 'food' ? `Enjoy your ${b.item.name.toLowerCase()}!` : `${b.item.name} is in your wardrobe.`);
+    this.onToast(b.item.category === 'food' ? t('beach.enjoy', { name: b.item.name.toLowerCase() }) : t('beach.inWardrobe', { name: b.item.name }));
     this.#openShop(b.shop);
   }
 }

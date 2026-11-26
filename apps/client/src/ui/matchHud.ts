@@ -1,4 +1,5 @@
 import { TASK_KINDS, hasTask, type Act, type Role, type TaskKind } from '@byzantine-council/shared';
+import { formatNumber, t, tn } from '../i18n/index.js';
 import { el, h } from './dom.js';
 import { stationName } from './places.js';
 import { TASK_COPY } from './tasks/copy.js';
@@ -46,8 +47,8 @@ export class MatchHud {
 
   setRole(role: Role | undefined, fellows: readonly string[]): void {
     this.#badge.dataset['role'] = role ?? '';
-    this.#badge.replaceChildren(h('span', 'eyebrow', 'Your role'), h('b', '', role === 'byzantine' ? 'Byzantine guardian' : role === 'honest' ? 'Honest guardian' : '…'));
-    if (role === 'byzantine' && fellows.length > 0) this.#badge.append(h('span', 'team', `With ${fellows.join(', ')}`));
+    this.#badge.replaceChildren(h('span', 'eyebrow', t('match.yourRole')), h('b', '', role === 'byzantine' ? t('match.byzGuardian') : role === 'honest' ? t('match.honestGuardian') : '…'));
+    if (role === 'byzantine' && fellows.length > 0) this.#badge.append(h('span', 'team', t('match.with', { names: fellows.join(', ') })));
   }
 
   setTasks(assigned: number, done: number, fake: boolean): void {
@@ -55,33 +56,31 @@ export class MatchHud {
       const finished = hasTask(done, kind);
       const li = h('li', finished ? 'done' : '');
       li.dataset['kind'] = kind;
-      li.append(h('span', 'check', finished ? '✓' : ''), h('span', '', TASK_COPY[kind].title), h('span', 'where', stationName(kind)));
+      li.append(h('span', 'check', finished ? '✓' : ''), h('span', '', t(TASK_COPY[kind].title)), h('span', 'where', stationName(kind)));
       return li;
     });
     this.#tasks.replaceChildren(...items);
-    this.#note.textContent = fake
-      ? 'Your tasks are fake: they add no consensus. Do them anyway so you blend in.'
-      : 'Each task you finish fills the Consensus bar.';
+    this.#note.textContent = t(fake ? 'match.fakeNote' : 'match.taskNote');
   }
 
   // The block clock under the Consensus bar.
   setClock(act: Act | '', left: number): void {
     this.#clock.hidden = act === '';
     this.#clock.dataset['act'] = act;
-    this.#actName.textContent = act === 'calm' ? 'Calm' : act === 'proposals' ? 'Withdrawals open' : act === 'final' ? 'Final blocks' : '';
-    this.#blocksLeft.textContent = `${String(left)} block${left === 1 ? '' : 's'} left`;
+    this.#actName.textContent = act === 'calm' ? t('act.calm') : act === 'proposals' ? t('act.proposals') : act === 'final' ? t('act.final') : '';
+    this.#blocksLeft.textContent = tn('match.blocksLeft', left);
   }
 
   setChain(height: number, live: boolean): void {
     this.#chain.hidden = height <= 0;
-    this.#chainHeight.textContent = `${live ? '' : '≈'}${height.toLocaleString('en-US')}`;
-    this.#chain.title = live ? 'Bitcoin block height, live' : 'Bitcoin block height, estimated';
+    this.#chainHeight.textContent = `${live ? '' : '≈'}${formatNumber(height)}`;
+    this.#chain.title = t(live ? 'match.chainLive' : 'match.chainEstimated');
   }
 
   setInteract(kind: TaskKind | null): void {
     if (kind === this.#interactKind) return;
     this.#interactKind = kind;
     this.#interact.hidden = kind === null;
-    if (kind !== null) this.#interact.textContent = `Use ${stationName(kind)}`;
+    if (kind !== null) this.#interact.textContent = t('match.use', { station: stationName(kind) });
   }
 }

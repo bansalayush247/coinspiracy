@@ -31,7 +31,7 @@ async function main(): Promise<void> {
   try {
     web = await buildAndServe(3941);
     browser = await chromium.launch({ executablePath: BRAVE, headless: true, chromiumSandbox: true, timeout: 30_000 });
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: 'en-US' });
     const page = await context.newPage();
     const errors: string[] = [];
     page.on('console', (m) => {

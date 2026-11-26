@@ -4,6 +4,7 @@
 import { DUMP_ACT, SPEAKER_NAMES, visibleChoices, visibleLines, type ScriptChoice, type ScriptNode, type Speaker, type StoryAct } from '@byzantine-council/shared/city';
 import { audio } from '../audio/engine.js';
 import { el, h } from '../ui/dom.js';
+import { t } from '../i18n/index.js';
 
 const TYPE_MS = 16;
 const LINE_GAP_MS = 320;
@@ -94,7 +95,7 @@ export class Dialogue {
   #write(mark: string): void {
     const m = this.act.marks[mark];
     if (m === undefined || (m.clue !== true && m.who === undefined)) return;
-    const text = m.clue === true ? `Clue: ${m.text}` : m.who === 'rook' ? 'You’ll remember that.' : `${SPEAKER_NAMES[m.who ?? 'rook']} will remember that.`;
+    const text = m.clue === true ? t('dialogue.clue', { text: m.text }) : m.who === 'rook' ? t('dialogue.youRemember') : t('dialogue.remembers', { name: SPEAKER_NAMES[m.who ?? 'rook'] });
     this.#entry(m.clue === true ? 'story-clue' : 'story-memory', text);
   }
 
@@ -107,7 +108,7 @@ export class Dialogue {
     if (!this.#canAdvance) return;
     this.#canAdvance = false;
     this.#read = true;
-    this.#hint.textContent = this.#crew > 1 ? 'Waiting for the rest of the crew to read on…' : '';
+    this.#hint.textContent = this.#crew > 1 ? t('dialogue.waiting') : '';
     this.onAdvance(this.#node);
   }
 
@@ -126,7 +127,7 @@ export class Dialogue {
         if (tally !== null) tally.textContent = this.#crew > 1 ? (votes.get(id) ?? []).join(', ') : '';
       });
     } else if (this.#read && this.#crew > 1) {
-      this.#hint.textContent = `Waiting for the rest of the crew to read on (${String(ready)} of ${String(this.#crew)} ready)…`;
+      this.#hint.textContent = t('dialogue.waitingCount', { ready: String(ready), crew: String(this.#crew) });
     }
   }
 
@@ -153,7 +154,7 @@ export class Dialogue {
       return;
     }
     this.#canAdvance = true;
-    this.#hint.textContent = 'Space or tap to continue';
+    this.#hint.textContent = t('dialogue.continue');
   }
 
   #offer(id: string, choices: readonly ScriptChoice[], seconds: number | undefined): void {
@@ -181,9 +182,9 @@ export class Dialogue {
       bar.append(fill);
       this.#choices.append(bar);
       fill.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: seconds * 1000, fill: 'forwards' });
-      this.#hint.textContent = 'Choose before the bar runs out. Silence is an answer too.';
+      this.#hint.textContent = t('dialogue.timed');
     }
-    if (this.#crew > 1) this.#hint.textContent = 'The crew votes: most votes win, and a tie goes to the crew lead. You can change your vote.';
+    if (this.#crew > 1) this.#hint.textContent = t('dialogue.crewVotes');
     buttons[0]?.focus({ preventScroll: true });
     requestAnimationFrame(() => {
       this.#log.scrollTop = this.#log.scrollHeight;

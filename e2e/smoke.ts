@@ -73,7 +73,7 @@ const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isM
 const DESKTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 } as const;
 
 async function openPlayer(browser: Browser, name: string, url: string, device: typeof PHONE | typeof DESKTOP = DESKTOP): Promise<Player> {
-  const context = await browser.newContext(device);
+  const context = await browser.newContext({ ...device, locale: 'en-US' });
   // CSP violations are not console calls, so surface them as console errors.
   await context.addInitScript(() => {
     document.addEventListener('securitypolicyviolation', (e) => {

@@ -1,5 +1,6 @@
 import { CloseCode, ErrorCode } from '@colyseus/sdk';
 import { CLOSE_CODES } from '@byzantine-council/shared';
+import { t } from '../i18n/index.js';
 
 // Raised by the app itself; its message is already written for players.
 export class PlayerFacingError extends Error {}
@@ -16,21 +17,21 @@ export function joinErrorMessage(error: unknown): string {
   const code = numericCode(error);
   switch (code) {
     case undefined:
-      return 'Can’t reach the game server. Check your connection and try again.';
+      return t('join.unreachable');
     case CLOSE_CODES.RATE_LIMITED:
-      return 'Too many attempts from your network. Wait a moment, then try again.';
+      return t('join.rateLimited');
     case CLOSE_CODES.TOO_MANY_CONNECTIONS:
-      return 'Too many players from your network are already connected.';
+      return t('join.tooMany');
     case CLOSE_CODES.MATCH_IN_PROGRESS:
-      return 'A match just started in that room. Join when it’s back in the lobby.';
+      return t('join.inProgress');
     case ErrorCode.AUTH_FAILED:
-      return 'That nickname isn’t allowed. Use 2–16 letters, numbers, spaces, _ or -.';
+      return t('join.badNickname');
     case ErrorCode.MATCHMAKE_INVALID_ROOM_ID:
-      return 'That room is full or has closed.';
+      return t('join.invalidRoom');
     case ErrorCode.MATCHMAKE_EXPIRED:
-      return 'Your seat in that room expired. Join again.';
+      return t('join.expired');
     default:
-      return 'Couldn’t join the room. Try again.';
+      return t('join.failed');
   }
 }
 
@@ -40,19 +41,19 @@ export function closeMessage(code: number): string | null {
     case CloseCode.CONSENTED:
       return null;
     case CLOSE_CODES.IDLE:
-      return 'You were removed for being idle too long.';
+      return t('close.idle');
     case CLOSE_CODES.KICKED:
-      return 'You were removed from the room.';
+      return t('close.kicked');
     case CLOSE_CODES.ROOM_FAILED:
-      return 'The room hit a problem and closed. Join a new one.';
+      return t('close.roomFailed');
     case CLOSE_CODES.RATE_LIMITED:
-      return 'Disconnected for sending too much. Join again.';
+      return t('close.rateLimited');
     case CloseCode.SERVER_SHUTDOWN:
-      return 'The server is restarting. Join again in a moment.';
+      return t('close.shutdown');
     case CloseCode.WITH_ERROR:
-      return 'Disconnected. This room may be open in another tab.';
+      return t('close.withError');
     default:
-      return 'Lost the connection to the room.';
+      return t('close.lost');
   }
 }
 

@@ -30,6 +30,7 @@ import { inviteLink } from '../net/invite.js';
 import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { el, h } from '../ui/dom.js';
+import { t } from '../i18n/index.js';
 import type { CityScene } from './CityScene.js';
 import { drawMapDot, paintMinimap } from './cityController.js';
 import { Dialogue } from './dialogue.js';
@@ -138,12 +139,12 @@ export class MissionController {
         this.scene.updatePlayer(id, player);
       });
       this.#renderCrew();
-      if (id !== room.sessionId && this.#crewSeen) this.onToast(`${player.name} joined the crew.`);
+      if (id !== room.sessionId && this.#crewSeen) this.onToast(t('mission.joined', { name: player.name }));
     });
     callbacks.onRemove('players', (p: CityPlayer, id: string) => {
       this.scene.removePlayer(id);
       this.#renderCrew();
-      if (id !== room.sessionId) this.onToast(`${p.name} left the crew.`);
+      if (id !== room.sessionId) this.onToast(t('mission.left', { name: p.name }));
     });
     callbacks.listen('lead', () => {
       this.#renderCrew();
@@ -193,7 +194,7 @@ export class MissionController {
       this.#setStep(step);
     });
     callbacks.listen('caught', (n: number) => {
-      this.#caught.textContent = n > 0 ? `Caught ${String(n)}×` : '';
+      this.#caught.textContent = n > 0 ? t('mission.caught', { n: String(n) }) : '';
     });
     callbacks.onAdd('marks', (mark: string) => {
       if (this.#marks.has(mark)) return;
@@ -337,7 +338,7 @@ export class MissionController {
     if (room === null) return;
     const votes = new Map<string, string[]>();
     room.state.votes.forEach((choice, id) => {
-      const name = id === room.sessionId ? 'you' : (room.state.players.get(id)?.name ?? '');
+      const name = id === room.sessionId ? t('mission.you') : (room.state.players.get(id)?.name ?? '');
       const list = votes.get(choice) ?? [];
       list.push(name);
       votes.set(choice, list);
@@ -357,9 +358,9 @@ export class MissionController {
     const link = inviteLink(window.location.href, this.#codeValue);
     try {
       await navigator.clipboard.writeText(link);
-      this.onToast('Invite link copied. Friends who open it join your crew, up to four of you.');
+      this.onToast(t('mission.copied'));
     } catch {
-      this.onToast(document.documentElement.dataset['streamer'] === 'on' ? 'Copying failed. Turn off streamer mode to read the code out.' : `Copying failed. Your crew code is ${formatRoomCode(this.#codeValue)}.`);
+      this.onToast(document.documentElement.dataset['streamer'] === 'on' ? t('mission.copyFailedStreamer') : t('mission.copyFailed', { code: formatRoomCode(this.#codeValue) }));
     }
   }
 
@@ -379,7 +380,7 @@ export class MissionController {
     });
     this.scene.mission?.setDark(nightAt(act, this.#step));
     el('story-eyebrow', HTMLElement).textContent = storyEyebrow(act);
-    this.#hud.setAttribute('aria-label', act.kind === 'case' ? `Side case, ${act.title}` : `The Cold Key, ${act.number.toLowerCase()}`);
+    this.#hud.setAttribute('aria-label', act.kind === 'case' ? t('mission.caseAria', { title: act.title }) : t('mission.storyAria', { number: act.number.toLowerCase() }));
     this.#objective.textContent = act.objectives[this.#step] ?? '';
   }
 
@@ -426,7 +427,7 @@ export class MissionController {
     room.state.spots.forEach((spot, i) => {
       if (spot.done && this.#act.spots[i]?.refuses !== true) n++;
     });
-    this.#goal.textContent = `${this.#act.goalLabel ?? 'Done'}: ${String(Math.min(n, goal))} of ${String(goal)}`;
+    this.#goal.textContent = t('mission.goal', { label: this.#act.goalLabel ?? t('common.done'), n: String(Math.min(n, goal)), goal: String(goal) });
   }
 
   #dug(found: string): void {
@@ -486,16 +487,16 @@ export class MissionController {
     }
     const act = this.#act;
     const voice = (k: string): string => (k === 'voice' ? 'The voice on the phone' : SPEAKER_NAMES[k as Speaker]);
-    el('story-remembers', HTMLElement).replaceChildren(...[...who].map(([k, list]) => h('li', '', `${voice(k)} remembers: ${list.join('; ')}.`)));
-    el('story-honest', HTMLElement).textContent = r.honest ? 'You chose honesty at least once. Somebody noticed.' : 'You never once told the plain truth. Somebody noticed that too.';
-    const number = act.kind === 'case' ? 'the case' : act.number.toLowerCase();
+    el('story-remembers', HTMLElement).replaceChildren(...[...who].map(([k, list]) => h('li', '', t('mission.remembers', { who: voice(k), list: list.join('; ') }))));
+    el('story-honest', HTMLElement).textContent = t(r.honest ? 'mission.honest' : 'mission.dishonest');
+    const number = act.kind === 'case' ? t('mission.theCase') : act.number.toLowerCase();
     const reward: Record<MissionResult['reason'], string> = {
-      paid: r.paid > 0 ? `+${String(r.paid)} play sats in your wallet for finishing ${number}.` : `${act.kind === 'case' ? act.title : act.number} is saved to your profile.`,
-      replay: 'Replayed: your choices are saved; the reward is only paid once.',
-      noProfile: `Playing as a guest without a saved profile: nothing was saved, and the ${String(act.rewardSats)} play sats wait for a profile.`,
-      error: 'Your progress couldn’t be saved just now.',
+      paid: r.paid > 0 ? t('mission.paid', { sats: String(r.paid), act: number }) : t('mission.saved', { act: act.kind === 'case' ? act.title : act.number }),
+      replay: t('mission.replay'),
+      noProfile: t('mission.noProfile', { sats: String(act.rewardSats) }),
+      error: t('mission.error'),
     };
-    el('story-end-eyebrow', HTMLElement).textContent = act.kind === 'case' ? 'Case closed' : `End of ${number}`;
+    el('story-end-eyebrow', HTMLElement).textContent = act.kind === 'case' ? t('mission.caseClosed') : t('mission.endOf', { act: number });
     el('story-end-title', HTMLElement).textContent = act.title;
     el('story-lesson', HTMLElement).textContent = act.lesson;
     el('story-end-next', HTMLElement).textContent = act.next;

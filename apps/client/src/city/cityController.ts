@@ -7,6 +7,7 @@ import type { PlayerInput } from '../game/input.js';
 import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { el, h } from '../ui/dom.js';
+import { formatNumber, t, type PlainKey } from '../i18n/index.js';
 import type { CityScene } from './CityScene.js';
 
 type CityRoom = Awaited<ReturnType<Session['city']>>;
@@ -191,16 +192,16 @@ export class CityController {
     if (room === null || pos === null) return;
     const near = this.scene.others().filter((o) => !o.npc).length;
     const total = room.state.population;
-    this.#pop.textContent = `${String(total)} in the city · ${String(near)} nearby`;
+    this.#pop.textContent = t('city.population', { total: String(total), near: String(near) });
     const d = districtAt(pos);
     if (d !== null && d.id !== this.#here) {
       const first = this.#here === null;
       this.#here = d.id;
       this.#district.textContent = d.name;
-      this.#was.textContent = d.was === 'new' ? 'A new part of the city' : `Once ${d.was}`;
+      this.#was.textContent = d.was === 'new' ? t('city.newPart') : t('city.once', { was: d.was });
       if (!first) {
         audio.play('chirp');
-        this.onToast(`Entering ${d.name}`);
+        this.onToast(t('city.entering', { name: d.name }));
       }
     }
     const rough = isRough(pos);
@@ -208,19 +209,19 @@ export class CityController {
       const announce = this.#rough !== null;
       this.#rough = rough;
       this.#zone.dataset.rough = String(rough);
-      this.#zone.replaceChildren(rough ? 'Rough streets' : 'Safe streets', h('span', 'city-zone-more', rough ? ' · fights allowed' : ''));
-      if (announce) this.onToast(rough ? 'Rough streets: anyone can knock you out and take your pocket' : 'Safe streets: nobody can fight here');
+      this.#zone.replaceChildren(t(rough ? 'city.rough' : 'city.safe'), h('span', 'city-zone-more', rough ? t('city.fightsAllowed') : ''));
+      if (announce) this.onToast(t(rough ? 'city.roughToast' : 'city.safeToast'));
     }
     this.#punch.disabled = this.scene.meDown || this.#inCar;
     const canRide = this.#inCar || (!this.scene.meDown && this.scene.freeCarNear(pos, ENTER_RANGE));
     this.#ride.hidden = !canRide;
-    this.#ride.firstChild?.replaceWith(document.createTextNode(this.#inCar ? 'Get out' : 'Get in'));
+    this.#ride.firstChild?.replaceWith(document.createTextNode(t(this.#inCar ? 'city.getOut' : 'city.getIn')));
     this.#punch.classList.toggle('off', !rough);
     this.#punch.setAttribute('aria-disabled', String(!rough));
     const vaultHere = atVault(pos) && !this.scene.meDown;
     if (vaultHere !== this.#atVault) {
       this.#atVault = vaultHere;
-      if (vaultHere) this.onToast(this.#coins > 0 ? 'The Mint vault. Coins inside can’t be punched out of you.' : 'The Mint vault. Bring coins from the rough streets to keep them safe here.');
+      if (vaultHere) this.onToast(t(this.#coins > 0 ? 'city.vaultSafe' : 'city.vaultEmpty'));
     }
     this.#deposit.hidden = !vaultHere || this.#coins === 0;
     drawDots(this.#dots, pos, this.scene.others());
@@ -233,7 +234,7 @@ export class CityController {
     if (coins !== this.#coins) {
       if (coins > this.#coins) audio.play('coin');
       this.#coins = coins;
-      this.#pocket.textContent = coins.toLocaleString();
+      this.#pocket.textContent = formatNumber(coins);
     }
     if (this.#down.hidden === player.down) {
       this.#down.hidden = !player.down;
@@ -249,7 +250,7 @@ export class CityController {
     window.clearInterval(this.#driveLoop);
     if (!on) return;
     audio.play('chirp');
-    this.onToast('Driving. Point where you want to go and the car steers there; point behind to reverse. E to get out.');
+    this.onToast(t('city.driving'));
     this.#driveLoop = window.setInterval(() => {
       const d = this.input.direction();
       this.#room?.send('drive', { dx: Math.max(-1, Math.min(1, d.x)), dy: Math.max(-1, Math.min(1, d.y)) });
@@ -264,26 +265,26 @@ export class CityController {
 
   #deposited(r: DepositResult): void {
     this.#deposit.disabled = false;
-    const left = `${String(r.limit - r.today)} more today`;
+    const left = t('city.moreToday', { n: String(r.limit - r.today) });
     if (r.reason === 'paid') {
       audio.play('coin');
       this.scene.celebrate(VAULT_DOOR);
-      this.onToast(r.kept > 0 ? `Vaulted ${String(r.paid)} play sats. That’s today’s limit; ${String(r.kept)} stay in your pocket.` : `Vaulted ${String(r.paid)} play sats. Safe from any punch. (${left})`);
+      this.onToast(r.kept > 0 ? t('city.vaultedLimit', { paid: String(r.paid), kept: String(r.kept) }) : t('city.vaulted', { paid: String(r.paid), left }));
       void this.profiles.profile().then((p) => {
         if (p !== null) this.onProfile(p);
       });
       return;
     }
-    const why: Record<Exclude<DepositResult['reason'], 'paid'>, string> = {
-      empty: 'Your pocket is empty.',
-      notAtVault: 'Stand at the Mint Hall door to use the vault.',
-      dailyLimit: 'The vault has taken today’s limit. Your coins stay in your pocket; come back tomorrow.',
-      walletFull: 'Your wallet is full.',
-      noProfile: 'The vault needs a saved guest profile. Your coins stay in your pocket.',
-      busy: 'Still counting your last deposit…',
-      error: 'The vault couldn’t take coins just now. They’re back in your pocket.',
+    const why: Record<Exclude<DepositResult['reason'], 'paid'>, PlainKey> = {
+      empty: 'city.vaultNoCoins',
+      notAtVault: 'city.vaultNotHere',
+      dailyLimit: 'city.vaultDailyLimit',
+      walletFull: 'city.vaultWalletFull',
+      noProfile: 'city.vaultNoProfile',
+      busy: 'city.vaultBusy',
+      error: 'city.vaultError',
     };
-    this.onToast(why[r.reason]);
+    this.onToast(t(why[r.reason]));
   }
 
   #swing(): void {
@@ -292,7 +293,7 @@ export class CityController {
       const now = Date.now();
       if (now - this.#safeToastAt > 2500) {
         this.#safeToastAt = now;
-        this.onToast('Safe streets: no fighting here. Brawls happen in Low Tide, the Reef Docks, Gullmoor and the Shallows (red on the map).');
+        this.onToast(t('city.noFighting'));
       }
       return;
     }

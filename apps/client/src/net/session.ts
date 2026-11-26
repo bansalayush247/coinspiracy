@@ -6,6 +6,7 @@ import { BEACH_ROOM, HubState } from '@byzantine-council/shared/hub';
 import { CITY_ROOM, CityState, MISSION_ROOM, MissionState, type ActId } from '@byzantine-council/shared/city';
 import type { PlatformNetwork } from '../platform/types.js';
 import type { ServerEndpoint } from '../serverUrl.js';
+import { t } from '../i18n/index.js';
 import { PlayerFacingError } from './errors.js';
 
 // The SDK sets no timeout on matchmaking or the socket handshake.
@@ -50,7 +51,7 @@ function withTimeout<R extends { leave(): Promise<unknown> }>(attempt: Promise<R
   const timeout = new Promise<never>((_, reject) => {
     timer = window.setTimeout(() => {
       timedOut = true;
-      reject(new PlayerFacingError('The game server isn’t responding. Try again in a moment.'));
+      reject(new PlayerFacingError(t('join.notResponding')));
     }, JOIN_TIMEOUT_MS);
   });
   attempt.then(
@@ -133,7 +134,7 @@ export class Session {
   // Resolves a typed code to a room through the server's rate-limited lookup.
   async lookup(rawCode: string): Promise<RoomLookup> {
     const code = normalizeRoomCode(rawCode);
-    if (code === null) throw new PlayerFacingError('Room codes are 6 letters and numbers, like K7Q-X9M.');
+    if (code === null) throw new PlayerFacingError(t('menu.badCode'));
     let res: Response;
     try {
       res = await fetch(`${this.server.httpBase}${ROOM_LOOKUP_PATH}/${code}`, {
@@ -142,14 +143,14 @@ export class Session {
         signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
       });
     } catch {
-      throw new PlayerFacingError('Can’t reach the game server. Check your connection and try again.');
+      throw new PlayerFacingError(t('join.unreachable'));
     }
-    if (res.status === 404) throw new PlayerFacingError('No room has that code. Check it and try again.');
-    if (res.status === 409) throw new PlayerFacingError('That room is full, or its match or story is already underway.');
-    if (res.status === 429) throw new PlayerFacingError('Too many attempts. Wait a minute, then try again.');
-    if (!res.ok) throw new PlayerFacingError('Couldn’t look up that room. Try again.');
+    if (res.status === 404) throw new PlayerFacingError(t('join.noRoom'));
+    if (res.status === 409) throw new PlayerFacingError(t('join.underway'));
+    if (res.status === 429) throw new PlayerFacingError(t('join.lookupRateLimited'));
+    if (!res.ok) throw new PlayerFacingError(t('join.lookupFailed'));
     const parsed = RoomLookupSchema.safeParse(await res.json().catch(() => null));
-    if (!parsed.success) throw new PlayerFacingError('Couldn’t look up that room. Try again.');
+    if (!parsed.success) throw new PlayerFacingError(t('join.lookupFailed'));
     return parsed.data;
   }
 }

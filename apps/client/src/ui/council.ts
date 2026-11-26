@@ -4,6 +4,7 @@ import { ROOMS, SIMPLE_PHRASES, type ChatMessage, type RoomId } from '@byzantine
 import { cssColor, seatColors } from '../game/palette.js';
 import { SIMPLE_TEXT } from './chatText.js';
 import { placeName } from './places.js';
+import { onLocaleChange, t, type PlainKey } from '../i18n/index.js';
 import { el, h } from './dom.js';
 import { button } from './tasks/types.js';
 
@@ -40,9 +41,10 @@ function option(value: string, text: string): HTMLOptionElement {
   return o;
 }
 
-function select(label: string): HTMLSelectElement {
+function select(label: PlainKey): HTMLSelectElement {
   const s = h('select', 'chat-select');
-  s.setAttribute('aria-label', label);
+  s.dataset['label'] = label;
+  s.setAttribute('aria-label', t(label));
   return s;
 }
 
@@ -57,10 +59,10 @@ export class CouncilPanel {
   readonly #outcome = el('council-outcome', HTMLParagraphElement);
   readonly #log = el('chat-log', HTMLOListElement);
   readonly #compose = el('chat-compose', HTMLDivElement);
-  readonly #who = select('Guardian');
-  readonly #proposal = select('Withdrawal');
-  readonly #room = select('Place');
-  readonly #phraseButtons: HTMLButtonElement[] = [];
+  readonly #who = select('council.who');
+  readonly #proposal = select('council.proposal');
+  readonly #room = select('council.place');
+  readonly #phraseKeys = new Map<HTMLButtonElement, PlainKey>();
   #key = '';
   #shownNumber = 0;
   #canChat = false;
@@ -78,6 +80,12 @@ export class CouncilPanel {
     });
     this.relabelPlaces();
     this.#buildCompose();
+    onLocaleChange(() => {
+      this.relabelPlaces();
+      for (const s of [this.#who, this.#proposal, this.#room]) s.setAttribute('aria-label', t(s.dataset['label'] as PlainKey));
+      for (const [b, key] of this.#phraseKeys) b.textContent = t(key);
+      this.#key = '';
+    });
   }
 
   get isOpen(): boolean {
@@ -85,13 +93,13 @@ export class CouncilPanel {
   }
 
   #buildCompose(): void {
-    const say = (text: string, make: () => ChatMessage | null): HTMLButtonElement => {
-      const b = button(text, 'phrase');
+    const say = (key: PlainKey, make: () => ChatMessage | null): HTMLButtonElement => {
+      const b = button(t(key), 'phrase');
+      this.#phraseKeys.set(b, key);
       b.addEventListener('click', () => {
         const chat = make();
         if (chat !== null) this.onChat(chat);
       });
-      this.#phraseButtons.push(b);
       return b;
     };
     const simple = h('div', 'phrases');
@@ -101,15 +109,15 @@ export class CouncilPanel {
     const who = (): string | null => (this.#who.value === '' ? null : this.#who.value);
     about.append(
       this.#who,
-      say('I suspect them', () => {
+      say('council.suspect', () => {
         const id = who();
         return id === null ? null : { phrase: 'suspect', playerId: id };
       }),
-      say('I trust them', () => {
+      say('council.trust', () => {
         const id = who();
         return id === null ? null : { phrase: 'trust', playerId: id };
       }),
-      say('I saw them in…', () => {
+      say('council.sawThem', () => {
         const id = who();
         return id === null ? null : { phrase: 'sawAt', playerId: id, room: this.#room.value as RoomId };
       }),
@@ -118,26 +126,26 @@ export class CouncilPanel {
     const place = h('div', 'phrases');
     place.append(
       this.#room,
-      say('I was there', () => ({ phrase: 'iWasIn', room: this.#room.value as RoomId })),
+      say('council.wasThere', () => ({ phrase: 'iWasIn', room: this.#room.value as RoomId })),
     );
 
     const withdrawal = h('div', 'phrases');
     const pid = (): string | null => (this.#proposal.value === '' ? null : this.#proposal.value);
     withdrawal.append(
       this.#proposal,
-      say('Don’t sign it', () => {
+      say('council.dontSign', () => {
         const id = pid();
         return id === null ? null : { phrase: 'dontSign', proposalId: id };
       }),
-      say('Sign it', () => {
+      say('council.signIt', () => {
         const id = pid();
         return id === null ? null : { phrase: 'signIt', proposalId: id };
       }),
-      say('I audited: forged', () => {
+      say('council.auditedForged', () => {
         const id = pid();
         return id === null ? null : { phrase: 'audited', proposalId: id, forged: true };
       }),
-      say('I audited: real', () => {
+      say('council.auditedReal', () => {
         const id = pid();
         return id === null ? null : { phrase: 'audited', proposalId: id, forged: false };
       }),
@@ -153,13 +161,10 @@ export class CouncilPanel {
     }
     this.#root.hidden = false;
     this.#root.dataset['stage'] = view.stage;
-    this.#kind.textContent = `Council #${String(view.number)}`;
-    this.#title.textContent = `Called by ${nameOf(view.calledBy)}`;
+    this.#kind.textContent = t('council.number', { n: String(view.number) });
+    this.#title.textContent = t('council.calledBy', { name: nameOf(view.calledBy) });
     this.#timer.textContent = `${String(view.secondsLeft)}s`;
-    this.#lead.textContent =
-      view.stage === 'voting'
-        ? 'Vote to rotate a guardian’s key out, or skip. A key is rotated out only if one guardian gets more votes than anyone else and more than the skips.'
-        : 'The votes are in.';
+    this.#lead.textContent = t(view.stage === 'voting' ? 'council.leadVoting' : 'council.leadResult');
 
     const key = JSON.stringify([view.stage, view.members, view.myVote, view.canVote, [...view.ballots], view.ejected, view.proposals]);
     if (key !== this.#key) {
@@ -171,7 +176,7 @@ export class CouncilPanel {
       this.#outcome.hidden = view.stage !== 'result';
       this.#outcome.style.setProperty('--n', String(view.members.length));
       this.#outcome.textContent =
-        view.stage !== 'result' ? '' : view.ejected === '' ? 'No key was rotated out.' : `${nameOf(view.ejected)}’s key was rotated out. Their role stays secret until the match ends.`;
+        view.stage !== 'result' ? '' : view.ejected === '' ? t('council.noneOut') : t('council.ejected', { name: nameOf(view.ejected) });
     }
     if (opening) this.#root.focus();
   }
@@ -197,15 +202,15 @@ export class CouncilPanel {
       li.dataset['id'] = m.id;
       const dot = h('span', 'seat');
       dot.style.background = cssColor(seatColors(m.seat).lit);
-      li.append(dot, h('span', 'name', m.isMe ? `${m.name} (you)` : m.name));
+      li.append(dot, h('span', 'name', m.isMe ? t('council.you', { name: m.name }) : m.name));
       if (m.out) {
-        li.append(h('span', 'tag left', 'Rotated out'));
+        li.append(h('span', 'tag left', t('council.rotatedOut')));
       } else if (view.stage === 'voting') {
-        if (m.voted) li.append(h('span', 'tag honest', 'Voted'));
+        if (m.voted) li.append(h('span', 'tag honest', t('council.voted')));
         if (!m.isMe) {
-          const vote = button(view.myVote === m.id ? 'Your vote' : 'Vote', 'vote');
+          const vote = button(t(view.myVote === m.id ? 'council.yourVote' : 'council.vote'), 'vote');
           vote.disabled = !view.canVote || view.myVote !== null;
-          vote.setAttribute('aria-label', `Vote to rotate out ${m.name}`);
+          vote.setAttribute('aria-label', t('council.voteAria', { name: m.name }));
           vote.addEventListener('click', () => {
             this.onVote(m.id);
           });
@@ -216,8 +221,8 @@ export class CouncilPanel {
         // Ballots turn over one after another, like cards on a table.
         li.style.setProperty('--i', String(i));
         li.classList.add('revealed');
-        li.append(h('span', 'ballot', target === undefined ? 'did not vote' : target === 'skip' ? 'skipped' : `→ ${nameOf(target)}`));
-        if (view.ejected === m.id) li.append(h('span', 'rotated-stamp', 'Key rotated'));
+        li.append(h('span', 'ballot', target === undefined ? t('council.didNotVote') : target === 'skip' ? t('council.skipped') : `→ ${nameOf(target)}`));
+        if (view.ejected === m.id) li.append(h('span', 'rotated-stamp', t('council.keyRotated')));
       }
       return li;
     });
@@ -233,7 +238,7 @@ export class CouncilPanel {
     this.#proposal.replaceChildren(...view.proposals.map((id) => option(id, `#${id}`)));
     if (view.proposals.includes(keepProposal)) this.#proposal.value = keepProposal;
     this.#proposal.disabled = view.proposals.length === 0;
-    for (const b of this.#phraseButtons) b.disabled = !this.#canChat;
+    for (const b of this.#phraseKeys.keys()) b.disabled = !this.#canChat;
     this.#compose.hidden = view.stage !== 'voting';
   }
 }

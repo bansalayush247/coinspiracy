@@ -2,6 +2,7 @@
 // what it gives and how to get it, so the next goal is always in view.
 import { RANK_ROAD, RANK_TITLES, SEALS, SEAL_TAB_NAMES, SEAL_TABS, SEAL_XP, type Seal } from '@byzantine-council/shared/progression';
 import { el, h } from '../ui/dom.js';
+import { t } from '../i18n/index.js';
 import { button } from '../ui/tasks/types.js';
 import type { ProfileSummary } from './api.js';
 import { frameName, itemName, titleName } from './names.js';
@@ -32,9 +33,9 @@ function depth(seal: Seal): number {
 }
 
 function sealReward(s: Seal): string {
-  const parts = [`+${String(SEAL_XP[s.frame])} XP`];
+  const parts = [t('rewards.xp', { xp: String(SEAL_XP[s.frame]) })];
   if (s.item !== undefined) parts.push(itemName(s.item));
-  if (s.title !== undefined) parts.push(`title “${titleName(s.title)}”`);
+  if (s.title !== undefined) parts.push(t('progress.titleReward', { name: titleName(s.title) }));
   return parts.join(' · ');
 }
 
@@ -87,12 +88,12 @@ export class ProgressPage {
     for (const t of this.#tabs) t.setAttribute('aria-selected', String(t.dataset['tab'] === this.#tab));
     const p = this.#profile;
     if (p === null) {
-      this.#title.textContent = 'Not available';
-      this.#body.replaceChildren(h('p', 'hint', 'Progress is saved on the game server. It isn’t reachable right now.'));
+      this.#title.textContent = t('progress.unavailable');
+      this.#body.replaceChildren(h('p', 'hint', t('progress.unreachable')));
       return;
     }
     const v = p.progress;
-    this.#title.textContent = `Rank ${String(v.rank)} · ${titleName(v.title)}`;
+    this.#title.textContent = t('progress.heading', { rank: String(v.rank), title: titleName(v.title) });
     this.#body.replaceChildren(...(this.#tab === 'rank' ? this.#rank(p) : this.#tab === 'seals' ? this.#seals(p) : this.#tab === 'quests' ? this.#quests(p) : this.#epoch(p)));
   }
 
@@ -100,22 +101,22 @@ export class ProgressPage {
     const v = p.progress;
     const head = h('div', 'rank-row');
     const label = h('p', 'rank-label');
-    label.append(h('b', '', `Rank ${String(v.rank)}${v.stars > 0 ? ` ★${String(v.stars)}` : ''}`), h('span', '', `${String(v.into)} / ${String(v.forNext)} XP`));
-    head.append(label, meter(v.into, v.forNext, 'Rank progress'));
-    const wallet = h('p', 'hint', `Wallet: ${p.balance.toLocaleString('en-US')} play sats in ${String(p.notes.length)} ecash notes. Every rank-up pays ${String(v.rankUpSats)} sats.`);
+    label.append(h('b', '', `${t('rank.name', { rank: String(v.rank) })}${v.stars > 0 ? ` ★${String(v.stars)}` : ''}`), h('span', '', t('rank.xp', { into: String(v.into), next: String(v.forNext) })));
+    head.append(label, meter(v.into, v.forNext, t('progress.rankAria')));
+    const wallet = h('p', 'hint', t('progress.wallet', { sats: p.balance, notes: String(p.notes.length), rankUp: String(v.rankUpSats) }));
 
     const road = h('ol', 'road');
     for (const [rank, unlock] of RANK_ROAD) {
       const li = h('li', rank <= v.rank ? 'reached' : '');
       const title = RANK_TITLES.find((t) => t.rank === rank);
-      const gets = [unlock.item === undefined ? null : itemName(unlock.item), unlock.frame === undefined ? null : frameName(unlock.frame), title === undefined ? null : `title “${title.name}”`].filter((x) => x !== null);
-      li.append(h('b', '', `Rank ${String(rank)}`), h('span', '', gets.join(' · ')));
+      const gets = [unlock.item === undefined ? null : itemName(unlock.item), unlock.frame === undefined ? null : frameName(unlock.frame), title === undefined ? null : t('progress.titleReward', { name: title.name })].filter((x) => x !== null);
+      li.append(h('b', '', t('rank.name', { rank: String(rank) })), h('span', '', gets.join(' · ')));
       road.append(li);
     }
 
     const choose = h('div', 'choosers');
     const titles = h('select', 'chat-select');
-    titles.setAttribute('aria-label', 'Title shown next to your name');
+    titles.setAttribute('aria-label', t('progress.titleAria'));
     for (const t of v.titles) {
       const o = h('option', '', titleName(t));
       o.value = t;
@@ -126,8 +127,8 @@ export class ProgressPage {
       this.onTitle(titles.value);
     });
     const frames = h('select', 'chat-select');
-    frames.setAttribute('aria-label', 'Name frame');
-    const none = h('option', '', 'No frame');
+    frames.setAttribute('aria-label', t('progress.frameAria'));
+    const none = h('option', '', t('progress.noFrame'));
     none.value = '';
     frames.append(none);
     for (const f of v.frames) {
@@ -139,18 +140,18 @@ export class ProgressPage {
     frames.addEventListener('change', () => {
       this.onFrame(frames.value === '' ? null : frames.value);
     });
-    const tl = h('label', '', 'Title ');
+    const tl = h('label', '', `${t('progress.title')} `);
     tl.append(titles);
-    const fl = h('label', '', 'Frame ');
+    const fl = h('label', '', `${t('progress.frame')} `);
     fl.append(frames);
     choose.append(tl, fl);
-    return [head, wallet, choose, h('h3', '', 'Rank Road'), road];
+    return [head, wallet, choose, h('h3', '', t('progress.tabRank')), road];
   }
 
   #seals(p: ProfileSummary): HTMLElement[] {
     const state = new Map(p.progress.seals.map((s) => [s.id, s]));
     const done = p.progress.seals.filter((s) => s.done).length;
-    const out: HTMLElement[] = [h('p', 'hint', `${String(done)} of ${String(SEALS.length)} seals earned. Hidden seals appear once you find them.`)];
+    const out: HTMLElement[] = [h('p', 'hint', t('progress.sealsEarned', { done: String(done), total: String(SEALS.length) }))];
     for (const tab of SEAL_TABS) {
       out.push(h('h3', '', SEAL_TAB_NAMES[tab]));
       const list = h('ul', 'seal-list');
@@ -162,10 +163,10 @@ export class ProgressPage {
         const li = h('li', ['seal-card', seal.frame, s?.done === true ? 'done' : '', s?.visible === true ? '' : 'locked'].filter(Boolean).join(' '));
         li.style.marginLeft = `${String(Math.min(4, depth(seal)) * 14)}px`;
         if (s === undefined || !s.visible) {
-          li.append(h('b', '', seal.hidden ? '???' : 'Locked'), h('span', 'goal', seal.hidden ? 'A hidden seal. Keep playing.' : 'Earn the seal above to reveal this one.'));
+          li.append(h('b', '', seal.hidden ? '???' : t('progress.locked')), h('span', 'goal', t(seal.hidden ? 'progress.hiddenSeal' : 'progress.lockedSeal')));
         } else {
           li.append(h('b', '', `${s.done ? '✓ ' : ''}${seal.name}`), h('span', 'goal', seal.goal));
-          if (!s.done) li.append(meter(s.progress, seal.target, `${seal.name} progress`), h('span', 'count', `${String(s.progress)} / ${String(seal.target)}`));
+          if (!s.done) li.append(meter(s.progress, seal.target, t('progress.sealAria', { name: seal.name })), h('span', 'count', `${String(s.progress)} / ${String(seal.target)}`));
           li.append(h('span', 'reward', sealReward(seal)));
         }
         list.append(li);
@@ -180,10 +181,10 @@ export class ProgressPage {
     const list = h('ul', 'quest-list');
     for (const q of v.quests) {
       const li = h('li', 'quest');
-      li.append(h('b', '', q.text), meter(q.progress, q.target, q.text), h('span', 'count', `${String(q.progress)} / ${String(q.target)} · +${String(q.xp)} XP · +${String(q.sats)} sats`));
+      li.append(h('b', '', q.text), meter(q.progress, q.target, q.text), h('span', 'count', t('progress.questCount', { progress: String(q.progress), target: String(q.target), xp: String(q.xp), sats: String(q.sats) })));
       if (v.canReroll) {
-        const r = button('Swap', 'reroll');
-        r.setAttribute('aria-label', `Swap “${q.text}” for another quest`);
+        const r = button(t('progress.swap'), 'reroll');
+        r.setAttribute('aria-label', t('progress.swapAria', { text: q.text }));
         r.addEventListener('click', () => {
           this.onReroll(q.id);
         });
@@ -191,26 +192,26 @@ export class ProgressPage {
       }
       list.append(li);
     }
-    for (let i = v.quests.length; i < v.questSlots; i++) list.append(h('li', 'quest empty', 'A new quest arrives tomorrow.'));
-    return [h('p', 'hint', 'Quests never expire. You get a new one each day while you hold fewer than three, and one free swap a day.'), list];
+    for (let i = v.quests.length; i < v.questSlots; i++) list.append(h('li', 'quest empty', t('progress.questTomorrow')));
+    return [h('p', 'hint', t('progress.questsHint')), list];
   }
 
   #epoch(p: ProfileSummary): HTMLElement[] {
     const e = p.progress.epoch;
     const head = h('div', 'rank-row');
     const label = h('p', 'rank-label');
-    label.append(h('b', '', `Epoch ${String(e.index)} · tier ${String(e.tier)} of ${String(e.tiers)}`), h('span', '', `${String(e.xp)} XP this epoch`));
-    head.append(label, meter(e.xp, e.tiers * e.tierXp, 'Epoch Road progress'));
+    label.append(h('b', '', t('progress.epochHeading', { epoch: String(e.index), tier: String(e.tier), tiers: String(e.tiers) })), h('span', '', t('progress.epochXp', { xp: String(e.xp) })));
+    head.append(label, meter(e.xp, e.tiers * e.tierXp, t('progress.epochAria')));
     const road = h('ol', 'road');
     for (const r of e.rewards) {
       const li = h('li', r.tier <= e.tier ? 'reached' : '');
-      const what = r.item !== undefined ? itemName(r.item) : r.frame !== undefined ? frameName(r.frame) : `${String(r.sats ?? 0)} sats`;
-      li.append(h('b', '', `Tier ${String(r.tier)}`), h('span', '', `${String(r.tier * e.tierXp)} XP · ${what}`));
+      const what = r.item !== undefined ? itemName(r.item) : r.frame !== undefined ? frameName(r.frame) : t('progress.sats', { sats: String(r.sats ?? 0) });
+      li.append(h('b', '', t('progress.tier', { tier: String(r.tier) })), h('span', '', t('progress.tierReward', { xp: String(r.tier * e.tierXp), what })));
       road.append(li);
     }
     return [
       head,
-      h('p', 'hint', 'An epoch is 2,016 Bitcoin blocks, about two weeks: the same rhythm as Bitcoin’s difficulty adjustment. The road is free and starts over each epoch, and past epoch caps come back to the shop.'),
+      h('p', 'hint', t('progress.epochHint')),
       road,
     ];
   }

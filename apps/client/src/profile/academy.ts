@@ -5,6 +5,7 @@ import { ACADEMY_LEVELS, ACADEMY_MAX_STARS, ACADEMY_MESSAGES, AcademyDoneSchema,
 import type { Room } from '@colyseus/sdk';
 import { audio } from '../audio/engine.js';
 import { el, h } from '../ui/dom.js';
+import { t, tn, type PlainKey } from '../i18n/index.js';
 import { depositGame } from '../ui/tasks/deposit.js';
 import { ledgerGame } from '../ui/tasks/ledger.js';
 import { routeGame } from '../ui/tasks/route.js';
@@ -17,11 +18,11 @@ import type { ProfileSummary } from './api.js';
 // Answers wait out the server's minimum solve time, plus a margin for clock jitter.
 const SEND_MARGIN_MS = 150;
 
-const REFUSED: Readonly<Record<string, string>> = {
-  unknownLevel: 'That level does not exist.',
-  locked: 'Open this island first, then clear its levels in order.',
-  busy: 'One moment…',
-  timedOut: 'That level took too long. Start it again when you are ready.',
+const REFUSED: Readonly<Record<string, PlainKey>> = {
+  unknownLevel: 'academy.unknownLevel',
+  locked: 'academy.locked',
+  busy: 'academy.busy',
+  timedOut: 'academy.timedOut',
 };
 
 function stars(n: number): string {
@@ -103,27 +104,24 @@ export class AcademyPanel {
       li.dataset['kind'] = kinds.size === 1 && only !== undefined && isTaskKind(only) ? only : 'mixed';
       const medal = h('span', 'medal', String(level.level));
       medal.setAttribute('aria-hidden', 'true');
-      const pick = button(open ? 'Play' : 'Locked', open ? 'cta' : '');
+      const pick = button(t(open ? 'academy.play' : 'progress.locked'), open ? 'cta' : '');
       pick.disabled = !open;
-      pick.setAttribute('aria-label', `${open ? 'Play' : 'Locked:'} level ${String(level.level)}, ${level.name}`);
+      pick.setAttribute('aria-label', t(open ? 'academy.playAria' : 'academy.lockedAria', { n: String(level.level), name: level.name }));
       pick.addEventListener('click', () => {
         this.#intro(level.level);
       });
       li.append(medal, h('b', '', `${String(level.level)}. ${level.name}`), h('span', 'teaches', level.teaches), h('span', 'stars', stars(mine?.stars ?? 0)), pick);
       list.append(li);
     }
-    const lead =
-      this.#profile === null
-        ? 'Learn each island’s idea on your own, then bring it to a real match. Progress is not saved without a guest profile.'
-        : 'Learn each island’s idea on your own, then bring it to a real match. An island’s levels open with the island, one after another.';
+    const lead = t(this.#profile === null ? 'academy.leadGuest' : 'academy.lead');
     this.#body.replaceChildren(h('p', 'concept', lead), ...groups);
   }
 
   #intro(n: number): void {
     const level = ACADEMY_LEVELS.find((l) => l.level === n);
     if (level === undefined) return;
-    const start = button('Start', 'cta');
-    const back = button('Back to levels');
+    const start = button(t('academy.start'), 'cta');
+    const back = button(t('academy.backToLevels'));
     back.addEventListener('click', () => {
       this.#levels();
     });
@@ -133,7 +131,7 @@ export class AcademyPanel {
     this.#body.replaceChildren(
       h('h3', '', `${String(level.level)}. ${level.name}`),
       h('p', 'concept', level.intro),
-      h('p', 'hint', `${String(level.drills.length)} drills · three stars for no mistakes within ${seconds(level.parMs)}`),
+      h('p', 'hint', t('academy.drills', { n: String(level.drills.length), par: seconds(level.parMs) })),
       h('div', 'academy-actions'),
     );
     this.#body.lastElementChild?.append(start, back);
@@ -141,7 +139,7 @@ export class AcademyPanel {
   }
 
   async #start(n: number): Promise<void> {
-    this.#setStatus('Opening the Academy…');
+    this.#setStatus(t('academy.opening'));
     try {
       if (this.#room === null) {
         const room = await this.connect();
@@ -153,7 +151,7 @@ export class AcademyPanel {
         room.onMessage(ACADEMY_MESSAGES.RESULT, (p: unknown) => {
           const r = AcademyResultSchema.safeParse(p);
           if (!r.success) return;
-          this.#setStatus(r.data.ok ? 'Correct!' : `Not quite. A fresh drill in ${seconds(r.data.retryInMs ?? 0)}…`, r.data.ok ? 'good' : 'bad');
+          this.#setStatus(r.data.ok ? t('academy.correct') : t('academy.notQuite', { wait: seconds(r.data.retryInMs ?? 0) }), r.data.ok ? 'good' : 'bad');
         });
         room.onMessage(ACADEMY_MESSAGES.DONE, (p: unknown) => {
           const d = AcademyDoneSchema.safeParse(p);
@@ -161,7 +159,7 @@ export class AcademyPanel {
         });
         room.onMessage(ACADEMY_MESSAGES.REFUSED, (p: unknown) => {
           const r = AcademyRefusedSchema.safeParse(p);
-          if (r.success) this.#setStatus(REFUSED[r.data.reason] ?? 'That didn’t work.', 'bad');
+          if (r.success) this.#setStatus(t(REFUSED[r.data.reason] ?? 'academy.failed'), 'bad');
         });
         room.onLeave(() => {
           if (this.#room === room) this.#room = null;
@@ -170,7 +168,7 @@ export class AcademyPanel {
       this.#room.send('start', { level: n });
       this.#setStatus('');
     } catch {
-      this.#setStatus('The Academy isn’t reachable right now. Try again in a moment.', 'bad');
+      this.#setStatus(t('academy.unreachable'), 'bad');
     }
   }
 
@@ -185,7 +183,7 @@ export class AcademyPanel {
     };
     const game = h('div', 'task-body academy-game');
     const header = h('div', 'academy-drill');
-    header.append(h('b', '', isTaskKind(kind) ? TASK_COPY[kind].title : ISLAND_DRILL_TITLES[kind]), h('span', 'hint', `Drill ${String(d.index + 1)} of ${String(d.total)}`));
+    header.append(h('b', '', isTaskKind(kind) ? t(TASK_COPY[kind].title) : ISLAND_DRILL_TITLES[kind]), h('span', 'hint', t('academy.drillOf', { n: String(d.index + 1), total: String(d.total) })));
     this.#body.replaceChildren(header, game);
     const c = d.challenge;
     if (c.kind === 'deposit') depositGame(game, c, host);
@@ -201,7 +199,7 @@ export class AcademyPanel {
   #submit(id: string, answer: DrillAnswer): void {
     const drill = this.#drill;
     if (drill?.id !== id) return;
-    this.#setStatus('Checking…');
+    this.#setStatus(t('academy.checking'));
     const minMs = isTaskKind(drill.kind) ? TASK_TIMING.minSolveMs[drill.kind] : ISLAND_DRILL_MIN_MS[drill.kind];
     const wait = Math.max(0, minMs + SEND_MARGIN_MS - (performance.now() - drill.openedAt));
     this.#timer = window.setTimeout(() => {
@@ -215,32 +213,32 @@ export class AcademyPanel {
     // The next level on the same island; the island's last level offers none.
     const nextLevel = ACADEMY_LEVELS.find((l) => l.island === level?.island && l.level > d.level);
     const parts: HTMLElement[] = [
-      h('h3', '', `${level?.name ?? 'Level'} cleared`),
+      h('h3', '', t('academy.cleared', { name: level?.name ?? t('academy.level') })),
       h('p', 'academy-stars', stars(d.stars)),
-      h('p', 'hint', `${seconds(d.timeMs)} (par ${seconds(d.parMs)}) · ${String(d.mistakes)} mistake${d.mistakes === 1 ? '' : 's'}`),
+      h('p', 'hint', tn('academy.result', d.mistakes, { time: seconds(d.timeMs), par: seconds(d.parMs) })),
     ];
-    if (d.award !== null && d.award.xpAfter > d.award.xpBefore) parts.push(h('p', 'concept', `+${String(d.award.xpAfter - d.award.xpBefore)} XP · +${String(d.award.sats)} play sats`));
-    if (d.award === null) parts.push(h('p', 'hint', 'Not saved: you have no guest profile right now.'));
+    if (d.award !== null && d.award.xpAfter > d.award.xpBefore) parts.push(h('p', 'concept', t('academy.award', { xp: String(d.award.xpAfter - d.award.xpBefore), sats: String(d.award.sats) })));
+    if (d.award === null) parts.push(h('p', 'hint', t('academy.notSaved')));
     const actions = h('div', 'academy-actions');
     if (nextLevel !== undefined) {
-      const next = button(`Next: ${nextLevel.name}`, 'cta');
+      const next = button(t('academy.next', { name: nextLevel.name }), 'cta');
       next.addEventListener('click', () => {
         this.#intro(nextLevel.level);
       });
       actions.append(next);
     }
-    const again = button('Play again');
+    const again = button(t('cases.again'));
     again.addEventListener('click', () => {
       this.#intro(d.level);
     });
-    const back = button('Back to levels');
+    const back = button(t('academy.backToLevels'));
     back.addEventListener('click', () => {
       this.#levels();
     });
     actions.append(again, back);
     parts.push(actions);
     this.#body.replaceChildren(...parts);
-    this.#setStatus(d.stars === ACADEMY_MAX_STARS ? 'Perfect run!' : 'Cleared!', 'good');
+    this.#setStatus(t(d.stars === ACADEMY_MAX_STARS ? 'academy.perfect' : 'academy.clearedShort'), 'good');
     this.onFinished();
   }
 }

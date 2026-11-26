@@ -36,6 +36,7 @@ import { quality, saveQuality } from './game/quality.js';
 import { MatchView } from './matchView.js';
 import { Hud, type LobbyInfo, type RosterEntry } from './ui/hud.js';
 import { Menu, type MenuAction } from './ui/menu.js';
+import { bindLanguagePicker, initLocale, onLocaleChange, t, type PlainKey } from './i18n/index.js';
 
 const PING_EVERY_MS = 4000;
 const PING_TIMEOUT_MS = 3000;
@@ -88,30 +89,30 @@ function startGame(parent: HTMLElement): Promise<CitadelScene> {
   });
 }
 
-const BOT_REFUSAL_TEXT: Readonly<Record<BotsRefused['reason'], string>> = {
-  disabled: 'Practice bots are off on this server.',
-  notHost: 'Only the host can add or remove bots.',
-  notLobby: 'Bots can only join between matches.',
-  roomFull: 'The room is full.',
-  busy: 'A bot is already joining. Try again in a moment.',
-  limit: 'The server is running as many bots as it can. Try again later.',
-  failed: 'The bot couldn’t join. Try again.',
-  notABot: 'That guardian isn’t a bot.',
+const BOT_REFUSAL_TEXT: Readonly<Record<BotsRefused['reason'], PlainKey>> = {
+  disabled: 'bots.disabled',
+  notHost: 'bots.notHost',
+  notLobby: 'bots.notLobby',
+  roomFull: 'bots.roomFull',
+  busy: 'bots.busy',
+  limit: 'bots.limit',
+  failed: 'bots.failed',
+  notABot: 'bots.notABot',
 };
 
-const ARENA_REFUSAL_TEXT: Readonly<Record<ArenaRefused['reason'], string>> = {
-  notHost: 'Only the host picks the map.',
-  notLobby: 'The map can only change between matches.',
-  notPrivate: 'Quick-match rooms always play the Mint Citadel.',
-  locked: 'Nobody in this room has opened that island yet.',
+const ARENA_REFUSAL_TEXT: Readonly<Record<ArenaRefused['reason'], PlainKey>> = {
+  notHost: 'arena.notHost',
+  notLobby: 'arena.notLobby',
+  notPrivate: 'arena.notPrivate',
+  locked: 'arena.locked',
 };
 
-const ISLAND_PREVIEWS: Readonly<Record<PreviewIslandId, { name: string; concept: string; mood: 'menu' | 'calm' | 'proposals' | 'council' | 'final' }>> = {
-  mint: { name: 'Mint Island', concept: 'Ecash notes and blind signatures', mood: 'menu' },
-  signing: { name: 'Signing Isle', concept: 'Threshold signatures', mood: 'proposals' },
-  council: { name: 'Council Isle', concept: 'The one-third rule', mood: 'council' },
-  watchtower: { name: 'Watchtower Peaks', concept: 'Network partitions', mood: 'final' },
-  reef: { name: 'Lightning Reef', concept: 'Lightning payments', mood: 'calm' },
+const ISLAND_PREVIEWS: Readonly<Record<PreviewIslandId, { name: string; concept: PlainKey; mood: 'menu' | 'calm' | 'proposals' | 'council' | 'final' }>> = {
+  mint: { name: 'Mint Island', concept: 'island.concept.mint', mood: 'menu' },
+  signing: { name: 'Signing Isle', concept: 'island.concept.signing', mood: 'proposals' },
+  council: { name: 'Council Isle', concept: 'island.concept.council', mood: 'council' },
+  watchtower: { name: 'Watchtower Peaks', concept: 'island.concept.watchtower', mood: 'final' },
+  reef: { name: 'Lightning Reef', concept: 'island.concept.reef', mood: 'calm' },
 };
 
 function isPreviewIsland(id: string): id is PreviewIslandId {
@@ -172,12 +173,12 @@ class Controller {
     el('open-wardrobe', HTMLButtonElement).hidden = false;
     const v = p.progress;
     this.#progressChip.hidden = false;
-    this.#progressChip.textContent = `Rank ${String(v.rank)} · ${p.balance.toLocaleString('en-US')} sats · ${String(v.seals.filter((s) => s.done).length)} seals`;
+    this.#progressChip.textContent = t('menu.chip', { rank: String(v.rank), sats: p.balance, seals: String(v.seals.filter((s) => s.done).length) });
   }
 
   #applyProfile(next: Promise<ProfileSummary | null>): void {
     void next.then((p) => {
-      if (p === null) this.#hud.toast('That didn’t work. Try again in a moment.');
+      if (p === null) this.#hud.toast(t('common.failedRetry'));
       else this.#setProfile(p);
     });
   }
@@ -216,7 +217,7 @@ class Controller {
     };
     this.#world.onNewChapter = (chapter) => {
       audio.play('rankUp');
-      this.#hud.toast(`A new chapter of the Chronicle has opened: ${chapter.title}. Read it from the island map.`);
+      this.#hud.toast(t('world.newChapter', { title: chapter.title }));
     };
     this.#world.onVisit = (islandId) => {
       if (islandId === 'beach') void this.#visitBeach();
@@ -228,7 +229,7 @@ class Controller {
     this.#wardrobe.onWear = (look) => {
       void this.profiles.wear(look).then((p) => {
         if (p === null) {
-          this.#hud.toast('That didn’t work. Try again in a moment.');
+          this.#hud.toast(t('common.failedRetry'));
           return;
         }
         this.#setProfile(p);
@@ -341,7 +342,7 @@ class Controller {
     const streamer = el('streamer', HTMLButtonElement);
     const applyStreamer = (on: boolean): void => {
       document.documentElement.dataset['streamer'] = on ? 'on' : 'off';
-      streamer.textContent = `Streamer mode: ${on ? 'On' : 'Off'}`;
+      streamer.textContent = t(on ? 'settings.streamerOn' : 'settings.streamerOff');
       streamer.setAttribute('aria-pressed', String(on));
       this.#hud.refreshStreamerMode();
       try {
@@ -359,6 +360,11 @@ class Controller {
     applyStreamer(streamerOn);
     streamer.addEventListener('click', () => {
       applyStreamer(document.documentElement.dataset['streamer'] !== 'on');
+    });
+    onLocaleChange(() => {
+      applyStreamer(document.documentElement.dataset['streamer'] === 'on');
+      if (this.#lastProfile !== null) this.#setProfile(this.#lastProfile);
+      if (this.#room !== null) this.#scheduleRefresh(this.#room);
     });
     this.#hud.onAddBot = () => {
       this.#room?.send('addBot');
@@ -395,7 +401,7 @@ class Controller {
     document.documentElement.dataset['phase'] = 'exploring';
     this.#input.enabled = true;
     el('island-hud-title', HTMLElement).textContent = island.name;
-    el('island-hud-concept', HTMLElement).textContent = island.concept;
+    el('island-hud-concept', HTMLElement).textContent = t(island.concept);
     el('island-hud', HTMLElement).hidden = false;
     const preview = this.scene.scene.get(ISLAND_SCENE_KEY);
     if (!(preview instanceof IslandScene)) return;
@@ -405,7 +411,7 @@ class Controller {
       el('island-objective-progress', HTMLElement).textContent = `${String(progress.progress)}/${String(progress.total)}`;
       el('island-status', HTMLElement).textContent = progress.prompt;
       action.disabled = !progress.canInteract;
-      action.textContent = progress.complete ? 'Complete' : 'Interact (E)';
+      action.textContent = t(progress.complete ? 'island.complete' : 'island.interact');
     };
     preview.onActivated = (complete) => {
       audio.play(complete ? 'rankUp' : 'sign');
@@ -607,7 +613,7 @@ class Controller {
   }
 
   async #resume(token: string): Promise<void> {
-    this.#setBusy(true, 'Rejoining your room…');
+    this.#setBusy(true, t('menu.rejoining'));
     try {
       this.#enter(await this.session.resume(token));
     } catch (error) {
@@ -620,7 +626,7 @@ class Controller {
 
   async #join(action: MenuAction): Promise<void> {
     if (this.#busy || this.#room !== null) return;
-    const label = action.kind === 'quick' ? 'Finding a room…' : action.kind === 'create' ? 'Creating your room…' : 'Joining room…';
+    const label = t(action.kind === 'quick' ? 'menu.finding' : action.kind === 'create' ? 'menu.creating' : 'menu.joining');
     this.#setBusy(true, label);
     try {
       await this.#profileReady;
@@ -666,7 +672,7 @@ class Controller {
     this.#botsAvailable = true;
     room.onMessage(SERVER_MESSAGES.ARENA_REFUSED, (payload: unknown) => {
       const parsed = ArenaRefusedSchema.safeParse(payload);
-      if (parsed.success) this.#hud.toast(ARENA_REFUSAL_TEXT[parsed.data.reason]);
+      if (parsed.success) this.#hud.toast(t(ARENA_REFUSAL_TEXT[parsed.data.reason]));
     });
     room.onMessage(SERVER_MESSAGES.BOTS_REFUSED, (payload: unknown) => {
       const parsed = BotsRefusedSchema.safeParse(payload);
@@ -675,7 +681,7 @@ class Controller {
         this.#botsAvailable = false;
         this.#scheduleRefresh(room);
       }
-      this.#hud.toast(BOT_REFUSAL_TEXT[parsed.data.reason]);
+      this.#hud.toast(t(BOT_REFUSAL_TEXT[parsed.data.reason]));
     });
 
     // One Callbacks instance per room: several instances double-fire nested listeners.
@@ -691,12 +697,12 @@ class Controller {
       });
       for (const field of ['status', 'name', 'role', 'tasks', 'tasksDone', 'out', 'frozen'] as const) callbacks.listen(player, field, refresh);
       refresh();
-      if (synced && id !== room.sessionId) this.#hud.toast(`${player.name} joined`);
+      if (synced && id !== room.sessionId) this.#hud.toast(t('hud.joined', { name: player.name }));
     });
     callbacks.onRemove('players', (player: PlayerState, id: string) => {
       this.scene.removePlayer(id);
       refresh();
-      if (id !== room.sessionId) this.#hud.toast(`${player.name} left`);
+      if (id !== room.sessionId) this.#hud.toast(t('hud.left', { name: player.name }));
     });
     for (const field of ['hostId', 'phase', 'consensus', 'byzantines', 'winner', 'winReason', 'blockHeight', 'chainLive', 'signaturesNeeded', 'livenessStrikes', 'partition', 'repair', 'relays', 'outages', 'act', 'blocksLeft', 'reefOpen', 'peaksOpen', 'isPrivate'] as const) {
       callbacks.listen(field, refresh);
@@ -730,8 +736,8 @@ class Controller {
     });
     callbacks.listen('ceremony', (ceremony: boolean) => {
       if (!ceremony) return;
-      this.#hud.toast('The signing ceremony. Wren called it to move the whole vault, and the Locksmith already has at least one guardian. Invite your crew, then find who’s lying before anyone signs.');
-      this.#hud.toast('How this match ends is saved to your story, and act four remembers it.');
+      this.#hud.toast(t('ceremony.start'));
+      this.#hud.toast(t('ceremony.saved'));
     });
     room.onStateChange.once(() => {
       synced = true;
@@ -772,7 +778,7 @@ class Controller {
     return {
       phase: room.state.phase,
       amHost: room.state.hostId === room.sessionId,
-      hostName: room.state.players.get(room.state.hostId)?.name ?? 'the host',
+      hostName: room.state.players.get(room.state.hostId)?.name ?? t('hud.theHost'),
       botsAvailable: this.#botsAvailable,
       isPrivate: room.state.isPrivate,
       arena: arenaById(room.state.arena).id,
@@ -878,16 +884,16 @@ class Controller {
   }
 }
 
-const MUSIC_LABELS: Readonly<Record<MusicChoice, string>> = {
-  dynamic: 'Adaptive',
-  menu: 'Mint Citadel',
-  calm: 'Calm Consensus',
-  proposals: 'Signing Tension',
-  final: 'Final Blocks',
-  council: 'Council Chamber',
-  beach: 'Beach Town',
-  academy: 'Academy',
-  story: 'Storybook',
+const MUSIC_LABELS: Readonly<Record<MusicChoice, PlainKey>> = {
+  dynamic: 'music.dynamic',
+  menu: 'music.menu',
+  calm: 'music.calm',
+  proposals: 'music.proposals',
+  final: 'music.final',
+  council: 'music.council',
+  beach: 'music.beach',
+  academy: 'music.academy',
+  story: 'music.story',
 };
 
 // Sound starts on the first tap or key press, as browsers require. Players can keep the
@@ -897,13 +903,14 @@ function setupSound(): void {
   const music = el('music', HTMLSelectElement);
   const render = (): void => {
     const s = audio.settings;
-    const label = s.muted ? 'Sound off' : s.music === 0 ? 'Music off' : 'Sound on';
+    const label = t(s.muted ? 'settings.soundOff' : s.music === 0 ? 'settings.musicOff' : 'settings.soundOn');
     button.textContent = label;
-    button.setAttribute('aria-label', `${label}. Change sound`);
+    button.setAttribute('aria-label', t('settings.soundAria', { label }));
     music.value = s.music === 0 ? 'off' : s.musicChoice;
-    const choice = s.music === 0 ? 'Off' : MUSIC_LABELS[s.musicChoice];
-    music.setAttribute('aria-label', `Music: ${choice}`);
+    const choice = t(s.music === 0 ? 'music.off' : MUSIC_LABELS[s.musicChoice]);
+    music.setAttribute('aria-label', t('settings.musicAria', { choice }));
   };
+  onLocaleChange(render);
   button.addEventListener('click', () => {
     const s = audio.settings;
     if (s.muted) audio.update({ muted: false, music: 0.55 });
@@ -934,8 +941,12 @@ function setupSound(): void {
 // Graphics quality applies on reload, since the painted world is drawn once at start.
 function setupQuality(): void {
   const button = el('quality', HTMLButtonElement);
-  button.textContent = `Graphics: ${quality.current === 'high' ? 'High' : 'Low'}`;
-  button.setAttribute('aria-label', `${button.textContent}. Change and reload`);
+  const render = (): void => {
+    button.textContent = t(quality.current === 'high' ? 'settings.graphicsHigh' : 'settings.graphicsLow');
+    button.setAttribute('aria-label', t('settings.graphicsAria', { label: button.textContent }));
+  };
+  render();
+  onLocaleChange(render);
   button.addEventListener('click', () => {
     saveQuality(quality.current === 'high' ? 'low' : 'high');
     window.location.reload();
@@ -943,6 +954,8 @@ function setupQuality(): void {
 }
 
 function boot(): void {
+  initLocale();
+  bindLanguagePicker(el('language', HTMLSelectElement));
   setupSound();
   setupQuality();
   let session: Session;
@@ -955,11 +968,11 @@ function boot(): void {
     session = new Session(platform.server, platform.network);
     profiles = new ProfileApi(platform.server.httpBase, platform.network);
   } catch {
-    showFatal('This build doesn’t know which game server to use.');
+    showFatal(t('fatal.noServer'));
     return;
   }
   if (!hasWebGL()) {
-    showFatal('Byzantine Council needs WebGL. Turn on hardware acceleration or try another browser.');
+    showFatal(t('fatal.noWebgl'));
     return;
   }
   startGame(el('game', HTMLDivElement))
@@ -971,7 +984,7 @@ function boot(): void {
       if (platform.allows.pwa) void registerServiceWorker();
     })
     .catch(() => {
-      showFatal('The game couldn’t start its renderer. Try reloading, or use another browser.');
+      showFatal(t('fatal.renderer'));
     });
 }
 

@@ -1,19 +1,20 @@
 // Plain-language names for everything progression can show.
 import { getItem, rewardItem, type RewardId } from '@byzantine-council/shared/economy';
 import { FRAME_NAMES, SEALS, TITLE_NAMES, type FrameId, type TitleId, type XpReason } from '@byzantine-council/shared/progression';
+import type { PlainKey } from '../i18n/index.js';
 
-export const XP_REASON_TEXT: Readonly<Record<XpReason, string>> = {
-  finished: 'Finished the match',
-  won: 'Your side won',
-  tasks: 'Tasks completed',
-  signedReal: 'Signed real withdrawals',
-  refusedForgery: 'Refused forged withdrawals',
-  votedByzantine: 'Voted for a Byzantine',
-  repairedPartition: 'Repaired the network',
-  gatheredSignatures: 'Fooled honest signers',
-  misdirection: 'An honest key was rotated out',
-  partitionRanOut: 'Your partition held',
-  firstOfDay: 'First match today',
+export const XP_REASON_TEXT: Readonly<Record<XpReason, PlainKey>> = {
+  finished: 'xp.finished',
+  won: 'xp.won',
+  tasks: 'xp.tasks',
+  signedReal: 'xp.signedReal',
+  refusedForgery: 'xp.refusedForgery',
+  votedByzantine: 'xp.votedByzantine',
+  repairedPartition: 'xp.repairedPartition',
+  gatheredSignatures: 'xp.gatheredSignatures',
+  misdirection: 'xp.misdirection',
+  partitionRanOut: 'xp.partitionRanOut',
+  firstOfDay: 'xp.firstOfDay',
 };
 
 export function itemName(reward: string): string {

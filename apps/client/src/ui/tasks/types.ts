@@ -1,4 +1,5 @@
 import type { TaskAnswer } from '@byzantine-council/shared';
+import { tn } from '../../i18n/index.js';
 import { h } from '../dom.js';
 
 // What a minigame may do: hand in one answer. The panel handles timing, sending and results.
@@ -19,7 +20,7 @@ export function setPressed(b: HTMLButtonElement, pressed: boolean): void {
 }
 
 export function formatSats(n: number): string {
-  return `${n.toLocaleString('en-US')} sat${n === 1 ? '' : 's'}`;
+  return tn('common.sats', n);
 }
 
 // Numbered steps along the top of a multi-step task.

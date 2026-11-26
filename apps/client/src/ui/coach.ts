@@ -1,16 +1,17 @@
 // First-time tips: each one appears once per browser, the first time its situation comes up.
+import { t, type PlainKey } from '../i18n/index.js';
 import { el, h } from './dom.js';
 
 const KEY = 'bc.coach';
 
 export const TIPS = {
-  firstMatch: 'Your tasks are on the left. Walk to a glowing marker and press E (or tap Use) to start one. Every task you finish fills the Consensus bar.',
-  byzantine: 'You are Byzantine. Blend in: fake your tasks, forge a withdrawal in the Signing Hall, and use your sabotage when it is ready. Never get caught signing your own forgery too eagerly.',
-  withdrawals: 'Withdrawals need enough signatures to pass. Sign the real ones and refuse the forged ones. Not sure? An audit at the Ledger Archive shows you the truth, privately.',
-  council: 'A council! Share what you saw with quick chat, then vote. If you are not sure, skip: every honest guardian rotated out by mistake brings the Byzantines closer to a third.',
-  partition: 'The network is split, so no signatures get through. Stand on one of the two glowing relays; another guardian must hold the other at the same time.',
-  beach: 'Welcome to Beach Town! Walk to a stall counter: press E to browse, or take a delivery job to earn play sats. Keys 1 to 6 send a friendly emote.',
-} as const;
+  firstMatch: 'coach.firstMatch',
+  byzantine: 'coach.byzantine',
+  withdrawals: 'coach.withdrawals',
+  council: 'coach.council',
+  partition: 'coach.partition',
+  beach: 'coach.beach',
+} as const satisfies Readonly<Record<string, PlainKey>>;
 export type Tip = keyof typeof TIPS;
 
 function seen(): Set<string> {
@@ -43,7 +44,7 @@ export class Coach {
     } catch {
       // Storage blocked: tips may repeat next visit.
     }
-    this.#text.replaceChildren(h('b', '', 'Tip'), ` ${TIPS[id]}`);
+    this.#text.replaceChildren(h('b', '', t('coach.tip')), ` ${t(TIPS[id])}`);
     this.#root.hidden = false;
   }
 

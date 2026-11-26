@@ -46,6 +46,7 @@ import { el } from './ui/dom.js';
 import { ResultCard, RoleCard } from './ui/overlays.js';
 import { ProposalsPanel, type PlayerRef } from './ui/proposals.js';
 import { TaskPanel } from './ui/tasks/panel.js';
+import { t } from './i18n/index.js';
 
 const PROXIMITY_MS = 100;
 // Pause after a forgery before the button offers another; the server enforces the real cooldown.
@@ -53,73 +54,77 @@ const FORGE_PAUSE_MS = 3000;
 
 type CeremonyAction = 'respond' | 'forge' | 'audit';
 
+function retryWait(retryInMs: number | undefined): string {
+  return retryInMs === undefined ? '' : t('refusal.wait', { seconds: String(Math.ceil(retryInMs / 1000)) });
+}
+
 function sabotageRefusalText(r: SabotageRefused): string {
-  const wait = r.retryInMs === undefined ? '' : ` in ${String(Math.ceil(r.retryInMs / 1000))}s`;
+  const wait = retryWait(r.retryInMs);
   switch (r.reason) {
     case 'cannotAct':
-      return 'You can’t do that right now.';
+      return t('refusal.cannotAct');
     case 'notYet':
-      return `Sabotage opens${wait}.`;
+      return t('sabotage.notYet', { wait });
     case 'cooldown':
-      return `Ready again${wait}.`;
+      return t('sabotage.cooldown', { wait });
     case 'active':
-      return 'The network is already partitioned.';
+      return t('sabotage.active');
     case 'notHere':
-      return 'Stand right next to a guardian to disconnect them.';
+      return t('sabotage.notHere');
     case 'invalidTarget':
-      return 'You can’t disconnect that guardian.';
+      return t('sabotage.invalidTarget');
   }
 }
 
 function councilRefusalText(r: CouncilRefused): string {
-  const wait = r.retryInMs === undefined ? '' : ` in ${String(Math.ceil(r.retryInMs / 1000))}s`;
+  const wait = retryWait(r.retryInMs);
   switch (r.reason) {
     case 'notHere':
-      return 'Councils are called from the seal in the middle of the plaza.';
+      return t('councilRefused.notHere');
     case 'notYet':
-      return 'A council is already running.';
+      return t('councilRefused.notYet');
     case 'cooldown':
-      return `You can call a council${wait}.`;
+      return t('councilRefused.cooldown', { wait });
     case 'usedUp':
-      return 'You have already called your council this match.';
+      return t('councilRefused.usedUp');
     case 'cannotAct':
-      return 'You can’t do that right now.';
+      return t('refusal.cannotAct');
     case 'votingClosed':
-      return 'Voting has closed.';
+      return t('councilRefused.votingClosed');
     case 'alreadyVoted':
-      return 'You already voted.';
+      return t('councilRefused.alreadyVoted');
     case 'selfVote':
-      return 'You can’t vote for yourself.';
+      return t('councilRefused.selfVote');
     case 'invalidTarget':
-      return 'That guardian or withdrawal isn’t here any more.';
+      return t('councilRefused.invalidTarget');
     case 'chatLimit':
-      return 'Slow down a little.';
+      return t('councilRefused.chatLimit');
   }
 }
 
 function refusalText(r: CeremonyRefused, action: CeremonyAction): string {
-  const wait = r.retryInMs === undefined ? '' : ` in ${String(Math.ceil(r.retryInMs / 1000))}s`;
+  const wait = retryWait(r.retryInMs);
   switch (r.reason) {
     case 'notOpen':
-      return 'That withdrawal is already closed.';
+      return t('ceremonyRefused.notOpen');
     case 'alreadyResponded':
-      return 'You already answered that withdrawal.';
+      return t('ceremonyRefused.alreadyResponded');
     case 'cannotAct':
-      return 'You can’t do that right now.';
+      return t('refusal.cannotAct');
     case 'notHere':
-      return action === 'forge' ? `Forgeries can only be filed from ${placeName('signingHall')}.` : `Audits happen at the desk in ${placeName('ledgerArchive')}.`;
+      return action === 'forge' ? t('ceremonyRefused.forgeHere', { place: placeName('signingHall') }) : t('ceremonyRefused.auditHere', { place: placeName('ledgerArchive') });
     case 'cooldown':
-      return action === 'forge' ? `You can forge again${wait}.` : `You can audit again${wait}.`;
+      return t(action === 'forge' ? 'ceremonyRefused.forgeCooldown' : 'ceremonyRefused.auditCooldown', { wait });
     case 'busy':
-      return 'Finish your current audit first.';
+      return t('ceremonyRefused.busy');
     case 'tooMany':
-      return 'Too many withdrawals are open. Wait for one to close.';
+      return t('ceremonyRefused.tooMany');
     case 'notYet':
-      return 'Withdrawals haven’t started yet.';
+      return t('ceremonyRefused.notYet');
     case 'audited':
-      return 'You already audited that withdrawal.';
+      return t('ceremonyRefused.audited');
     case 'partitioned':
-      return 'The network is partitioned: no signatures get through until both relays are held.';
+      return t('ceremonyRefused.partitioned');
   }
 }
 
@@ -187,8 +192,8 @@ export class MatchView {
     private readonly input: PlayerInput,
   ) {
     this.#result.onShared = (outcome) => {
-      if (outcome === 'saved') this.onToast('Saved your result card. Post it wherever you like.');
-      else if (outcome === 'failed') this.onToast('Couldn’t make the share card. Try again.');
+      if (outcome === 'saved') this.onToast(t('share.saved'));
+      else if (outcome === 'failed') this.onToast(t('share.failed'));
     };
     this.#hud.onInteract = (kind) => {
       this.#open(kind);
@@ -283,7 +288,7 @@ export class MatchView {
         const msg = ForgedSchema.safeParse(payload);
         if (!msg.success) return;
         this.#forgedByTeam.add(msg.data.proposalId);
-        this.onToast(`#${msg.data.proposalId} is your team’s forgery. Get it signed without being noticed.`);
+        this.onToast(t('match.forged', { id: msg.data.proposalId }));
         this.refresh();
       }),
       room.onMessage(SERVER_MESSAGES.AUDIT, (payload: unknown) => {
@@ -294,11 +299,11 @@ export class MatchView {
           this.#auditing = a.proposalId;
         } else if (a.status === 'cancelled') {
           this.#auditing = null;
-          this.onToast(`Audit of #${a.proposalId} stopped: you left the desk or it closed.`);
+          this.onToast(t('match.auditStopped', { id: a.proposalId }));
         } else {
           this.#auditing = null;
           this.#audits.set(a.proposalId, a.forged);
-          this.onToast(a.forged ? `Audit: #${a.proposalId} is forged. Warn the others!` : `Audit: #${a.proposalId} is a real withdrawal.`);
+          this.onToast(t(a.forged ? 'match.auditForged' : 'match.auditReal', { id: a.proposalId }));
         }
         this.refresh();
       }),
@@ -327,7 +332,7 @@ export class MatchView {
         const msg = ChatLineSchema.safeParse(payload);
         if (!msg.success) return;
         const from = room.state.players.get(msg.data.from);
-        const text = `${from?.name ?? 'Someone'}: ${chatText(msg.data.chat, (id) => this.#nameOf(id))}`;
+        const text = `${from?.name ?? t('match.someone')}: ${chatText(msg.data.chat, (id) => this.#nameOf(id))}`;
         if (this.#council.isOpen) this.#council.addLine(text, from?.seat ?? null);
         else this.onToast(text);
       }),
@@ -388,7 +393,7 @@ export class MatchView {
   }
 
   #nameOf(id: string): string {
-    return this.#room?.state.players.get(id)?.name ?? 'a guardian who left';
+    return this.#room?.state.players.get(id)?.name ?? t('match.guardianLeft');
   }
 
   // Shows the council while one runs; the map holds still underneath.
@@ -400,7 +405,7 @@ export class MatchView {
     const stage = state.phase === 'playing' ? c.stage : '';
     if (stage !== this.#councilStage) {
       if (stage === 'voting' && this.#councilStage === '') {
-        this.onToast(`${this.#nameOf(c.calledBy)} called a council!`);
+        this.onToast(t('match.councilCalled', { name: this.#nameOf(c.calledBy) }));
         this.scene.councilCalled();
         this.#coach.tip('council');
         this.#panel.hide();
@@ -527,10 +532,10 @@ export class MatchView {
       // The light follows the match: afternoon, then sunset with the withdrawals, then dusk for the final blocks.
       this.scene.setDaylight(act === 'proposals' ? 'sunset' : act === 'final' ? 'dusk' : 'day');
       if (act === 'proposals' && this.#lastAct === 'calm') {
-        this.onToast('Withdrawals are starting. Sign the real ones, refuse the forged ones.');
+        this.onToast(t('match.withdrawalsStart'));
         this.#coach.tip('withdrawals');
       }
-      if (act === 'final') this.onToast('Final blocks! Reach consensus before the last block.');
+      if (act === 'final') this.onToast(t('match.finalBlocks'));
       this.#lastAct = act;
     }
     const todo = new Set<TaskKind>(phase === 'playing' ? TASK_KINDS.filter((k) => hasTask(assigned, k) && !hasTask(done, k)) : []);
@@ -543,7 +548,7 @@ export class MatchView {
     this.#renderPartition();
     const frozen = phase === 'playing' ? (me?.frozen ?? 0) : 0;
     this.#frozenNote.hidden = frozen === 0;
-    this.#frozenNote.textContent = frozen === 0 ? '' : `You’ve been disconnected! Back in ${String(frozen)}s. Who was standing next to you?`;
+    this.#frozenNote.textContent = frozen === 0 ? '' : t('match.frozen', { seconds: String(frozen) });
     this.#syncInput();
     audio.setMood(this.#moodFor(phase, act, myRole));
     document.documentElement.dataset['phase'] = phase;
@@ -579,14 +584,13 @@ export class MatchView {
     if (left > 0) {
       const held = [0, 1].filter((i) => (s.relays & (1 << i)) !== 0).length;
       this.#partitionTime.textContent = `${String(left)}s`;
-      this.#partitionText.textContent =
-        s.repair > 0 ? 'Both relays held. Stay put while the link comes back…' : `No signatures get through. Two guardians must stand on both glowing relays at once (${String(held)} of 2 held).`;
+      this.#partitionText.textContent = s.repair > 0 ? t('match.repairing') : t('match.partitionHelp', { held: String(held) });
       this.#repairFill.style.width = `${String(s.repair)}%`;
     }
     if (s.phase === 'playing') {
-      if (left > 0 && this.#lastPartition === 0) this.onToast('The network is partitioned! Hold both relays to repair it.');
-      if (left === 0 && this.#lastPartition > 0 && s.outages === this.#lastOutages) this.onToast('Network repaired.');
-      if (s.outages > this.#lastOutages) this.onToast('The partition timed out. Users lost access for a while.');
+      if (left > 0 && this.#lastPartition === 0) this.onToast(t('match.partitioned'));
+      if (left === 0 && this.#lastPartition > 0 && s.outages === this.#lastOutages) this.onToast(t('match.repaired'));
+      if (s.outages > this.#lastOutages) this.onToast(t('match.partitionTimedOut'));
     }
     this.#lastPartition = left;
     this.#lastOutages = s.outages;
@@ -656,17 +660,13 @@ export class MatchView {
     this.#forge.disabled = !this.#inHall || resting || !able;
     const cutIn = Math.ceil((this.#cutReadyAt - now) / 1000);
     this.#cut.disabled = !able || room.state.partition > 0 || cutIn > 0;
-    this.#cut.textContent = room.state.partition > 0 ? 'Network cut' : cutIn > 0 && Number.isFinite(cutIn) ? `Cut the network (${String(cutIn)}s)` : 'Cut the network';
+    this.#cut.textContent = room.state.partition > 0 ? t('match.networkCut') : cutIn > 0 && Number.isFinite(cutIn) ? t('match.cutIn', { seconds: String(cutIn) }) : t('match.cut');
     const target = this.#freezeTarget === null ? undefined : room.state.players.get(this.#freezeTarget);
     const freezeIn = Math.ceil((this.#freezeReadyAt - now) / 1000);
     this.#freezeButton.hidden = target === undefined;
     this.#freezeButton.disabled = !able || freezeIn > 0;
-    if (target !== undefined) this.#freezeButton.textContent = freezeIn > 0 && Number.isFinite(freezeIn) ? `Disconnect ${target.name} (${String(freezeIn)}s)` : `Disconnect ${target.name}`;
-    this.#forgeHint.textContent = !this.#inHall
-      ? `Go to ${placeName('signingHall')} to forge. Others may see you there.`
-      : resting
-        ? 'Filing your forgery…'
-        : 'Anyone nearby can see you standing here.';
+    if (target !== undefined) this.#freezeButton.textContent = freezeIn > 0 && Number.isFinite(freezeIn) ? t('match.freezeIn', { name: target.name, seconds: String(freezeIn) }) : t('match.freeze', { name: target.name });
+    this.#forgeHint.textContent = !this.#inHall ? t('match.goForge', { place: placeName('signingHall') }) : t(resting ? 'match.filing' : 'match.seen');
   }
 
   // Offers the station the player is standing at, if its task is still to do.

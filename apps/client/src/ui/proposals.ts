@@ -2,6 +2,7 @@
 // this only shows synced state plus what this player privately learned (their audits, their team's forgeries).
 import { LIVENESS_LIMIT, type ProposalStatus } from '@byzantine-council/shared';
 import { cssColor, seatColors } from '../game/palette.js';
+import { getLocale, t, type PlainKey } from '../i18n/index.js';
 import { el, h } from './dom.js';
 import { button, formatSats } from './tasks/types.js';
 
@@ -33,14 +34,15 @@ export interface ProposalsContext {
   readonly forgedByTeam: ReadonlySet<string>;
 }
 
-const STATUS_TEXT: Readonly<Record<Exclude<ProposalStatus, 'open'>, string>> = {
-  passed: 'Passed',
-  rejected: 'Blocked',
-  expired: 'Ran out of time',
+const STATUS_TEXT: Readonly<Record<Exclude<ProposalStatus, 'open'>, PlainKey>> = {
+  passed: 'proposal.passed',
+  rejected: 'proposal.rejected',
+  expired: 'proposal.expired',
 };
 
 function cardKey(p: ProposalView, ctx: ProposalsContext): string {
   return JSON.stringify([
+    getLocale(),
     p.status,
     p.verdict,
     p.signers,
@@ -105,8 +107,8 @@ export class ProposalsPanel {
 
   #renderLiveness(strikes: number): void {
     const pips = Array.from({ length: LIVENESS_LIMIT }, (_, i) => h('span', i < strikes ? 'pip lost' : 'pip'));
-    this.#liveness.replaceChildren(h('span', 'label', 'Liveness'), ...pips);
-    this.#liveness.title = `${String(strikes)} of ${String(LIVENESS_LIMIT)} real withdrawals have failed. At ${String(LIVENESS_LIMIT)}, users lose access and the Byzantines win.`;
+    this.#liveness.replaceChildren(h('span', 'label', t('proposal.liveness')), ...pips);
+    this.#liveness.title = t('proposal.livenessTitle', { strikes: String(strikes), limit: String(LIVENESS_LIMIT) });
   }
 
   #card(p: ProposalView, ctx: ProposalsContext): HTMLLIElement {
@@ -116,12 +118,12 @@ export class ProposalsPanel {
     li.dataset['status'] = p.status;
 
     const head = h('div', 'head');
-    head.append(h('b', '', `#${p.id}`), h('span', 'amount', `Withdraw ${formatSats(p.amount)}`));
+    head.append(h('b', '', `#${p.id}`), h('span', 'amount', t('proposal.withdraw', { amount: formatSats(p.amount) })));
     if (open) head.append(h('span', 'timer', `${String(p.secondsLeft)}s`));
     li.append(head);
 
     const sigs = h('div', 'sigs');
-    sigs.append(h('span', 'count', `${String(p.signers.length)}/${String(ctx.needed)} signed`));
+    sigs.append(h('span', 'count', t('proposal.signed', { n: String(p.signers.length), needed: String(ctx.needed) })));
     const dots = h('span', 'dots');
     for (const id of p.signers) dots.append(this.#dot(id, ctx, 'signed'));
     for (const id of p.refusers) dots.append(this.#dot(id, ctx, 'refused'));
@@ -130,24 +132,24 @@ export class ProposalsPanel {
 
     const tags = h('div', 'tags');
     if (!open) {
-      tags.append(h('span', `tag ${p.verdict === 'forged' ? 'byzantine' : 'honest'}`, p.verdict === 'forged' ? 'Forged' : 'Real'));
-      tags.append(h('span', 'tag left', STATUS_TEXT[p.status]));
+      tags.append(h('span', `tag ${p.verdict === 'forged' ? 'byzantine' : 'honest'}`, t(p.verdict === 'forged' ? 'proposal.forged' : 'proposal.real')));
+      tags.append(h('span', 'tag left', t(STATUS_TEXT[p.status])));
     } else {
-      if (ctx.forgedByTeam.has(p.id)) tags.append(h('span', 'tag byzantine', 'Your team’s forgery'));
+      if (ctx.forgedByTeam.has(p.id)) tags.append(h('span', 'tag byzantine', t('proposal.teamForgery')));
       const audit = ctx.audits.get(p.id);
-      if (audit !== undefined) tags.append(h('span', `tag ${audit ? 'byzantine' : 'honest'}`, audit ? 'You checked: forged' : 'You checked: real'));
-      if (ctx.auditing === p.id) tags.append(h('span', 'tag auditing', 'Auditing… stay at the desk'));
+      if (audit !== undefined) tags.append(h('span', `tag ${audit ? 'byzantine' : 'honest'}`, t(audit ? 'proposal.checkedForged' : 'proposal.checkedReal')));
+      if (ctx.auditing === p.id) tags.append(h('span', 'tag auditing', t('proposal.auditing')));
     }
     if (tags.childElementCount > 0) li.append(tags);
 
     if (open) {
       const responded = p.signers.includes(ctx.me) || p.refusers.includes(ctx.me);
       const actions = h('div', 'proposal-actions');
-      const sign = button('Sign', 'sign');
-      const refuse = button('Refuse', 'refuse');
+      const sign = button(t('proposal.sign'), 'sign');
+      const refuse = button(t('proposal.refuse'), 'refuse');
       sign.disabled = refuse.disabled = responded || !ctx.canAct;
-      sign.setAttribute('aria-label', `Sign withdrawal ${p.id}`);
-      refuse.setAttribute('aria-label', `Refuse withdrawal ${p.id}`);
+      sign.setAttribute('aria-label', t('proposal.signAria', { id: p.id }));
+      refuse.setAttribute('aria-label', t('proposal.refuseAria', { id: p.id }));
       sign.addEventListener('click', () => {
         this.onSign(p.id);
       });
@@ -156,15 +158,15 @@ export class ProposalsPanel {
       });
       actions.append(sign, refuse);
       if (ctx.atDesk && ctx.audits.get(p.id) === undefined && ctx.auditing === null) {
-        const audit = button('Audit', 'audit');
+        const audit = button(t('proposal.audit'), 'audit');
         audit.disabled = !ctx.canAct;
-        audit.setAttribute('aria-label', `Audit withdrawal ${p.id} at the Ledger Archive`);
+        audit.setAttribute('aria-label', t('proposal.auditAria', { id: p.id }));
         audit.addEventListener('click', () => {
           this.onAudit(p.id);
         });
         actions.append(audit);
       }
-      if (responded) actions.append(h('span', 'answered', p.signers.includes(ctx.me) ? 'You signed' : 'You refused'));
+      if (responded) actions.append(h('span', 'answered', t(p.signers.includes(ctx.me) ? 'proposal.youSigned' : 'proposal.youRefused')));
       li.append(actions);
     }
     return li;
@@ -174,9 +176,10 @@ export class ProposalsPanel {
     const who = ctx.players.get(id);
     const dot = h('span', `who ${kind}`);
     if (who !== undefined) dot.style.background = cssColor(seatColors(who.seat).lit);
-    const name = who?.name ?? 'A guardian who left';
-    dot.title = `${name} ${kind}`;
-    dot.setAttribute('aria-label', `${name} ${kind}`);
+    const name = who?.name ?? t('proposal.guardianLeft');
+    const label = t(kind === 'signed' ? 'proposal.whoSigned' : 'proposal.whoRefused', { name });
+    dot.title = label;
+    dot.setAttribute('aria-label', label);
     dot.setAttribute('role', 'img');
     return dot;
   }

@@ -8,6 +8,7 @@ import {
   type TaskRefused,
   type TaskResult,
 } from '@byzantine-council/shared';
+import { t, type PlainKey } from '../../i18n/index.js';
 import { el, h } from '../dom.js';
 import { stationName } from '../places.js';
 import { TASK_COPY } from './copy.js';
@@ -21,23 +22,23 @@ import { watchtowerGame } from './watchtower.js';
 const SEND_MARGIN_MS = 150;
 const CLOSE_AFTER_MS = 1400;
 
-const REFUSALS: Readonly<Record<TaskRefused['reason'], string>> = {
-  outOfRange: 'Step a little closer to the station.',
-  retryLater: 'The station is resetting.',
-  busy: 'Finish the task you have open first.',
-  unavailable: 'This task is already done.',
+const REFUSALS: Readonly<Record<TaskRefused['reason'], PlainKey>> = {
+  outOfRange: 'taskPanel.outOfRange',
+  retryLater: 'taskPanel.retryLater',
+  busy: 'taskPanel.busy',
+  unavailable: 'taskPanel.unavailable',
 };
 
 // Server reasons, plus 'offline' when this client lost its connection (the server drops the challenge then).
 type CloseReason = TaskClosed['reason'] | 'offline';
 
-const CLOSINGS: Readonly<Record<CloseReason, string>> = {
-  moved: 'You walked away from the station.',
-  expired: 'The task timed out. Open it again to retry.',
-  ended: 'The match is over.',
-  council: 'A council was called. Head to the seal.',
-  frozen: 'You were disconnected. The task closed.',
-  offline: 'Connection lost. Open the task again once you’re back.',
+const CLOSINGS: Readonly<Record<CloseReason, PlainKey>> = {
+  moved: 'taskPanel.moved',
+  expired: 'taskPanel.expired',
+  ended: 'taskPanel.ended',
+  council: 'taskPanel.council',
+  frozen: 'taskPanel.frozen',
+  offline: 'taskPanel.offline',
 };
 
 // Controls Tab can reach inside the dialog, in document order.
@@ -97,10 +98,10 @@ export class TaskPanel {
     const copy = TASK_COPY[kind];
     this.#kind = kind;
     this.#station.textContent = stationName(kind);
-    this.#title.textContent = copy.title;
-    this.#concept.textContent = copy.concept;
+    this.#title.textContent = t(copy.title);
+    this.#concept.textContent = t(copy.concept);
     this.#fake.hidden = !fake;
-    this.#body.replaceChildren(h('p', 'loading', 'Opening…'));
+    this.#body.replaceChildren(h('p', 'loading', t('taskPanel.opening')));
     this.#root.hidden = false;
     this.#root.focus();
   }
@@ -136,19 +137,19 @@ export class TaskPanel {
     this.#task = null;
     this.#body.inert = true;
     if (r.ok) {
-      this.#setStatus(this.#fake.hidden ? 'Done. The federation is closer to consensus.' : 'Faked. Nobody saw a thing.', 'good');
+      this.#setStatus(t(this.#fake.hidden ? 'taskPanel.done' : 'taskPanel.faked'), 'good');
     } else {
       const seconds = Math.ceil((r.retryInMs ?? 0) / 1000);
-      this.#setStatus(seconds > 0 ? `Not quite. The station resets in ${String(seconds)} s.` : 'Not quite.', 'bad');
+      this.#setStatus(seconds > 0 ? t('taskPanel.notQuiteWait', { seconds: String(seconds) }) : t('taskPanel.notQuite'), 'bad');
     }
     this.#closeSoon();
   }
 
   refused(r: TaskRefused): void {
     if (!this.isOpen || this.#task !== null) return;
-    const wait = r.retryInMs === undefined ? '' : ` Try again in ${String(Math.max(1, Math.ceil(r.retryInMs / 1000)))} s.`;
+    const wait = r.retryInMs === undefined ? '' : ` ${t('taskPanel.tryAgainIn', { seconds: String(Math.max(1, Math.ceil(r.retryInMs / 1000))) })}`;
     this.#body.replaceChildren();
-    this.#setStatus(`${REFUSALS[r.reason]}${wait}`, 'bad');
+    this.#setStatus(`${t(REFUSALS[r.reason])}${wait}`, 'bad');
     this.#closeSoon();
   }
 
@@ -156,7 +157,7 @@ export class TaskPanel {
     if (!this.isOpen) return;
     this.#task = null;
     this.#body.inert = true;
-    this.#setStatus(CLOSINGS[r.reason], 'bad');
+    this.#setStatus(t(CLOSINGS[r.reason]), 'bad');
     this.#closeSoon();
   }
 
@@ -185,7 +186,7 @@ export class TaskPanel {
     const kind = this.#kind;
     if (task?.id !== id || kind === null) return;
     this.#body.inert = true;
-    this.#setStatus('Checking with the federation…', '');
+    this.#setStatus(t('taskPanel.checking'), '');
     const wait = Math.max(0, TASK_TIMING.minSolveMs[kind] + SEND_MARGIN_MS - (performance.now() - task.openedAt));
     this.#timer = window.setTimeout(() => {
       if (this.#task?.id === id) this.onAnswer(id, answer);
