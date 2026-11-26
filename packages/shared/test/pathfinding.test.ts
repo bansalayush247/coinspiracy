@@ -6,6 +6,7 @@ import {
   MAX_PATH_RADIUS,
   MAX_PATH_TILES,
   canStand,
+  clearReaches,
   findPath,
   findPathNear,
   isClearSegment,
@@ -354,5 +355,28 @@ describe('steerInput', () => {
       const input = steerInput(a, b);
       expect(MovePayloadSchema.safeParse({ seq: 1, dx: input.x, dy: input.y }).success).toBe(true);
     }
+  });
+
+  it('reaches along each ray exactly as far as a straight clear walk goes', () => {
+    const max = 8;
+    const angles = Array.from({ length: 48 }, (_, i) => (i * Math.PI) / 24);
+    let cut = 0;
+    for (const eye of SPAWN_POINTS) {
+      const reach = clearReaches(CITADEL_MAP, eye, angles, max);
+      angles.forEach((a, i) => {
+        const r = reach[i] ?? -1;
+        const at = (d: number): Vec2 => ({ x: eye.x + Math.cos(a) * d, y: eye.y + Math.sin(a) * d });
+        expect(r).toBeGreaterThanOrEqual(0);
+        expect(r).toBeLessThanOrEqual(max);
+        expect(isClearSegment(CITADEL_MAP, eye, at(Math.max(0, r - 0.1)))).toBe(true);
+        if (r < max) {
+          cut++;
+          expect(isClearSegment(CITADEL_MAP, eye, at(r + 0.1))).toBe(false);
+        }
+      });
+    }
+    expect(cut).toBeGreaterThan(0);
+    expect(clearReaches(CITADEL_MAP, { x: -1, y: -1 }, angles, max).every((r) => r === 0)).toBe(true);
+    expect(clearReaches(CITADEL_MAP, SPAWN_POINTS[0] ?? { x: 0, y: 0 }, angles, Number.NaN).every((r) => r === 0)).toBe(true);
   });
 });

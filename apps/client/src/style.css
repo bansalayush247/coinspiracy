@@ -966,6 +966,7 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .split-open { background: rgba(224, 80, 60, 0.14); color: #f6a99c; }
 .receipt-open { background: rgba(47, 95, 138, 0.2); color: #9fd8ff; }
 .alert-open { background: rgba(176, 132, 214, 0.16); color: #dcc4f2; }
+.dust-open { background: rgba(191, 227, 255, 0.14); color: #d6ecff; }
 .cases-open { background: rgba(159, 180, 199, 0.14); color: #d8e4ef; }
 .modal.cases { width: min(620px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; gap: 10px; }
 .cases-intro { margin: 0; color: var(--muted); font-size: 14px; }

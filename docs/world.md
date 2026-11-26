@@ -286,3 +286,13 @@ Season two, act four, The Last Alert (`alert.ts`; rules `acts/alertRules.ts`), t
 - `carriedMarks` now also brings in how the lead treated Mags in The Overflow (`pastLeftMags`, `pastPressedMags`).
 - Tests prove the hatch and five places to wait are never lit, and that a lone player can walk Mags to the aerial
   unseen in under two minutes, with at least two crossings that need timing.
+
+Season three, act one, The Dust (`dust.ts`; rules `acts/dustRules.ts`): season three is about privacy.
+- Tuning lives in a file: `tuning/dust.json` holds the act's places and numbers (doors, the courier's corners,
+  speed, glance range and angle, lose distance, reward), checked by `DustTuningSchema` at load. Script text stays in
+  code. New acts follow this pattern.
+- Three of five doors (`DOORS`, `DOORS_NEEDED`); Mr Adeyemi's (`ADEYEMI`) marks `clueGreyCoat`.
+- The tail: Mr Fennick walks `COURIER_ROUTE` (`courierStep`) and at every corner after the first looks back the way
+  he came for `GLANCE_S` (`courierSees`; the client draws the cone only while `chasing` is set). Anyone seen, or a
+  crew further than `TAIL_LOSE` for `LOSE_S`, restarts the tail from Dee's. His walk runs in `move`, the catches in
+  `tick`. A test follows him at steady distances: 8 to 11 tiles arrives, closer is seen, further is lost.

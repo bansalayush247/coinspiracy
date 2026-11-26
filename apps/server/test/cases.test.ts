@@ -64,6 +64,11 @@ import {
   type MissionResult,
   AERIAL,
   ALERT_ACT,
+  DEE_SHOP,
+  DOORS,
+  DUST_ACT,
+  DUST_LOST,
+  DUST_REWARD_SATS,
   CITY_MAP,
   walkPath,
   type Walker,
@@ -79,6 +84,7 @@ import { PopcornRules } from '../src/city/acts/popcornRules.js';
 import { SplitRules } from '../src/city/acts/splitRules.js';
 import { ReceiptRules } from '../src/city/acts/receiptRules.js';
 import { AlertRules } from '../src/city/acts/alertRules.js';
+import { DustRules } from '../src/city/acts/dustRules.js';
 import type { ActContext, CrewMember } from '../src/city/acts/rules.js';
 import { MemoryProfileStore } from '../src/profile/store.js';
 import { COOKIE_NAME, type SessionKeys } from '../src/profile/session.js';
@@ -573,5 +579,59 @@ describe('season two, act four: The Last Alert', () => {
     expect(notes).toEqual([{ text: MAGS_SPOTTED }]);
     expect(state.npcs.get('mags')?.x).toBe(HATCH.x);
     expect(state.step).toBe('escort');
+  });
+});
+
+describe('season three, act one: The Dust', () => {
+  it('warns the street, tails Mr Fennick to Glasshouse, and meets Perpetua Glass', async () => {
+    const run = await begin('dust');
+    await drive(run, { dust: 'kind' }, atStep('warn'));
+    for (const i of [0, 1, 2]) await work(run, i);
+    await waitFor(() => run.client.state.step === 'toShop', 'off to the shop');
+    expect(run.client.state.marks).toContain('clueGreyCoat');
+    await arrive(run, DEE_SHOP, 'shop');
+    await drive(run, { shop: 'follow' }, atStep('tail'));
+    const fennick = () => run.client.state.npcs.get('fennick') ?? { x: 0, y: 0 };
+    await waitFor(() => {
+      if (run.client.state.step === 'tail') run.room.teleport(fennick().x, fennick().y);
+      return run.client.state.step !== 'tail';
+    }, 'at Glasshouse', 60_000);
+    expect(run.client.state.step).toBe('office');
+    await finish(run, { office: 'privacy' }, DUST_REWARD_SATS);
+    expect([...run.client.state.marks]).toEqual(expect.arrayContaining(['clueDust', 'reassured', 'clueGreyCoat', 'quietTail', 'defendedPrivacy']));
+  }, 90_000);
+
+  it('starts the tail again from Dee’s when he catches someone looking, or the crew falls too far behind', () => {
+    const run = (at: { x: number; y: number }) => {
+      const state = new MissionState();
+      for (let i = 0; i < DOORS.length; i++) state.spots.push(new MissionSpot());
+      const notes: unknown[] = [];
+      const caught: string[] = [];
+      const crew = [{ id: 'rook', player: { ...at }, caughtUntil: 0 }] as unknown as CrewMember[];
+      const ctx = {
+        ...fakeContext(state, crew),
+        act: DUST_ACT,
+        broadcast: (_: string, payload: unknown) => notes.push(payload),
+        catchMember: (_: CrewMember, by: string) => caught.push(by),
+      };
+      const rules = new DustRules();
+      rules.setup(ctx);
+      state.step = 'tail';
+      rules.onStep(ctx, 'tail');
+      for (let now = 0; now < 30_000 && rules.spotted + rules.lost === 0; now += 50) {
+        rules.move(ctx, now);
+        rules.tick(ctx, now);
+      }
+      const f = state.npcs.get('fennick');
+      return { rules, notes, caught, back: Math.hypot((f?.x ?? 0) - DEE_SHOP.x, (f?.y ?? 0) - DEE_SHOP.y) };
+    };
+    const seen = run({ x: 96.5, y: 92.5 });
+    expect(seen.rules.spotted).toBe(1);
+    expect(seen.caught).toEqual(['courier']);
+    expect(seen.back).toBeLessThan(0.01);
+    const left = run(DEE_SHOP);
+    expect(left.rules.lost).toBe(1);
+    expect(left.notes).toEqual([{ text: DUST_LOST }]);
+    expect(left.back).toBeLessThan(0.01);
   });
 });

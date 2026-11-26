@@ -1,5 +1,20 @@
 # Changelog
 
+## 26 November 2026
+
+### Season three, act one: The Dust
+- Season three is about privacy. Everyone in Low Tide wakes up with one free coin from "a friend". Ivy explains it's
+  dust: spend it together with your own coins and whoever sent it can see they're all yours.
+- Knock on three of five doors on Mrs Okafor's street and tell people to freeze it. Mr Adeyemi already spent his,
+  and saw a man in a grey coat collect the receipts at Dee's corner shop.
+- Then a tail: follow Mr Fennick from Dee's to Glasshouse on Signet Row. He looks back at every corner, and you
+  can see his glance; too close and he spots you, too far and you lose him. Either way it starts again from Dee's.
+- At Glasshouse, Perpetua Glass explains that safe means seen. Pays 350 play sats once. Inspired by dusting attacks.
+- The act's places and numbers now live in a tuning file (`packages/shared/src/city/tuning/dust.json`), checked
+  when the game loads.
+- Torch and glance cones now stop where a wall or a heap blocks the view, just as the server checks it, instead of
+  being drawn straight through houses.
+
 ## 25 November 2026
 
 ### Season two, act four: The Last Alert

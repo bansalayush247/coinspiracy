@@ -75,7 +75,7 @@ const everLit = (spot: Vec2, routes: readonly { route: readonly Vec2[]; speed: n
 
 describe('the side cases', () => {
   it('are every story of the case kind, after the acts', () => {
-    expect(Object.keys(STORY_ACTS)).toEqual(['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'alert', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza']);
+    expect(Object.keys(STORY_ACTS)).toEqual(['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'alert', 'dust', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza']);
     expect(SIDE_CASES.map((c) => c.id)).toEqual(['popcorn', 'number', 'coins', 'deadman', 'password', 'pizza']);
     for (const act of Object.values(STORY_ACTS)) expect(act.kind === 'case', act.id).toBe(SIDE_CASES.includes(act));
   });

@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint';
 const NODE_GLOBALS = ['process', 'Buffer', 'global', 'require', 'module', '__dirname', '__filename', 'setImmediate'];
 
 export default defineConfig(
-  { ignores: ['**/dist/**', '**/dist-e2e/**', '**/node_modules/**', '**/coverage/**', '.scratch/**', '**/.astro/**'] },
+  { ignores: ['**/dist/**', '**/dist-e2e/**', '**/node_modules/**', '**/coverage/**', '.scratch/**', '**/.astro/**', '.claude/**'] },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   {

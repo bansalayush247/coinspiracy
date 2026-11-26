@@ -2,7 +2,7 @@
 // menu, answers Mr Pell, Dani and Mags with the keyboard, digs the right heap at Gullmoor tip at night, asks Dani
 // nicely, and reaches the end card with the reward. Then a friend joins a crew from its invite link and the two
 // split a vote, act two is played from the call to the lighthouse, and act three from the leak to Teo's confession
-// and the council finale, act four to the season's end, all four acts of season two, and two side cases from the casebook. The server
+// and the council finale, act four to the season's end, all four acts of season two, season three's first act, and two side cases from the casebook. The server
 // is only used to skip the walks.
 // Run: npx tsx --conditions=source e2e/story.ts
 import { randomBytes } from 'node:crypto';
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { matchMaker } from '@colyseus/core';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
-import { AERIAL, HATCH, BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
+import { DEE_SHOP, DOORS, AERIAL, HATCH, BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
 import { canStand, findPath } from '@byzantine-council/shared/pathfinding';
 import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
@@ -21,6 +21,7 @@ import { MemoryProfileStore } from '../apps/server/src/profile/store.js';
 
 const clientRoot = fileURLToPath(new URL('../apps/client', import.meta.url));
 const shots = fileURLToPath(new URL('../.scratch/e2e/', import.meta.url));
+const evidence = fileURLToPath(new URL('../production/qa/evidence/', import.meta.url));
 const GAME_PORT = 3958;
 const WEB_PORT = 3959;
 const WEB = `http://127.0.0.1:${String(WEB_PORT)}`;
@@ -125,6 +126,7 @@ async function main(): Promise<void> {
     web = await preview({ root: clientRoot, logLevel: 'warn', build: { outDir: OUT }, preview: { host: '127.0.0.1', port: WEB_PORT, strictPort: true } });
     browser = await chromium.launch({ executablePath: BRAVE, headless: true, chromiumSandbox: true, timeout: 30_000 });
     await mkdir(shots, { recursive: true });
+    await mkdir(`${evidence}dust/`, { recursive: true });
     const errors: string[] = [];
 
     const { page, room } = await open(browser, 'Rook', { width: 1280, height: 800 }, errors);
@@ -622,6 +624,50 @@ async function main(): Promise<void> {
     check(((await last.page.textContent('#story-end-title')) ?? '') === 'The Last Alert', 'Mags reads the key out and season two ends');
     check(((await last.page.textContent('#story-reward')) ?? '').includes('+600 play sats'), `it pays its first finish (${(await last.page.textContent('#story-reward')) ?? ''})`);
     await last.page.close();
+
+    const dust = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-dust');
+    check(dust.room.state.act === 'dust', 'the next tile opens season three: The Dust');
+    await answer(dust.page, dust.room, 'dust', 1);
+    await read(dust.page, dust.room, 'dustKind');
+    await read(dust.page, dust.room, 'dustGo');
+    await until(() => dust.room.state.step === 'warn', 'knocking on doors');
+    for (const i of [0, 1, 2]) {
+      const door = DOORS[i];
+      if (door === undefined) throw new Error('door');
+      dust.room.teleport(door.at.x, door.at.y);
+      await dust.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Knock at ${label}`) === true, door.label, { timeout: 10_000 }).catch(() => undefined);
+      await dust.page.keyboard.press('e');
+      await until(() => dust.room.state.spots[i]?.done === true, `door ${String(i)}`);
+    }
+    await until(() => dust.room.state.step === 'toShop', 'off to the shop');
+    check(dust.room.state.marks.includes('clueGreyCoat'), 'Mr Adeyemi saw who takes the receipts');
+    dust.room.teleport(DEE_SHOP.x, DEE_SHOP.y);
+    await answer(dust.page, dust.room, 'shop', 1);
+    for (let i = 0; i < 200 && dust.room.state.step !== 'tail'; i++) {
+      await dust.page.keyboard.press(' ');
+      await dust.page.waitForTimeout(150);
+    }
+    await until(() => dust.room.state.step === 'tail', 'the tail');
+    dust.room.quietNight();
+    const fennick = (): { x: number; y: number; chasing: boolean } => dust.room.state.npcs.get('fennick') ?? { x: 0, y: 0, chasing: false };
+    let glanced = false;
+    for (let i = 0; i < 400 && dust.room.state.step === 'tail'; i++) {
+      const f = fennick();
+      if (f.chasing && !glanced) {
+        dust.room.teleport(f.x + 6, f.y);
+        await dust.page.waitForTimeout(250);
+        await dust.page.screenshot({ path: `${evidence}dust/tail-glance.png` });
+        glanced = true;
+      } else dust.room.teleport(f.x, f.y);
+      await dust.page.waitForTimeout(150);
+    }
+    check(glanced, 'Mr Fennick looks back at a corner');
+    await answer(dust.page, dust.room, 'office', 1);
+    for (const node of ['officePrivacy', 'officeIvy']) await read(dust.page, dust.room, node);
+    await dust.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await dust.page.textContent('#story-end-title')) ?? '') === 'The Dust', 'the tail ends at Glasshouse and season three begins');
+    check(((await dust.page.textContent('#story-reward')) ?? '').includes('+350 play sats'), `it pays its first finish (${(await dust.page.textContent('#story-reward')) ?? ''})`);
+    await dust.page.close();
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

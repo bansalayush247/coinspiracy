@@ -3,7 +3,8 @@
 // scene; it keeps no game state of its own.
 import Phaser from 'phaser';
 import type { Vec2 } from '@byzantine-council/shared';
-import { HEAPS, TORCH_HALF_ANGLE, TORCH_KINDS, TORCH_RANGE, inSight, type NpcKind, type StoryAct } from '@byzantine-council/shared/city';
+import { CITY_MAP, GLANCE_HALF_ANGLE, GLANCE_RANGE, HEAPS, TORCH_HALF_ANGLE, TORCH_KINDS, TORCH_RANGE, inSight, type NpcKind, type StoryAct } from '@byzantine-council/shared/city';
+import { clearReaches } from '@byzantine-council/shared/pathfinding';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
 import { sceneDpr } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer } from '../game/interpolation.js';
@@ -12,6 +13,8 @@ import { seatColors, type GuardianColors } from '../game/palette.js';
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
+// Rays per sight cone; enough that a wall corner cuts it cleanly at the longest reach.
+const CONE_RAYS = 24;
 const PLAIN: Wear = { hat: '', shades: '', outfit: '' };
 const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan' | 'gull'>, { name: string; colors: GuardianColors; wear: Wear }>> = {
   dani: { name: 'Dani', colors: { lit: 0x4fb3a9, shadow: 0x2b6b66, highlight: 0xa6e3dc }, wear: PLAIN },
@@ -40,6 +43,9 @@ const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan' | 'gull'>, { name: string
   nell: { name: 'Nell', colors: { lit: 0xe8b33c, shadow: 0x8f6a1e, highlight: 0xf8de9a }, wear: PLAIN },
   silas: { name: 'Silas', colors: { lit: 0x2f5f8a, shadow: 0x173450, highlight: 0x86b2d8 }, wear: PLAIN },
   ozzy: { name: 'Ozzy', colors: { lit: 0x58c96a, shadow: 0x2c7a3a, highlight: 0xb4efbe }, wear: PLAIN },
+  dee: { name: 'Dee', colors: { lit: 0xd96b4f, shadow: 0x86392a, highlight: 0xf4b9a8 }, wear: PLAIN },
+  fennick: { name: 'Mr Fennick', colors: { lit: 0x8c8f94, shadow: 0x4a4c50, highlight: 0xc8cbd0 }, wear: PLAIN },
+  glass: { name: 'Perpetua Glass', colors: { lit: 0xf3f5f8, shadow: 0xa9b2bf, highlight: 0xffffff }, wear: PLAIN },
 };
 const ANIMAL_NAMES: Readonly<Record<'duncan' | 'gull', string>> = { duncan: 'Duncan', gull: 'Gull' };
 
@@ -238,21 +244,28 @@ export class MissionView {
   #drawTorch(): void {
     const g = this.#torch;
     g.clear();
-    for (const f of this.#figures.values()) if (TORCH_KINDS.has(f.kind) && f.shown) this.#cone(g, f);
+    for (const f of this.#figures.values()) {
+      if (!f.shown) continue;
+      if (TORCH_KINDS.has(f.kind)) this.#cone(g, f, TORCH_RANGE, TORCH_HALF_ANGLE, 0xffe9a8, true);
+      else if (f.kind === 'fennick' && f.chasing) this.#cone(g, f, GLANCE_RANGE, GLANCE_HALF_ANGLE, 0xbfe3ff, false);
+    }
   }
 
-  #cone(g: Phaser.GameObjects.Graphics, guard: Figure): void {
-    const steps = 10;
+  /** A cone on the ground in front of a figure, cut off where the server's line of sight is: a torch's light, or a glance back. */
+  #cone(g: Phaser.GameObjects.Graphics, guard: Figure, range: number, half: number, color: number, lamp: boolean): void {
+    const angles = Array.from({ length: CONE_RAYS + 1 }, (_, i) => guard.facing - half + (2 * half * i) / CONE_RAYS);
+    const reach = clearReaches(CITY_MAP, guard.pos, angles, range);
     const points: Phaser.Math.Vector2[] = [];
     const o = worldToScreen(guard.pos.x, guard.pos.y);
     points.push(new Phaser.Math.Vector2(o.x, o.y));
-    for (let i = 0; i <= steps; i++) {
-      const a = guard.facing - TORCH_HALF_ANGLE + (2 * TORCH_HALF_ANGLE * i) / steps;
-      const p = worldToScreen(guard.pos.x + Math.cos(a) * TORCH_RANGE, guard.pos.y + Math.sin(a) * TORCH_RANGE);
+    angles.forEach((a, i) => {
+      const r = reach[i] ?? 0;
+      const p = worldToScreen(guard.pos.x + Math.cos(a) * r, guard.pos.y + Math.sin(a) * r);
       points.push(new Phaser.Math.Vector2(p.x, p.y));
-    }
-    g.fillStyle(0xffe9a8, 0.28);
+    });
+    g.fillStyle(color, 0.28);
     g.fillPoints(points, true);
+    if (!lamp) return;
     g.fillStyle(0xfff6d8, 0.25);
     g.fillCircle(o.x, o.y - GUARDIAN_HEIGHT * 0.55, 6 * ART_SCALE);
   }

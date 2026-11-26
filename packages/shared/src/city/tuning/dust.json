@@ -1,0 +1,89 @@
+{
+  "deeShop": {
+    "x": 100.6,
+    "y": 94.5
+  },
+  "glasshouseDoor": {
+    "x": 97.5,
+    "y": 70.5
+  },
+  "doors": [
+    {
+      "at": {
+        "x": 90.5,
+        "y": 84.4
+      },
+      "label": "Number 3"
+    },
+    {
+      "at": {
+        "x": 94.5,
+        "y": 88.4
+      },
+      "label": "Number 7"
+    },
+    {
+      "at": {
+        "x": 98.5,
+        "y": 92.4
+      },
+      "label": "Number 9"
+    },
+    {
+      "at": {
+        "x": 90.5,
+        "y": 92.4
+      },
+      "label": "Number 12"
+    },
+    {
+      "at": {
+        "x": 120.5,
+        "y": 88.4
+      },
+      "label": "Number 15"
+    }
+  ],
+  "doorsNeeded": 3,
+  "adeyemiDoor": 1,
+  "doorReach": 1.4,
+  "doorMs": 1500,
+  "courierCorners": [
+    {
+      "x": 100.5,
+      "y": 92.5
+    },
+    {
+      "x": 92.5,
+      "y": 92.5
+    },
+    {
+      "x": 92.5,
+      "y": 84.5
+    },
+    {
+      "x": 100.5,
+      "y": 84.5
+    },
+    {
+      "x": 100.5,
+      "y": 76.5
+    },
+    {
+      "x": 88.5,
+      "y": 76.5
+    },
+    {
+      "x": 88.5,
+      "y": 70.5
+    }
+  ],
+  "courierSpeed": 2.4,
+  "glanceSeconds": 1.6,
+  "glanceRange": 8,
+  "glanceHalfAngle": 0.5,
+  "tailLose": 10,
+  "loseSeconds": 3,
+  "night": 0.05,
+  "rewardSats": 350
+}

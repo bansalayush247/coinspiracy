@@ -403,6 +403,24 @@ export function isClearSegment(map: CitadelMap, a: Vec2, b: Vec2, options: PathO
   return new Grid(map, options.blocked).clearSegment(a, b, set.segmentHalf);
 }
 
+/** How far each ray from `eye` (one per angle, radians) stays an `isClearSegment` walk, up to `max` tiles. */
+export function clearReaches(map: CitadelMap, eye: Vec2, angles: readonly number[], max: number, options: PathOptions = {}): number[] {
+  const set = validMap(map) ? settings(map, options) : null;
+  if (set === null || !insideGrid(map, eye) || !Number.isFinite(max) || max <= 0) return angles.map(() => 0);
+  const grid = new Grid(map, options.blocked);
+  if (!grid.clear(eye, set.segmentHalf)) return angles.map(() => 0);
+  const steps = Math.ceil(max / SEGMENT_STEP);
+  return angles.map((angle) => {
+    const dx = (Math.cos(angle) * max) / steps;
+    const dy = (Math.sin(angle) * max) / steps;
+    for (let s = 1; s <= steps; s++) {
+      const p = { x: eye.x + dx * s, y: eye.y + dy * s };
+      if (!insideGrid(map, p) || !grid.clear(p, set.segmentHalf)) return ((s - 1) * max) / steps;
+    }
+    return max;
+  });
+}
+
 // One tick's move input straight at `target`, shortened on the last step so the walker stops on it.
 export function steerInput(pos: Vec2, target: Vec2): Vec2 {
   const dx = target.x - pos.x;
