@@ -47,6 +47,7 @@ const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan' | 'gull'>, { name: string
   fennick: { name: 'Mr Fennick', colors: { lit: 0x8c8f94, shadow: 0x4a4c50, highlight: 0xc8cbd0 }, wear: PLAIN },
   glass: { name: 'Perpetua Glass', colors: { lit: 0xf3f5f8, shadow: 0xa9b2bf, highlight: 0xffffff }, wear: PLAIN },
   lumley: { name: 'Lumley', colors: { lit: 0xe6dcc4, shadow: 0x968a6c, highlight: 0xfff6e0 }, wear: PLAIN },
+  shopper: { name: '', colors: seatColors(0), wear: PLAIN },
 };
 const ANIMAL_NAMES: Readonly<Record<'duncan' | 'gull', string>> = { duncan: 'Duncan', gull: 'Gull' };
 
@@ -61,6 +62,8 @@ interface Figure {
   side: 1 | -1;
   chasing: boolean;
   shown: boolean;
+  // Its own colours, when a kind comes in many (the shoppers in a crowd).
+  readonly colors?: GuardianColors;
 }
 
 export interface NpcView {
@@ -145,7 +148,7 @@ export class MissionView {
         fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffe3a8', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this.scene)),
       }).setOrigin(0.5, 1);
       this.names.add(label);
-      f = { kind, root, body, label, buffer: new InterpBuffer(), pos: { x: npc.x, y: npc.y }, facing: npc.facing, side: 1, chasing: false, shown: npc.shown };
+      f = { kind, root, body, label, buffer: new InterpBuffer(), pos: { x: npc.x, y: npc.y }, facing: npc.facing, side: 1, chasing: false, shown: npc.shown, ...(kind === 'shopper' ? { colors: seatColors(Number(id.replace(/\D/g, '')) + 1) } : {}) };
       this.#draw(f);
       this.#figures.set(id, f);
     }
@@ -238,22 +241,41 @@ export class MissionView {
       return;
     }
     const look = LOOKS[f.kind];
-    drawGuardian(f.body, look.colors, f.side, look.wear);
+    drawGuardian(f.body, f.colors ?? look.colors, f.side, look.wear);
   }
 
   // Torches: a warm cone on the ground in front of every guard, in the same reach the server uses.
   #drawTorch(): void {
     const g = this.#torch;
     g.clear();
+    const watch = this.#act?.watch;
     for (const f of this.#figures.values()) {
+      if (watch !== undefined && f.kind === watch.npc) {
+        if (f.shown && f.chasing) this.#ring(g, watch.at, watch.range);
+        continue;
+      }
       const c = coneOf(f);
       if (c !== null) this.#cone(g, f, c.range, c.half, c.color, c.lamp);
     }
   }
 
-  /** Where every figure with a live sight cone stands, so the scene can fade whatever would hide them. */
+  /** Where every figure watching right now stands (a cone, or the act's ring), so the scene can fade whatever would hide them. */
   watchers(): Vec2[] {
-    return [...this.#figures.values()].filter((f) => coneOf(f) !== null).map((f) => f.pos);
+    const npc = this.#act?.watch?.npc;
+    return [...this.#figures.values()].filter((f) => (f.kind === npc ? f.shown && f.chasing : coneOf(f) !== null)).map((f) => f.pos);
+  }
+
+  /** The ring on the ground a character watches: inside it, the act's rules can catch you. */
+  #ring(g: Phaser.GameObjects.Graphics, at: Vec2, range: number): void {
+    const points = Array.from({ length: 48 }, (_, i) => {
+      const a = (i / 48) * Math.PI * 2;
+      const p = worldToScreen(at.x + Math.cos(a) * range, at.y + Math.sin(a) * range);
+      return new Phaser.Math.Vector2(p.x, p.y);
+    });
+    g.fillStyle(0xbff0e2, 0.12);
+    g.fillPoints(points, true);
+    g.lineStyle(3 * ART_SCALE, 0xbff0e2, 0.55);
+    g.strokePoints(points, true);
   }
 
   /** A cone on the ground in front of a figure, cut off where the server's line of sight is: a torch's light, or a glance back. */

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { matchMaker } from '@colyseus/core';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
-import { DEE_SHOP, DESKS, DOORS, AERIAL, HATCH, BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
+import { DEE_SHOP, DESKS, OLIVE_SHOP, WATCH_AT, WATCH_RANGE, DOORS, AERIAL, HATCH, BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
 import { canStand, findPath } from '@byzantine-council/shared/pathfinding';
 import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
@@ -128,6 +128,7 @@ async function main(): Promise<void> {
     await mkdir(shots, { recursive: true });
     await mkdir(`${evidence}dust/`, { recursive: true });
     await mkdir(`${evidence}envelope/`, { recursive: true });
+    await mkdir(`${evidence}clock/`, { recursive: true });
     const errors: string[] = [];
 
     const { page, room } = await open(browser, 'Rook', { width: 1280, height: 800 }, errors);
@@ -700,6 +701,35 @@ async function main(): Promise<void> {
     check(((await env.page.textContent('#story-end-title')) ?? '') === 'The Envelope', 'the note is spent and Glasshouse can’t join it up');
     check(((await env.page.textContent('#story-reward')) ?? '').includes('+400 play sats'), `it pays its first finish (${(await env.page.textContent('#story-reward')) ?? ''})`);
     await env.page.close();
+
+    const clk = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-clock');
+    check(clk.room.state.act === 'clock', 'the next tile opens season three, act three: The Clock');
+    await answer(clk.page, clk.room, 'clock', 1);
+    for (const node of ['clockWait', 'clockGo']) await read(clk.page, clk.room, node);
+    await until(() => clk.room.state.step === 'blend', 'waiting for the chime');
+    const crowdMiddle = (): { x: number; y: number } => {
+      const all = [...clk.room.state.npcs.entries()].filter(([id]) => id.startsWith('shopper')).map(([, n]) => n);
+      return { x: all.reduce((a, n) => a + n.x, 0) / all.length, y: all.reduce((a, n) => a + n.y, 0) / all.length };
+    };
+    let ringShot = false;
+    for (let i = 0; i < 400 && clk.room.state.step === 'blend'; i++) {
+      const m = crowdMiddle();
+      clk.room.teleport(m.x, m.y);
+      if (!ringShot && Math.hypot(m.x - WATCH_AT.x, m.y - WATCH_AT.y) < WATCH_RANGE - 1) {
+        await clk.page.waitForTimeout(300);
+        await clk.page.screenshot({ path: `${evidence}clock/crowd-ring.png` });
+        ringShot = true;
+      }
+      if (Math.hypot(m.x - OLIVE_SHOP.x, m.y - OLIVE_SHOP.y) < 3.5) clk.room.teleport(OLIVE_SHOP.x, OLIVE_SHOP.y);
+      await clk.page.waitForTimeout(150);
+    }
+    check(ringShot && clk.room.state.caught === 0, 'Rook walks into the Saltmarket inside the crowd and Mr Fennick clocks nobody');
+    await answer(clk.page, clk.room, 'market', 1);
+    for (const node of ['marketNo', 'marketIvy']) await read(clk.page, clk.room, node);
+    await clk.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await clk.page.textContent('#story-end-title')) ?? '') === 'The Clock', 'Glasshouse loses Rook in the crowd and writes to the guardians');
+    check(((await clk.page.textContent('#story-reward')) ?? '').includes('+450 play sats'), `it pays its first finish (${(await clk.page.textContent('#story-reward')) ?? ''})`);
+    await clk.page.close();
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

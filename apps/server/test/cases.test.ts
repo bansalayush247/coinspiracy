@@ -73,6 +73,11 @@ import {
   ENVELOPE_ACT,
   ENVELOPE_REWARD_SATS,
   HALL_STEPS_EAST,
+  CLOCK_ACT,
+  CLOCK_REWARD_SATS,
+  CROWD_CYCLE_S,
+  MINT_DOOR,
+  OLIVE_SHOP,
   CITY_MAP,
   walkPath,
   type Walker,
@@ -90,6 +95,7 @@ import { ReceiptRules } from '../src/city/acts/receiptRules.js';
 import { AlertRules } from '../src/city/acts/alertRules.js';
 import { DustRules } from '../src/city/acts/dustRules.js';
 import { EnvelopeRules } from '../src/city/acts/envelopeRules.js';
+import { ClockRules } from '../src/city/acts/clockRules.js';
 import type { ActContext, CrewMember } from '../src/city/acts/rules.js';
 import { MemoryProfileStore } from '../src/profile/store.js';
 import { COOKIE_NAME, type SessionKeys } from '../src/profile/session.js';
@@ -678,5 +684,53 @@ describe('season three, act two: The Envelope', () => {
     expect(writer.chasing).toBe(true);
     const idler = run(false);
     expect(idler.rules.snapped).toBe(0);
+  });
+});
+
+describe('season three, act three: The Clock', () => {
+  it('sends the crowd out at the chime, walks to the olive shop with it, and meets Glass at the market', async () => {
+    const run = await begin('clock');
+    await drive(run, { clock: 'wait' }, atStep('blend'));
+    expect([...run.client.state.marks]).toEqual(expect.arrayContaining(['clueAmounts', 'clueCrowd', 'waitedChime']));
+    const start = run.client.state.npcs.get('shopper0');
+    const from = { x: start?.x ?? 0, y: start?.y ?? 0 };
+    await waitFor(() => run.client.state.clock > 0, 'the crowd clock runs');
+    await waitFor(() => {
+      const s = run.client.state.npcs.get('shopper0');
+      return Math.hypot((s?.x ?? 0) - from.x, (s?.y ?? 0) - from.y) > 2;
+    }, 'the crowd leaves at the chime', 15_000);
+    await arrive(run, OLIVE_SHOP, 'market');
+    await finish(run, { market: 'no' }, CLOCK_REWARD_SATS);
+    expect(run.client.state.marks).toContain('refusedBook');
+  }, 90_000);
+
+  it('clocks someone alone at the shop, and never someone walking inside the crowd', () => {
+    const run = (follow: boolean) => {
+      const state = new MissionState();
+      const caught: { by: string; to: { x: number; y: number } }[] = [];
+      const me = { x: OLIVE_SHOP.x, y: OLIVE_SHOP.y };
+      const crew = [{ id: 'rook', player: me, caughtUntil: 0 }] as unknown as CrewMember[];
+      const ctx = { ...fakeContext(state, crew), act: CLOCK_ACT, catchMember: (_: CrewMember, by: string, to: { x: number; y: number }) => caught.push({ by, to }) };
+      const rules = new ClockRules();
+      rules.setup(ctx);
+      state.step = 'blend';
+      rules.onStep(ctx, 'blend');
+      for (let now = 0; now < CROWD_CYCLE_S * 1000 && rules.clockedCount === 0; now += 50) {
+        rules.move(ctx);
+        if (follow) {
+          const all = [...state.npcs.entries()].filter(([id]) => id.startsWith('shopper')).map(([, n]) => n);
+          me.x = all.reduce((a, n) => a + n.x, 0) / all.length;
+          me.y = all.reduce((a, n) => a + n.y, 0) / all.length;
+        }
+        rules.tick(ctx, now);
+      }
+      return { rules, caught, fennick: state.npcs.get('fennick')?.chasing, clock: state.clock };
+    };
+    const alone = run(false);
+    expect(alone.rules.clockedCount).toBe(1);
+    expect(alone.caught).toEqual([{ by: 'stopwatch', to: MINT_DOOR }]);
+    expect(alone.fennick).toBe(true);
+    expect(alone.clock).toBeGreaterThan(0);
+    expect(run(true).rules.clockedCount).toBe(0);
   });
 });

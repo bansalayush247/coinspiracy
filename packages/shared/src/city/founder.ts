@@ -62,6 +62,7 @@ export interface PastStory {
   readonly insider?: { readonly marks: readonly string[] };
   readonly overflow?: { readonly marks: readonly string[] };
   readonly dust?: { readonly marks: readonly string[] };
+  readonly envelope?: { readonly marks: readonly string[] };
   readonly ceremony?: { readonly done: boolean; readonly honest: boolean };
 }
 
@@ -73,6 +74,8 @@ export function carriedMarks(story: PastStory | undefined): string[] {
   if (story?.overflow?.marks.includes('pressedMags') === true) marks.push('pastPressedMags');
   if (story?.dust?.marks.includes('defendedPrivacy') === true) marks.push('pastDefendedPrivacy');
   if (story?.dust?.marks.includes('askedJob') === true) marks.push('pastAskedJob');
+  if (story?.envelope?.marks.includes('politeGlass') === true) marks.push('pastPolite');
+  if (story?.envelope?.marks.includes('gloatedGlass') === true) marks.push('pastGloated');
   if (story?.ceremony?.done === true) marks.push('pastCeremony', story.ceremony.honest ? 'pastCeremonyHeld' : 'pastCeremonyLost');
   return marks;
 }

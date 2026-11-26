@@ -1,0 +1,28 @@
+{
+  "hallSteps": { "x": 82.5, "y": 28.5 },
+  "crowd": {
+    "route": [
+      { "x": 79.5, "y": 28.5 },
+      { "x": 73.0, "y": 31.0 },
+      { "x": 73.0, "y": 63.0 },
+      { "x": 72.5, "y": 65.5 }
+    ],
+    "size": 8,
+    "speed": 2.2,
+    "gatherSeconds": 12,
+    "lingerSeconds": 8,
+    "spread": 3,
+    "sway": 0.8
+  },
+  "watch": {
+    "fennick": { "x": 75.5, "y": 62.5 },
+    "at": { "x": 73.0, "y": 62.5 },
+    "range": 7,
+    "coverCount": 3,
+    "coverRange": 2.5
+  },
+  "oliveShop": { "x": 71.5, "y": 66.5 },
+  "shopReach": 1.8,
+  "night": 0,
+  "rewardSats": 450
+}

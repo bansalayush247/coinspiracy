@@ -2,6 +2,17 @@
 
 ## 26 November 2026
 
+### Season three, act three: The Clock
+- Glasshouse can't read the Mint's notes, so Mr Fennick sits at the Saltmarket gate with a stopwatch, matching who
+  leaves the Mint and when against who spends, and how much.
+- Ivy changes Rook's odd seventeen into the standard notes everyone carries, then sends the crew out with the crowd:
+  every time the hall clock strikes, a crowd of shoppers leaves Mint Hall for the olive shop. A clock on the HUD
+  counts down to the next one.
+- Walk inside the crowd. Anyone inside Fennick's ring (drawn on the ground) without enough shoppers around them gets
+  clocked and sent back to the Mint door.
+- Glass remembers how Rook spoke to her in The Envelope, and sets up the finale: she's writing to the guardians.
+  Pays 450 play sats once. Inspired by timing and amount analysis.
+
 ### Season three, act two: The Envelope
 - At Mint Hall, Ivy shows how the Mint signs a note it never sees: write your own serial, seal it in an envelope lined
   with carbon paper, and the guardians sign the outside. The signature comes through onto the note.

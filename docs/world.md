@@ -307,3 +307,17 @@ Season three, act two, The Envelope (`envelope.ts`; rules `acts/envelopeRules.ts
   the catch in `tick`. A test checks every desk is swept and has a safe start between 20% and 60% of the time.
 - Then the counter scene, and the note is spent at Dee's (`DEE_SHOP`). Glass remembers The Dust: `carriedMarks`
   turns its `defendedPrivacy` and `askedJob` into `pastDefendedPrivacy` and `pastAskedJob`.
+
+Season three, act three, The Clock (`clock.ts`; rules `acts/clockRules.ts`): timing and amounts, the anonymity set.
+- Tuning in `tuning/clock.json` (`ClockTuningSchema`): the crowd's route, size, speed, gather and linger times,
+  spacing and sway; Fennick's seat, the ring's centre and range, and how many shoppers within what distance count
+  as cover.
+- `crowdAt(t)` is a pure timeline: gather at the Mint door for `GATHER_S`, walk the route in formation for `WALK_S`,
+  linger at the olive shop, repeat every `CROWD_CYCLE_S`. The rules move the `shopper` NPCs in `move` and set the
+  HUD clock to the next departure (`clockLabel`).
+- `clocked` catches anyone inside the ring with fewer than `COVER_COUNT` shoppers within `COVER_RANGE`; the catch
+  (`stopwatch`) sends them to `MINT_DOOR`. Tests: walking in the middle of the crowd is never clocked, stepping up
+  to the shop while it lingers is safe, and alone or 4 tiles ahead is clocked.
+- Acts can now declare a `watch` ring: the client draws it around the named NPC's spot while that NPC's `chasing` is
+  set, instead of a cone, and fades buildings in front of the watcher.
+- Glass remembers The Envelope: `politeGlass` and `gloatedGlass` carry as `pastPolite` and `pastGloated`.

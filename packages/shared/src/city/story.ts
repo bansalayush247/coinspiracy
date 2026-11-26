@@ -5,11 +5,11 @@
 import type { Vec2 } from '../map.js';
 import type { Mark, Script } from './script.js';
 
-export const ACT_IDS = ['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'alert', 'dust', 'envelope', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza'] as const;
+export const ACT_IDS = ['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'alert', 'dust', 'envelope', 'clock', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza'] as const;
 export type ActId = (typeof ACT_IDS)[number];
 
 // Everyone who can catch a crew member and send them back.
-export const CATCHER_IDS = ['guard', 'duncan', 'lookout', 'choir', 'keeper', 'gull', 'courier', 'camera'] as const;
+export const CATCHER_IDS = ['guard', 'duncan', 'lookout', 'choir', 'keeper', 'gull', 'courier', 'camera', 'stopwatch'] as const;
 export type CatcherId = (typeof CATCHER_IDS)[number];
 
 export interface Catcher {
@@ -74,6 +74,8 @@ export interface StoryAct {
   readonly night: number;
   readonly nights?: Readonly<Record<string, number>>;
   readonly catchers: Readonly<Partial<Record<CatcherId, Catcher>>>;
+  // A ring on the ground a character watches while their `chasing` is set: inside it, the act's rules can catch you.
+  readonly watch?: { readonly npc: string; readonly at: Vec2; readonly range: number };
   // Starts the night holding marks the lead's earlier acts (and the ceremony) left behind.
   readonly carries?: boolean;
   readonly start: Vec2;
