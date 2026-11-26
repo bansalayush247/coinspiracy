@@ -19,6 +19,7 @@ export * from './split.js';
 export * from './receipt.js';
 export * from './alert.js';
 export * from './dust.js';
+export * from './envelope.js';
 export * from './popcorn.js';
 export * from './number.js';
 export * from './coins.js';

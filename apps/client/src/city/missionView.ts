@@ -3,7 +3,7 @@
 // scene; it keeps no game state of its own.
 import Phaser from 'phaser';
 import type { Vec2 } from '@byzantine-council/shared';
-import { CITY_MAP, GLANCE_HALF_ANGLE, GLANCE_RANGE, HEAPS, TORCH_HALF_ANGLE, TORCH_KINDS, TORCH_RANGE, inSight, type NpcKind, type StoryAct } from '@byzantine-council/shared/city';
+import { CAMERA_HALF_ANGLE, CAMERA_RANGE, CITY_MAP, GLANCE_HALF_ANGLE, GLANCE_RANGE, HEAPS, TORCH_HALF_ANGLE, TORCH_KINDS, TORCH_RANGE, inSight, type NpcKind, type StoryAct } from '@byzantine-council/shared/city';
 import { clearReaches } from '@byzantine-council/shared/pathfinding';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
 import { sceneDpr } from '../game/hidpi.js';
@@ -46,6 +46,7 @@ const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan' | 'gull'>, { name: string
   dee: { name: 'Dee', colors: { lit: 0xd96b4f, shadow: 0x86392a, highlight: 0xf4b9a8 }, wear: PLAIN },
   fennick: { name: 'Mr Fennick', colors: { lit: 0x8c8f94, shadow: 0x4a4c50, highlight: 0xc8cbd0 }, wear: PLAIN },
   glass: { name: 'Perpetua Glass', colors: { lit: 0xf3f5f8, shadow: 0xa9b2bf, highlight: 0xffffff }, wear: PLAIN },
+  lumley: { name: 'Lumley', colors: { lit: 0xe6dcc4, shadow: 0x968a6c, highlight: 0xfff6e0 }, wear: PLAIN },
 };
 const ANIMAL_NAMES: Readonly<Record<'duncan' | 'gull', string>> = { duncan: 'Duncan', gull: 'Gull' };
 
@@ -245,10 +246,14 @@ export class MissionView {
     const g = this.#torch;
     g.clear();
     for (const f of this.#figures.values()) {
-      if (!f.shown) continue;
-      if (TORCH_KINDS.has(f.kind)) this.#cone(g, f, TORCH_RANGE, TORCH_HALF_ANGLE, 0xffe9a8, true);
-      else if (f.kind === 'fennick' && f.chasing) this.#cone(g, f, GLANCE_RANGE, GLANCE_HALF_ANGLE, 0xbfe3ff, false);
+      const c = coneOf(f);
+      if (c !== null) this.#cone(g, f, c.range, c.half, c.color, c.lamp);
     }
+  }
+
+  /** Where every figure with a live sight cone stands, so the scene can fade whatever would hide them. */
+  watchers(): Vec2[] {
+    return [...this.#figures.values()].filter((f) => coneOf(f) !== null).map((f) => f.pos);
   }
 
   /** A cone on the ground in front of a figure, cut off where the server's line of sight is: a torch's light, or a glance back. */
@@ -343,4 +348,13 @@ function drawGull(g: Phaser.GameObjects.Graphics, side: 1 | -1): void {
   g.fillTriangle(side * 15 * k, -39 * k, side * 21 * k, -37 * k, side * 15 * k, -36 * k);
   g.fillStyle(0x2a2a30, 0.9);
   g.fillTriangle(-side * 11 * k, -34 * k, -side * 17 * k, -36 * k, -side * 17 * k, -31 * k);
+}
+
+// The sight cone a figure shows right now, if any: a torch, Mr Fennick's glance back, or Lumley's camera.
+function coneOf(f: Figure): { range: number; half: number; color: number; lamp: boolean } | null {
+  if (!f.shown) return null;
+  if (TORCH_KINDS.has(f.kind)) return { range: TORCH_RANGE, half: TORCH_HALF_ANGLE, color: 0xffe9a8, lamp: true };
+  if (f.kind === 'fennick' && f.chasing) return { range: GLANCE_RANGE, half: GLANCE_HALF_ANGLE, color: 0xbfe3ff, lamp: false };
+  if (f.kind === 'lumley' && f.chasing) return { range: CAMERA_RANGE, half: CAMERA_HALF_ANGLE, color: 0xf2c6ff, lamp: false };
+  return null;
 }

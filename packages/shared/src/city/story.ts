@@ -5,11 +5,11 @@
 import type { Vec2 } from '../map.js';
 import type { Mark, Script } from './script.js';
 
-export const ACT_IDS = ['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'alert', 'dust', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza'] as const;
+export const ACT_IDS = ['dump', 'ransom', 'insider', 'founder', 'overflow', 'split', 'receipt', 'alert', 'dust', 'envelope', 'popcorn', 'number', 'coins', 'deadman', 'password', 'pizza'] as const;
 export type ActId = (typeof ACT_IDS)[number];
 
 // Everyone who can catch a crew member and send them back.
-export const CATCHER_IDS = ['guard', 'duncan', 'lookout', 'choir', 'keeper', 'gull', 'courier'] as const;
+export const CATCHER_IDS = ['guard', 'duncan', 'lookout', 'choir', 'keeper', 'gull', 'courier', 'camera'] as const;
 export type CatcherId = (typeof CATCHER_IDS)[number];
 
 export interface Catcher {

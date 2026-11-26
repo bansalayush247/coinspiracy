@@ -2,6 +2,14 @@
 
 ## 26 November 2026
 
+### Season three, act two: The Envelope
+- At Mint Hall, Ivy shows how the Mint signs a note it never sees: write your own serial, seal it in an envelope lined
+  with carbon paper, and the guardians sign the outside. The signature comes through onto the note.
+- Seal an envelope at each of three desks on the steps. Across the street, Glasshouse's photographer Lumley sweeps a
+  camera back and forth: write only while it's turned away. Get caught writing and that envelope is spoiled.
+- Spend the note at Dee's corner shop. Perpetua Glass reads the receipt and can't join it to anyone. She remembers what
+  Rook told her in The Dust. Pays 400 play sats once. Inspired by blind signatures.
+
 ### Season three, act one: The Dust
 - Season three is about privacy. Everyone in Low Tide wakes up with one free coin from "a friend". Ivy explains it's
   dust: spend it together with your own coins and whoever sent it can see they're all yours.

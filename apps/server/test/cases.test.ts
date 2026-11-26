@@ -69,6 +69,10 @@ import {
   DUST_ACT,
   DUST_LOST,
   DUST_REWARD_SATS,
+  DESKS,
+  ENVELOPE_ACT,
+  ENVELOPE_REWARD_SATS,
+  HALL_STEPS_EAST,
   CITY_MAP,
   walkPath,
   type Walker,
@@ -85,6 +89,7 @@ import { SplitRules } from '../src/city/acts/splitRules.js';
 import { ReceiptRules } from '../src/city/acts/receiptRules.js';
 import { AlertRules } from '../src/city/acts/alertRules.js';
 import { DustRules } from '../src/city/acts/dustRules.js';
+import { EnvelopeRules } from '../src/city/acts/envelopeRules.js';
 import type { ActContext, CrewMember } from '../src/city/acts/rules.js';
 import { MemoryProfileStore } from '../src/profile/store.js';
 import { COOKIE_NAME, type SessionKeys } from '../src/profile/session.js';
@@ -633,5 +638,45 @@ describe('season three, act one: The Dust', () => {
     expect(left.rules.lost).toBe(1);
     expect(left.notes).toEqual([{ text: DUST_LOST }]);
     expect(left.back).toBeLessThan(0.01);
+  });
+});
+
+describe('season three, act two: The Envelope', () => {
+  it('seals three envelopes, has them signed blind, and spends one under Perpetua Glass’s nose', async () => {
+    const run = await begin('envelope');
+    await drive(run, { steps: 'time' }, atStep('seal'));
+    for (const i of [0, 1, 2]) await work(run, i);
+    await drive(run, { counter: 'okafor' }, atStep('toShop'));
+    expect(run.client.state.marks).toContain('clueCarbon');
+    await arrive(run, DEE_SHOP, 'till');
+    await finish(run, { till: 'polite' }, ENVELOPE_REWARD_SATS);
+    expect([...run.client.state.marks]).toEqual(expect.arrayContaining(['clueEnvelope', 'timedCamera', 'clueCarbon', 'spendForOkafor', 'politeGlass']));
+  }, 90_000);
+
+  it('snaps only someone writing in the camera’s view, and sends them back up the steps', () => {
+    const run = (writing: boolean) => {
+      const state = new MissionState();
+      for (let i = 0; i < DESKS.length; i++) state.spots.push(new MissionSpot());
+      const caught: { by: string; to: { x: number; y: number } }[] = [];
+      const desk = DESKS[1]?.at ?? DEE_SHOP;
+      const crew = [{ id: 'rook', player: { ...desk }, caughtUntil: 0 }] as unknown as CrewMember[];
+      const ctx = { ...fakeContext(state, crew), act: ENVELOPE_ACT, catchMember: (_: CrewMember, by: string, to: { x: number; y: number }) => caught.push({ by, to }) };
+      const rules = new EnvelopeRules();
+      rules.setup(ctx);
+      state.step = 'seal';
+      const spot = state.spots[1];
+      if (writing && spot !== undefined) spot.worker = 'rook';
+      for (let now = 0; now < 20_000 && rules.snapped === 0; now += 50) {
+        rules.move(ctx);
+        rules.tick(ctx, now);
+      }
+      return { rules, caught, chasing: state.npcs.get('lumley')?.chasing };
+    };
+    const writer = run(true);
+    expect(writer.rules.snapped).toBe(1);
+    expect(writer.caught).toEqual([{ by: 'camera', to: HALL_STEPS_EAST }]);
+    expect(writer.chasing).toBe(true);
+    const idler = run(false);
+    expect(idler.rules.snapped).toBe(0);
   });
 });

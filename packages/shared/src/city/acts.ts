@@ -3,6 +3,7 @@ import { ALERT_ACT } from './alert.js';
 import { COINS_ACT } from './coins.js';
 import { DEADMAN_ACT } from './deadman.js';
 import { DUST_ACT } from './dust.js';
+import { ENVELOPE_ACT } from './envelope.js';
 import { DUMP_ACT } from './dump.js';
 import { FOUNDER_ACT } from './founder.js';
 import { INSIDER_ACT } from './insider.js';
@@ -26,6 +27,7 @@ export const STORY_ACTS: Readonly<Record<ActId, StoryAct>> = Object.freeze({
   receipt: RECEIPT_ACT,
   alert: ALERT_ACT,
   dust: DUST_ACT,
+  envelope: ENVELOPE_ACT,
   popcorn: POPCORN_ACT,
   number: NUMBER_ACT,
   coins: COINS_ACT,

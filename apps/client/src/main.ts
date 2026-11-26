@@ -267,6 +267,9 @@ class Controller {
     el('open-dust', HTMLButtonElement).addEventListener('click', () => {
       void this.#playStory({ act: 'dust' });
     });
+    el('open-envelope', HTMLButtonElement).addEventListener('click', () => {
+      void this.#playStory({ act: 'envelope' });
+    });
     el('open-cases', HTMLButtonElement).addEventListener('click', () => {
       this.#casebook.open();
     });

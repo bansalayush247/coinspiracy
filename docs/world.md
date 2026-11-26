@@ -296,3 +296,14 @@ Season three, act one, The Dust (`dust.ts`; rules `acts/dustRules.ts`): season t
   he came for `GLANCE_S` (`courierSees`; the client draws the cone only while `chasing` is set). Anyone seen, or a
   crew further than `TAIL_LOSE` for `LOSE_S`, restarts the tail from Dee's. His walk runs in `move`, the catches in
   `tick`. A test follows him at steady distances: 8 to 11 tiles arrives, closer is seen, further is lost.
+
+Season three, act two, The Envelope (`envelope.ts`; rules `acts/envelopeRules.ts`): blind signatures.
+- Tuning in `tuning/envelope.json` (`EnvelopeTuningSchema`): the desks, write time, the camera's place, sweep ends,
+  turn speed, pause, range and angle, and the reward.
+- Three desks on the Mint Hall steps (`DESKS`, all three needed). Lumley's camera outside City Hall sweeps between
+  two points and back (`cameraFacing`, period `SWEEP_S`); `cameraSees` uses line of sight like every other cone.
+- Only someone writing (a desk's `worker`) can be caught: the envelope is lost and they go back to
+  `HALL_STEPS_EAST`. Standing in view is fine. The sweep runs in `move` (the client draws the cone while `chasing`),
+  the catch in `tick`. A test checks every desk is swept and has a safe start between 20% and 60% of the time.
+- Then the counter scene, and the note is spent at Dee's (`DEE_SHOP`). Glass remembers The Dust: `carriedMarks`
+  turns its `defendedPrivacy` and `askedJob` into `pastDefendedPrivacy` and `pastAskedJob`.

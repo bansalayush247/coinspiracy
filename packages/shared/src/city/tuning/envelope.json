@@ -1,0 +1,22 @@
+{
+  "hallSteps": { "x": 82.5, "y": 28.5 },
+  "desks": [
+    { "at": { "x": 76.5, "y": 28.5 }, "label": "the pillar desk" },
+    { "at": { "x": 80.5, "y": 29.5 }, "label": "the middle desk" },
+    { "at": { "x": 84.5, "y": 28.5 }, "label": "the steps desk" }
+  ],
+  "envelopesNeeded": 3,
+  "deskReach": 1.4,
+  "writeMs": 2000,
+  "camera": {
+    "at": { "x": 80.5, "y": 33.0 },
+    "lookFrom": { "x": 75.5, "y": 28.5 },
+    "lookTo": { "x": 85.5, "y": 28.5 },
+    "turnSpeed": 0.5,
+    "pauseSeconds": 1,
+    "range": 7,
+    "halfAngle": 0.3
+  },
+  "night": 0,
+  "rewardSats": 400
+}

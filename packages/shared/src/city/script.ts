@@ -38,6 +38,7 @@ export const SPEAKERS = [
   'dee',
   'fennick',
   'glass',
+  'lumley',
 ] as const;
 export type Speaker = (typeof SPEAKERS)[number];
 
@@ -77,6 +78,7 @@ export const SPEAKER_NAMES: Readonly<Record<Speaker, string>> = Object.freeze({
   dee: 'Dee',
   fennick: 'Mr Fennick',
   glass: 'Perpetua Glass',
+  lumley: 'Lumley',
 });
 
 // Things characters remember (who) and clues the player picks up (clue), set by choices and scenes.

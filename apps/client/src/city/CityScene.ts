@@ -547,7 +547,7 @@ export class CityScene extends Phaser.Scene {
     this.cameras.main.setLerp(k, k);
   }
 
-  // Fades whatever is drawn in front of this client's guardian, and outlines any guardian the camera can't see
+  // Fades whatever is drawn in front of this client's guardian or anyone watching with a sight cone, and outlines any guardian the camera can't see
   // behind a building or prop, so nobody is ever lost behind a tower, a tree or a stack of crates.
   #seeThrough(delta: number): void {
     const k = Math.min(1, delta / 120);
@@ -557,12 +557,20 @@ export class CityScene extends Phaser.Scene {
       const depth = sortDepth(a.pos.x, a.pos.y);
       let covered = false;
       for (const w of this.#walls) {
-        if (w.depth <= depth || s.x <= w.left - 14 * ART_SCALE || s.x >= w.right + 14 * ART_SCALE || s.y - GUARDIAN_HEIGHT >= w.bottom || s.y <= w.top) continue;
+        if (!hides(w, s, depth)) continue;
         covered = true;
         if (a.isMe) fade.add(w);
         else break;
       }
       this.#outline(a, covered && !a.down && !a.inCar);
+    }
+    for (const p of this.#mission?.watchers() ?? []) {
+      const s = worldToScreen(p.x, p.y, this.#tmp);
+      const depth = sortDepth(p.x, p.y);
+      for (const w of this.#walls) {
+        if (!hides(w, s, depth)) continue;
+        fade.add(w);
+      }
     }
     for (const w of this.#walls) {
       const target = fade.has(w) ? w.faded : 1;
@@ -792,4 +800,9 @@ function drawPile(g: Phaser.GameObjects.Graphics, face: Phaser.GameObjects.Image
     }
   }
   face.setPosition(2 * ART_SCALE, -((height - 1) * 2.4 + 6.5) * ART_SCALE);
+}
+
+// Whether a wall is drawn over a guardian standing at screen point `s` with sort depth `depth`.
+function hides(w: Wall, s: { x: number; y: number }, depth: number): boolean {
+  return w.depth > depth && s.x > w.left - 14 * ART_SCALE && s.x < w.right + 14 * ART_SCALE && s.y - GUARDIAN_HEIGHT < w.bottom && s.y > w.top;
 }

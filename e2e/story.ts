@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { matchMaker } from '@colyseus/core';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
-import { DEE_SHOP, DOORS, AERIAL, HATCH, BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
+import { DEE_SHOP, DESKS, DOORS, AERIAL, HATCH, BOATS, COOP_YARD, HARBOUR_OFFICE, HALL_STEPS, SHOPKEEPERS, MARKET_MIDDLE, STALLS, BENNY_DOOR, BINS, KENNEL_SPOT, MARCO_DOOR, POPCORN_ACT, TOPPINGS, BREAKWATER, CITY_MAP, GENERATORS, MAST_SPOT, NONCE_SPOT, TERMINALS, TOWER_SPOT, DANI_SPOT, GATE_SPOT, GUARDIANS, HEAPS, IVY_SPOT, LIGHTHOUSE_DOOR, canDig } from '@byzantine-council/shared/city';
 import { canStand, findPath } from '@byzantine-council/shared/pathfinding';
 import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
@@ -127,6 +127,7 @@ async function main(): Promise<void> {
     browser = await chromium.launch({ executablePath: BRAVE, headless: true, chromiumSandbox: true, timeout: 30_000 });
     await mkdir(shots, { recursive: true });
     await mkdir(`${evidence}dust/`, { recursive: true });
+    await mkdir(`${evidence}envelope/`, { recursive: true });
     const errors: string[] = [];
 
     const { page, room } = await open(browser, 'Rook', { width: 1280, height: 800 }, errors);
@@ -668,6 +669,37 @@ async function main(): Promise<void> {
     check(((await dust.page.textContent('#story-end-title')) ?? '') === 'The Dust', 'the tail ends at Glasshouse and season three begins');
     check(((await dust.page.textContent('#story-reward')) ?? '').includes('+350 play sats'), `it pays its first finish (${(await dust.page.textContent('#story-reward')) ?? ''})`);
     await dust.page.close();
+
+    const env = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-envelope');
+    check(env.room.state.act === 'envelope', 'the next tile opens season three, act two: The Envelope');
+    await answer(env.page, env.room, 'steps', 1);
+    for (const node of ['stepsTime', 'stepsGo']) await read(env.page, env.room, node);
+    await until(() => env.room.state.step === 'seal', 'sealing envelopes');
+    env.room.quietNight();
+    for (const i of [0, 1, 2]) {
+      const desk = DESKS[i];
+      if (desk === undefined) throw new Error('desk');
+      env.room.teleport(desk.at.x, desk.at.y);
+      await env.page.waitForFunction((label) => document.getElementById('story-dig')?.textContent.includes(`Write and seal at ${label}`) === true, desk.label, { timeout: 10_000 }).catch(() => undefined);
+      if (i === 1) {
+        await until(() => env.room.state.npcs.get('lumley')?.chasing === true, 'the camera sweeping');
+        await env.page.waitForTimeout(1500);
+        await env.page.screenshot({ path: `${evidence}envelope/camera-sweep.png` });
+      }
+      await env.page.keyboard.press('e');
+      await until(() => env.room.state.spots[i]?.done === true, `desk ${String(i)}`);
+    }
+    await answer(env.page, env.room, 'counter', 1);
+    check(env.room.state.marks.includes('clueCarbon'), 'the Mint signs three envelopes without opening one');
+    for (const node of ['counterOkafor', 'counterGo']) await read(env.page, env.room, node);
+    await until(() => env.room.state.step === 'toShop', 'off to spend it');
+    env.room.teleport(DEE_SHOP.x, DEE_SHOP.y);
+    await answer(env.page, env.room, 'till', 1);
+    for (const node of ['tillPolite', 'tillIvy']) await read(env.page, env.room, node);
+    await env.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    check(((await env.page.textContent('#story-end-title')) ?? '') === 'The Envelope', 'the note is spent and Glasshouse can’t join it up');
+    check(((await env.page.textContent('#story-reward')) ?? '').includes('+400 play sats'), `it pays its first finish (${(await env.page.textContent('#story-reward')) ?? ''})`);
+    await env.page.close();
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
   } finally {

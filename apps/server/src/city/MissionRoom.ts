@@ -60,6 +60,7 @@ import { RansomRules } from './acts/ransomRules.js';
 import { ReceiptRules } from './acts/receiptRules.js';
 import { AlertRules } from './acts/alertRules.js';
 import { DustRules } from './acts/dustRules.js';
+import { EnvelopeRules } from './acts/envelopeRules.js';
 import { near, type ActContext, type ActRules } from './acts/rules.js';
 
 interface Auth {
@@ -116,6 +117,7 @@ const RULES: Readonly<Record<ActId, () => ActRules>> = {
   receipt: () => new ReceiptRules(),
   alert: () => new AlertRules(),
   dust: () => new DustRules(),
+  envelope: () => new EnvelopeRules(),
   popcorn: () => new PopcornRules(),
   number: () => new NumberRules(),
   coins: () => new CoinsRules(),
