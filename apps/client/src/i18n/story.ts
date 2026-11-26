@@ -13,6 +13,7 @@ const LOADERS: Readonly<Partial<Record<Locale, () => Promise<StoryCatalog>>>> = 
   sw: async () => (await import('./story.sw.json', { with: { type: 'json' } })).default,
   ha: async () => (await import('./story.ha.json', { with: { type: 'json' } })).default,
   zu: async () => (await import('./story.zu.json', { with: { type: 'json' } })).default,
+  hi: async () => (await import('./story.hi.json', { with: { type: 'json' } })).default,
 };
 
 const loaded = new Map<Locale, StoryCatalog>();

@@ -3,6 +3,7 @@ import { en } from './en.js';
 import { es } from './es.js';
 import { fr } from './fr.js';
 import { ha } from './ha.js';
+import { hi } from './hi.js';
 import { sw } from './sw.js';
 import { zu } from './zu.js';
 import type { MessageKey, Messages, Param, ParamArgs, PluralForms, PluralKey, TextKey } from './types.js';
@@ -10,18 +11,18 @@ import type { MessageKey, Messages, Param, ParamArgs, PluralForms, PluralKey, Te
 export type { MessageKey, Messages, Param, PlainKey, PluralForms, PluralKey, TextKey } from './types.js';
 
 /** Languages the client can show, English first as the default. */
-export const LOCALES = ['en', 'es', 'fr', 'sw', 'ha', 'zu'] as const;
+export const LOCALES = ['en', 'es', 'fr', 'sw', 'ha', 'zu', 'hi'] as const;
 
 /** A language the client can show. */
 export type Locale = (typeof LOCALES)[number];
 
 /** Every catalog by language. */
-export const CATALOGS: Readonly<Record<Locale, Messages>> = { en, es, fr, sw, ha, zu };
+export const CATALOGS: Readonly<Record<Locale, Messages>> = { en, es, fr, sw, ha, zu, hi };
 
 /** The localStorage key holding a language the player picked by hand. */
 export const LOCALE_STORAGE_KEY = 'bc.locale';
 
-const INTL_TAG: Readonly<Record<Locale, string>> = { en: 'en', es: 'es-419', fr: 'fr', sw: 'sw', ha: 'ha', zu: 'zu' };
+const INTL_TAG: Readonly<Record<Locale, string>> = { en: 'en', es: 'es-419', fr: 'fr', sw: 'sw', ha: 'ha', zu: 'zu', hi: 'hi' };
 
 /** Attributes data-i18n-* can translate, by dataset name. */
 export const I18N_ATTRIBUTES = { i18nAriaLabel: 'aria-label', i18nTitle: 'title', i18nPlaceholder: 'placeholder' } as const;

@@ -52,7 +52,7 @@ describe('playtest feedback', () => {
       { ...GOOD, text: 'hidden\u202eevil' },
       { ...GOOD, text: 'line\u0007bell' },
       { ...GOOD, where: 'Story Book' },
-      { ...GOOD, locale: 'fr' },
+      { ...GOOD, locale: 'de' },
       { ...GOOD, build: '<script>' },
       '{not json',
     ]) {

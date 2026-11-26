@@ -25,7 +25,7 @@ export const FeedbackSchema = z.strictObject({
     .refine((t) => !unsafe(t), 'unsupported characters')
     .transform((t) => t.trim()),
   where: z.string().regex(/^[a-z][a-z0-9:-]{0,39}$/),
-  locale: z.enum(['en', 'es']),
+  locale: z.enum(['en', 'es', 'fr', 'sw', 'ha', 'zu', 'hi']),
   build: z.string().regex(/^[A-Za-z0-9._-]{1,40}$/),
 });
 /** One piece of feedback, as the client sends it. */

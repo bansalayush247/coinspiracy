@@ -1027,6 +1027,10 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .story-line { font-size: 16px; }
 .story-who { font-weight: 800; margin-right: 6px; }
 .story-paren { color: var(--muted); font-style: italic; margin-right: 6px; font-size: 14px; }
+/* macOS system-ui italic lacks Hausa ƙ (U+0199), falling back to a broken glyph over WebGL. */
+:lang(ha) .quest.empty,
+:lang(ha) .story-action,
+:lang(ha) .story-paren { font-style: normal; }
 .story-rook .story-who { color: #ffd27a; }
 .story-dani .story-who { color: #7fd8cf; }
 .story-mags .story-who { color: #f2b072; }

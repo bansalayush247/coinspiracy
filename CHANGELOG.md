@@ -2,6 +2,11 @@
 
 ## 26 November 2026
 
+### French, Swahili, Hausa, isiZulu and Hindi
+- The game and whole story (all 1,855 lines across every act, side case, end card, note and name tag) are now in
+  French, Swahili, Hausa, isiZulu and Hindi as well as English and Spanish. Hausa, isiZulu and Hindi are marked beta
+  until a native speaker reviews them, and each story catalog loads only when its language is picked.
+
 ### The story in Spanish, and lamplit nights
 - The whole story plays in Spanish when Spanish is picked: all four acts of The Cold Key, season two and three, every
   side case, the casebook, the end cards, the notes and the name tags. That is 1,855 lines, written for Latin

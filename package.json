@@ -23,6 +23,7 @@
     "academy": "tsx --conditions=source e2e/academy.ts",
     "city": "tsx --conditions=source e2e/city.ts",
     "story": "tsx --conditions=source e2e/story.ts",
+    "languages": "tsx --conditions=source e2e/languages.ts",
     "loadtest": "tsx --conditions=source scripts/loadtest/run.ts",
     "dev:islands": "tsx --conditions=source scripts/dev/all-islands.ts",
     "beach:phone": "BEACH_VIEWPORT=phone tsx --conditions=source e2e/beach.ts"

@@ -143,7 +143,12 @@ describe('language detection', () => {
     expect(detectLocale('es', ['en-US'])).toBe('es');
     expect(detectLocale('en', ['es-SV'])).toBe('en');
     expect(detectLocale(null, ['es-SV', 'en'])).toBe('es');
-    expect(detectLocale(null, ['fr-FR', 'ES_mx', 'en'])).toBe('es');
+    expect(detectLocale(null, ['de-DE', 'ES_mx', 'en'])).toBe('es');
+    expect(detectLocale(null, ['fr-FR', 'ES_mx', 'en'])).toBe('fr');
+    expect(detectLocale(null, ['sw-KE', 'ha-NG', 'zu-ZA'])).toBe('sw');
+    expect(detectLocale(null, ['ha-NG'])).toBe('ha');
+    expect(detectLocale(null, ['zu-ZA'])).toBe('zu');
+    expect(detectLocale(null, ['hi-IN'])).toBe('hi');
     expect(detectLocale(null, ['en-GB', 'es'])).toBe('en');
     expect(detectLocale('klingon', ['de-DE', 'ja'])).toBe('en');
     expect(detectLocale(null, [])).toBe('en');
