@@ -55,6 +55,12 @@ const EnvSchema = z.object({
     .max(512)
     .default(DEFAULT_BLOCK_HEIGHT_URL)
     .refine((v) => v === 'off' || isHttpsUrl(v), 'must be an https URL or "off"'),
+  // Folder for playtest feedback files; unset means the feedback route does not exist.
+  FEEDBACK_DIR: z
+    .string()
+    .max(512)
+    .refine((v) => v.startsWith('/') && !v.split('/').includes('..'), 'must be an absolute path without ..')
+    .optional(),
   // Origins that may frame the game (Discord, web portals); unset keeps frame-ancestors 'none'.
   FRAME_ANCESTORS: z
     .string()
@@ -80,6 +86,7 @@ export interface ServerConfig {
   readonly chainTipUrl: string | null;
   readonly bots: boolean;
   readonly frameAncestors: readonly string[];
+  readonly feedbackDir: string | null;
 }
 
 // Fails fast with the offending variable names; values are not echoed.
@@ -108,5 +115,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): ServerConfig {
     chainTipUrl: cfg.BLOCK_HEIGHT_URL === 'off' ? null : cfg.BLOCK_HEIGHT_URL,
     bots: cfg.BOTS === 'on',
     frameAncestors: cfg.FRAME_ANCESTORS,
+    feedbackDir: cfg.FEEDBACK_DIR ?? null,
   };
 }

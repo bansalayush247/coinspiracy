@@ -114,6 +114,11 @@ export class MissionController {
     });
   }
 
+  /** The act being played (or last played), e.g. for tagging feedback. */
+  get actId(): string {
+    return this.#act.id;
+  }
+
   get active(): boolean {
     return this.#room !== null;
   }

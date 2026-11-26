@@ -23,6 +23,7 @@ import { applyBearerSession } from './profile/bearer.js';
 import { createProfileRouter, type ProfileRouter } from './profile/router.js';
 import { roomIdForCode } from './roomCodes.js';
 import { createScaling } from './scaling/index.js';
+import { createFeedbackRouter, type FeedbackRouter, type FeedbackSink } from './feedback.js';
 
 export interface GameServerOptions extends RoomPolicyOptions {
   readonly allowedOrigins: ReadonlySet<string>;
@@ -37,6 +38,8 @@ export interface GameServerOptions extends RoomPolicyOptions {
   readonly frameAncestors?: readonly string[];
   /** Discord Activity sign-in; absent or `off` means the token route does not exist. Needs `profiles`. */
   readonly discord?: { readonly config: DiscordConfig; readonly fetch?: FetchLike; readonly perNetworkPerMinute?: number };
+  /** Where playtest feedback goes; absent means the feedback route does not exist. */
+  readonly feedback?: { readonly sink: FeedbackSink; readonly perNetworkPer10Min?: number };
 }
 
 // Colyseus answers every OPTIONS itself and merges these into every HTTP response.
@@ -95,6 +98,15 @@ export function createGameServer(options: GameServerOptions) {
           overall: scaling.rateLimiter('discordAll', 600, 60_000),
           ...(options.discord.fetch === undefined ? {} : { fetch: options.discord.fetch }),
         });
+  const feedbackApi: FeedbackRouter | null =
+    options.feedback === undefined
+      ? null
+      : createFeedbackRouter({
+          sink: options.feedback.sink,
+          allowedOrigins: options.allowedOrigins,
+          perNetwork: scaling.rateLimiter('feedback', options.feedback.perNetworkPer10Min ?? 6, 600_000),
+          overall: scaling.rateLimiter('feedbackAll', 600, 3_600_000),
+        });
   const sessionKeys = options.profiles?.keys ?? null;
 
   const server = defineServer({
@@ -116,6 +128,7 @@ export function createGameServer(options: GameServerOptions) {
       });
       if (profileApi !== null) app.use(profileApi.router);
       if (discordApi !== null) app.use(discordApi.router);
+      if (feedbackApi !== null) app.use(feedbackApi.router);
       // The featured seasonal event for the menu banner; the same for everyone, so caches may keep it a minute.
       app.get(SEASON_PATH, async (req, res) => {
         if (!(await seasons.take(ipKey(requestIp(req))))) {
@@ -159,6 +172,7 @@ export function createGameServer(options: GameServerOptions) {
     seasons.stop();
     profileApi?.stop();
     discordApi?.stop();
+    feedbackApi?.stop();
     roomPolicy().chain.stop();
     void roomPolicy().ipSlots.stop();
     // Colyseus has closed presence and the driver by now; this stops the lane's own timers and connection.

@@ -20,7 +20,9 @@ RestartPreventExitStatus=78
 KillSignal=SIGTERM
 TimeoutStopSec=20
 
-# No privileges, no writable filesystem, no devices.
+# No privileges, no devices, and one writable folder: /var/lib/byzantine-council, for playtest feedback.
+StateDirectory=byzantine-council
+StateDirectoryMode=0700
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 AmbientCapabilities=

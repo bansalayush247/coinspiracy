@@ -38,6 +38,8 @@ import { MatchView } from './matchView.js';
 import { Hud, type LobbyInfo, type RosterEntry } from './ui/hud.js';
 import { Menu, type MenuAction } from './ui/menu.js';
 import { bindLanguagePicker, initLocale, onLocaleChange, t, type PlainKey } from './i18n/index.js';
+import { feedbackWhere } from '@byzantine-council/shared';
+import { FeedbackForm } from './ui/feedback.js';
 
 const PING_EVERY_MS = 4000;
 const PING_TIMEOUT_MS = 3000;
@@ -151,6 +153,7 @@ class Controller {
     private readonly session: Session,
     private readonly scene: CitadelScene,
     private readonly profiles: ProfileApi,
+    private readonly feedback: FeedbackForm,
   ) {
     this.#match = new MatchView(scene, this.#input);
     this.#match.onRewards = () => {
@@ -281,6 +284,15 @@ class Controller {
     });
     el('open-cases', HTMLButtonElement).addEventListener('click', () => {
       this.#casebook.open();
+    });
+    el('open-feedback', HTMLButtonElement).addEventListener('click', () => {
+      this.feedback.open('menu');
+    });
+    el('story-feedback', HTMLButtonElement).addEventListener('click', () => {
+      this.feedback.open(feedbackWhere('story', this.#mission?.actId));
+    });
+    el('result-feedback', HTMLButtonElement).addEventListener('click', () => {
+      this.feedback.open('match');
     });
     this.#casebook.onPlay = (act) => {
       void this.#playStory({ act });
@@ -970,6 +982,7 @@ function boot(): void {
   setupQuality();
   let session: Session;
   let profiles: ProfileApi;
+  let feedback: FeedbackForm;
   let platform: Platform;
   try {
     platform = startPlatform(resolveServerEndpoint(import.meta.env.VITE_SERVER_URL, import.meta.env.DEV), (held) => {
@@ -977,6 +990,7 @@ function boot(): void {
     });
     session = new Session(platform.server, platform.network);
     profiles = new ProfileApi(platform.server.httpBase, platform.network);
+    feedback = new FeedbackForm(platform.server.httpBase);
   } catch {
     showFatal(t('fatal.noServer'));
     return;
@@ -989,7 +1003,7 @@ function boot(): void {
     .then((scene) => {
       // Development only (stripped from builds): lets art checks switch the light.
       if (import.meta.env.DEV) Object.assign(window, { __bcScene: scene });
-      new Controller(session, scene, profiles).start();
+      new Controller(session, scene, profiles, feedback).start();
       platform.loaded();
       if (platform.allows.pwa) void registerServiceWorker();
     })

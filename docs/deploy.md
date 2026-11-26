@@ -92,6 +92,11 @@ ln -sfn "$PWD" /opt/byzantine-council/current && systemctl restart byzantine-cou
   game server are logged under a coarse route label. The error log is at `crit`.
 - The game server logs room and session ids only. Guest profiles are random ids with game progress, and there are no
   emails, names or analytics. Profiles idle for 400 days and idempotency keys older than 30 days are deleted.
+- Playtest feedback (`POST /api/feedback`) exists only when `FEEDBACK_DIR` is set. Each note stores its rating, text,
+  place in the game, language, build and the time to the minute, and nothing else: no address, profile or cookie (the
+  client sends none). Files are owner-only, capped at 5 MB a day, and the route allows 6 notes per network per 10
+  minutes. Players can still type personal details into a note, so delete the files after each playtest. See
+  `docs/playtest.md`.
 
 ## Backups and monitoring
 

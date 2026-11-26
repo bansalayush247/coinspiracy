@@ -15,6 +15,7 @@ import { BOOK_POSTS, READING_TABLE, VOTE_S, DEE_SHOP, DESKS, OLIVE_SHOP, WATCH_A
 import { canStand, findPath } from '@byzantine-council/shared/pathfinding';
 import { ROOM_NAME } from '@byzantine-council/shared';
 import { createGameServer } from '../apps/server/src/app.js';
+import { memoryFeedbackSink } from '../apps/server/src/feedback.js';
 import type { MissionRoom } from '../apps/server/src/city/MissionRoom.js';
 import { OverflowRules } from '../apps/server/src/city/acts/overflowRules.js';
 import { MemoryProfileStore } from '../apps/server/src/profile/store.js';
@@ -115,7 +116,8 @@ const digSpot = (heap: number): { x: number; y: number } => {
 };
 
 async function main(): Promise<void> {
-  const game = createGameServer({ allowedOrigins: new Set([WEB]), ipPolicy: { trustedProxies: new Set() }, maxSeatsPerIp: 16, gracefullyShutdown: false, profiles: { store: new MemoryProfileStore(), keys: { current: randomBytes(32), previous: null, secure: false } } });
+  const feedback = memoryFeedbackSink();
+  const game = createGameServer({ feedback: { sink: feedback }, allowedOrigins: new Set([WEB]), ipPolicy: { trustedProxies: new Set() }, maxSeatsPerIp: 16, gracefullyShutdown: false, profiles: { store: new MemoryProfileStore(), keys: { current: randomBytes(32), previous: null, secure: false } } });
   let web: PreviewServer | undefined;
   let browser: Browser | undefined;
   try {
@@ -128,6 +130,7 @@ async function main(): Promise<void> {
     await mkdir(shots, { recursive: true });
     await mkdir(`${evidence}dust/`, { recursive: true });
     await mkdir(`${evidence}envelope/`, { recursive: true });
+    await mkdir(`${evidence}feedback/`, { recursive: true });
     await mkdir(`${evidence}clock/`, { recursive: true });
     await mkdir(`${evidence}book/`, { recursive: true });
     const errors: string[] = [];
@@ -760,6 +763,17 @@ async function main(): Promise<void> {
     await book.page.locator('#story-end').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
     check(((await book.page.textContent('#story-end-title')) ?? '') === 'The Little Book', 'the guardians hold together and season three ends');
     check(((await book.page.textContent('#story-reward')) ?? '').includes('+600 play sats'), `it pays its first finish (${(await book.page.textContent('#story-reward')) ?? ''})`);
+    await book.page.click('#story-feedback');
+    await book.page.locator('#feedback').waitFor({ state: 'visible', timeout: 10_000 });
+    await book.page.click('#feedback-send');
+    check(((await book.page.textContent('#feedback-status')) ?? '') === 'Pick how fun it was first.', 'feedback asks for a rating before sending');
+    await book.page.locator('#feedback-fun button', { hasText: '4' }).click();
+    await book.page.fill('#feedback-text', 'The letters were fun. Varnish could walk faster.');
+    await book.page.screenshot({ path: `${evidence}feedback/form.png` });
+    await book.page.click('#feedback-send');
+    await book.page.waitForFunction(() => document.getElementById('feedback-status')?.textContent === 'Thank you! That really helps.', undefined, { timeout: 10_000 }).catch(() => undefined);
+    const note = feedback.records.at(-1);
+    check(note?.fun === 4 && note.where === 'story:book' && note.text === 'The letters were fun. Varnish could walk faster.' && note.locale === 'en', `the note reaches the server tagged with the act and nothing about the player (${JSON.stringify(note)})`);
     await book.page.close();
 
     check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);

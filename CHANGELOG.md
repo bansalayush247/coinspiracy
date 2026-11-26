@@ -2,6 +2,15 @@
 
 ## 26 November 2026
 
+### Characters you can tell apart, and playtest feedback
+- Every story character now dresses as who they are: Mr Fennick's bowler and satchel, Lumley's beret and camera,
+  Perpetua Glass's bun, white shades and pearls, Mr Varnish's top hat, monocle and briefcase, Marco's chef's hat, Nell's
+  sou'wester, Rex's megaphone and more. Guardians keep the plain hood, which is now their mark. Shoppers in The Clock
+  and the townsfolk in the city, the plaza and Beach Town wear everyday outfits, so no two in a row look alike.
+- A Feedback tile on the menu, and "How was it?" on story and match end cards, send a 1–5 rating and a short note.
+  Nothing about the player is sent or stored. `docs/playtest.md` explains how to run a session with friends and read
+  the notes.
+
 ### Rule tiers and Redis scaling
 - Council matches now come in rule tiers: Apprentice (tasks and council votes), Journeyman (adds signing ceremonies
   and forgeries) and the Full council (adds network cuts and disconnects). Quick matches follow the least experienced

@@ -17,6 +17,8 @@ interface ImportMetaEnv {
   readonly VITE_PORTAL_REFERRERS?: string;
   // The Discord application id, for the Activity build; public, not a secret.
   readonly VITE_DISCORD_CLIENT_ID?: string;
+  // A short build id reported with playtest feedback, e.g. a release tag; "dev" when unset.
+  readonly VITE_BUILD?: string;
 }
 
 interface ImportMeta {

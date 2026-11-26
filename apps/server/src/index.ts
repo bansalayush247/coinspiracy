@@ -4,6 +4,7 @@ import { discordConfig } from './discord/config.js';
 import { log } from './logger.js';
 import { openProfiles } from './profile/index.js';
 import { createScaling, loadScalingConfig } from './scaling/index.js';
+import { fileFeedbackSink } from './feedback.js';
 
 const EX_CONFIG = 78;
 
@@ -45,6 +46,7 @@ const { listen } = createGameServer({
   ...(config.bots ? { bots: {} } : {}),
   frameAncestors: config.frameAncestors,
   discord: { config: discord },
+  ...(config.feedbackDir === null ? {} : { feedback: { sink: fileFeedbackSink(config.feedbackDir) } }),
   gracefullyShutdown: true,
 });
 

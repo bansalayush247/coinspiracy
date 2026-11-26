@@ -24,3 +24,4 @@ export * from './win.js';
 export * from './arena.js';
 export * from './drills.js';
 export * from './isletMap.js';
+export * from './feedback.js';

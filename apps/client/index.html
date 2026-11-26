@@ -90,6 +90,7 @@
             <button id="open-academy" type="button" class="academy-open" data-i18n="tile.academy">Academy<small data-i18n="tile.academyCaption">Play solo</small></button>
             <button id="open-world" type="button" class="world-open" hidden>Explore<small>Island map</small></button>
             <button id="open-wardrobe" type="button" class="wardrobe-open" hidden data-i18n="tile.wardrobe">Wardrobe<small data-i18n="tile.wardrobeCaption">Your look</small></button>
+            <button id="open-feedback" type="button" class="feedback-open" data-i18n="feedback.tile">Feedback<small data-i18n="feedback.tileCaption">Tell us how it went</small></button>
           </div>
           <aside id="season" class="season" aria-labelledby="season-title" hidden>
             <p id="season-title" class="season-title"></p>
@@ -188,6 +189,7 @@
             <p id="story-reward" class="story-reward"></p>
             <p id="story-end-next" class="story-next"></p>
             <button id="story-finale" type="button" class="cta" hidden></button>
+            <button id="story-feedback" type="button" class="feedback-link" data-i18n="feedback.button">How was it?</button>
             <button id="story-end-leave" type="button" data-i18n="common.backToMap">Back to the map</button>
           </section>
         </section>
@@ -414,7 +416,25 @@
             <div id="rewards-body"></div>
           </section>
           <button id="result-share" type="button" class="share-result" data-i18n="result.share">Share result</button>
+          <button id="result-feedback" type="button" class="feedback-link" data-i18n="feedback.button">How was it?</button>
           <p class="hint" data-i18n="result.back">Back to the lobby in a few seconds.</p>
+        </section>
+
+        <section id="feedback" class="panel modal feedback" role="dialog" aria-modal="true" aria-labelledby="feedback-title" tabindex="-1" hidden>
+          <header class="progress-head">
+            <div>
+              <p class="eyebrow" data-i18n="feedback.eyebrow">Playtest feedback</p>
+              <h2 id="feedback-title" data-i18n="feedback.title">How was that?</h2>
+            </div>
+            <button id="feedback-close" type="button" data-i18n="common.close">Close</button>
+          </header>
+          <p id="feedback-fun-label" class="feedback-label" data-i18n="feedback.funLabel">How fun was it? 1 is not fun, 5 is loved it.</p>
+          <div id="feedback-fun" class="feedback-fun" role="group" aria-labelledby="feedback-fun-label"></div>
+          <label for="feedback-text" class="feedback-label" data-i18n="feedback.noteLabel">Anything to tell us? What confused you, what you loved, what broke.</label>
+          <textarea id="feedback-text" class="feedback-text" rows="4" maxlength="600" autocomplete="off"></textarea>
+          <p class="feedback-meta"><span class="hint" data-i18n="feedback.privacy">Please don’t write your name, email or anything else about you. We don’t record who sent it.</span><span id="feedback-count" class="feedback-count"></span></p>
+          <button id="feedback-send" type="button" class="cta" data-i18n="feedback.send">Send</button>
+          <p id="feedback-status" class="feedback-status" aria-live="polite"></p>
         </section>
 
         <div id="toasts" aria-live="polite"></div>
