@@ -5,51 +5,17 @@ import Phaser from 'phaser';
 import type { Vec2 } from '@byzantine-council/shared';
 import { CAMERA_HALF_ANGLE, CAMERA_RANGE, CITY_MAP, GLANCE_HALF_ANGLE, GLANCE_RANGE, HEAPS, TORCH_HALF_ANGLE, TORCH_KINDS, TORCH_RANGE, inSight, type NpcKind, type StoryAct } from '@byzantine-council/shared/city';
 import { clearReaches } from '@byzantine-council/shared/pathfinding';
-import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
+import { drawCostume } from '../game/costumes.js';
+import { GUARDIAN_HEIGHT, drawGuardian, drawShadow } from '../game/guardianArt.js';
+import { LOOKS, shopperLook, type Look } from './looks.js';
 import { sceneDpr } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer } from '../game/interpolation.js';
 import { ART_SCALE, worldToScreen } from '../game/iso.js';
-import { seatColors, type GuardianColors } from '../game/palette.js';
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 // Rays per sight cone; enough that a wall corner cuts it cleanly at the longest reach.
 const CONE_RAYS = 24;
-const PLAIN: Wear = { hat: '', shades: '', outfit: '' };
-const LOOKS: Readonly<Record<Exclude<NpcKind, 'duncan' | 'gull' | 'letter'>, { name: string; colors: GuardianColors; wear: Wear }>> = {
-  dani: { name: 'Dani', colors: { lit: 0x4fb3a9, shadow: 0x2b6b66, highlight: 0xa6e3dc }, wear: PLAIN },
-  mags: { name: 'Mags', colors: { lit: 0xd98c3f, shadow: 0x8a5426, highlight: 0xf2c491 }, wear: PLAIN },
-  guard: { name: 'Ivor', colors: seatColors(7), wear: PLAIN },
-  ivy: { name: 'Ivy', colors: { lit: 0xb79cf0, shadow: 0x6a568f, highlight: 0xe2d6ff }, wear: PLAIN },
-  guardian: { name: 'Guardian', colors: { lit: 0xe8c25a, shadow: 0x8f7330, highlight: 0xfff0b8 }, wear: PLAIN },
-  lookout: { name: 'Lookout', colors: { lit: 0x4a5566, shadow: 0x262c36, highlight: 0x8792a3 }, wear: PLAIN },
-  teo: { name: 'Teo', colors: { lit: 0xff8a3c, shadow: 0x9c4d1c, highlight: 0xffc799 }, wear: PLAIN },
-  brannigan: { name: 'Brannigan', colors: { lit: 0xc7b28a, shadow: 0x7a6a4f, highlight: 0xeee1c2 }, wear: PLAIN },
-  nonce: { name: 'Nonce', colors: { lit: 0x5fd3b0, shadow: 0x2f7a63, highlight: 0xb7f2df }, wear: PLAIN },
-  choir: { name: 'Choir runner', colors: { lit: 0x3a3550, shadow: 0x1c1a28, highlight: 0x77729a }, wear: PLAIN },
-  sharpe: { name: 'Dr Sharpe', colors: { lit: 0x9fb4c7, shadow: 0x56677a, highlight: 0xd8e4ef }, wear: PLAIN },
-  okafor: { name: 'Mrs Okafor', colors: { lit: 0xe57aa8, shadow: 0x8c4566, highlight: 0xf7c4da }, wear: PLAIN },
-  pip: { name: 'Pip', colors: { lit: 0x6fc4e8, shadow: 0x37728c, highlight: 0xc4ebfa }, wear: PLAIN },
-  juno: { name: 'Juno', colors: { lit: 0xa6d65c, shadow: 0x5d7f2e, highlight: 0xdaf2b4 }, wear: PLAIN },
-  crane: { name: 'Mr Crane', colors: { lit: 0x8b8fa8, shadow: 0x4c4f63, highlight: 0xc9cbe0 }, wear: PLAIN },
-  stall: { name: 'Stallholder', colors: { lit: 0xd9b36a, shadow: 0x86683a, highlight: 0xf4dfb1 }, wear: PLAIN },
-  mc: { name: 'MC Mempool', colors: { lit: 0xf2c230, shadow: 0x9a7612, highlight: 0xfff0a0 }, wear: PLAIN },
-  penrose: { name: 'Ms Penrose', colors: { lit: 0x4a4a5c, shadow: 0x26262f, highlight: 0x8e8ea6 }, wear: PLAIN },
-  keeper: { name: 'Mrs Bellweather', colors: { lit: 0x6e7d5a, shadow: 0x3b4430, highlight: 0xb4c19e }, wear: PLAIN },
-  kit: { name: 'Kit', colors: { lit: 0x7f9be0, shadow: 0x435899, highlight: 0xc6d3f5 }, wear: PLAIN },
-  marco: { name: 'Marco', colors: { lit: 0xf2f2ee, shadow: 0x9a9a92, highlight: 0xffffff }, wear: PLAIN },
-  benny: { name: 'Benny', colors: { lit: 0x5c8a6e, shadow: 0x2f4a3a, highlight: 0xa8d1b8 }, wear: PLAIN },
-  rex: { name: 'Rex Bigsby', colors: { lit: 0xe0503c, shadow: 0x8a2c20, highlight: 0xf6a99c }, wear: PLAIN },
-  nell: { name: 'Nell', colors: { lit: 0xe8b33c, shadow: 0x8f6a1e, highlight: 0xf8de9a }, wear: PLAIN },
-  silas: { name: 'Silas', colors: { lit: 0x2f5f8a, shadow: 0x173450, highlight: 0x86b2d8 }, wear: PLAIN },
-  ozzy: { name: 'Ozzy', colors: { lit: 0x58c96a, shadow: 0x2c7a3a, highlight: 0xb4efbe }, wear: PLAIN },
-  dee: { name: 'Dee', colors: { lit: 0xd96b4f, shadow: 0x86392a, highlight: 0xf4b9a8 }, wear: PLAIN },
-  fennick: { name: 'Mr Fennick', colors: { lit: 0x8c8f94, shadow: 0x4a4c50, highlight: 0xc8cbd0 }, wear: PLAIN },
-  glass: { name: 'Perpetua Glass', colors: { lit: 0xf3f5f8, shadow: 0xa9b2bf, highlight: 0xffffff }, wear: PLAIN },
-  lumley: { name: 'Lumley', colors: { lit: 0xe6dcc4, shadow: 0x968a6c, highlight: 0xfff6e0 }, wear: PLAIN },
-  shopper: { name: '', colors: seatColors(0), wear: PLAIN },
-  varnish: { name: 'Mr Varnish', colors: { lit: 0x3e4a63, shadow: 0x1f2533, highlight: 0x8b99b8 }, wear: PLAIN },
-};
 const ANIMAL_NAMES: Readonly<Record<'duncan' | 'gull', string>> = { duncan: 'Duncan', gull: 'Gull' };
 
 interface Figure {
@@ -63,8 +29,8 @@ interface Figure {
   side: 1 | -1;
   chasing: boolean;
   shown: boolean;
-  // Its own colours, when a kind comes in many (the shoppers in a crowd).
-  readonly colors?: GuardianColors;
+  // Its own look, when a kind comes in many (the shoppers in a crowd).
+  readonly look?: Look;
 }
 
 export interface NpcView {
@@ -150,7 +116,7 @@ export class MissionView {
         fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffe3a8', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this.scene)),
       }).setOrigin(0.5, 1);
       this.names.add(label);
-      f = { kind, root, body, label, buffer: new InterpBuffer(), pos: { x: npc.x, y: npc.y }, facing: npc.facing, side: 1, chasing: false, shown: npc.shown, ...(kind === 'shopper' ? { colors: seatColors(Number(id.replace(/\D/g, '')) + 1) } : {}) };
+      f = { kind, root, body, label, buffer: new InterpBuffer(), pos: { x: npc.x, y: npc.y }, facing: npc.facing, side: 1, chasing: false, shown: npc.shown, ...(kind === 'shopper' ? { look: shopperLook(Number(id.replace(/\D/g, ''))) } : {}) };
       this.#draw(f);
       this.#figures.set(id, f);
     }
@@ -247,8 +213,9 @@ export class MissionView {
       drawLetter(f.body, f.chasing);
       return;
     }
-    const look = LOOKS[f.kind];
-    drawGuardian(f.body, f.colors ?? look.colors, f.side, look.wear);
+    const look = f.look ?? LOOKS[f.kind];
+    drawGuardian(f.body, look.colors, f.side, look.wear);
+    drawCostume(f.body, look.costume, f.side);
   }
 
   // Torches: a warm cone on the ground in front of every guard, in the same reach the server uses.

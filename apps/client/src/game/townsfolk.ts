@@ -3,6 +3,7 @@
 import Phaser from 'phaser';
 import type { CitadelMap, Vec2 } from '@byzantine-council/shared';
 import { findPath } from '@byzantine-council/shared/pathfinding';
+import { EVERYDAY_COSTUMES, drawCostume, type Costume } from './costumes.js';
 import { drawGuardian, type Wear } from './guardianArt.js';
 import { ART_SCALE, isoDepth, worldToScreen } from './iso.js';
 import { seatColors } from './palette.js';
@@ -15,6 +16,7 @@ interface Walker {
   readonly body: Phaser.GameObjects.Graphics;
   readonly seat: number;
   readonly wear: Wear;
+  readonly costume: Costume;
   pos: Vec2;
   path: Vec2[];
   waitUntil: number;
@@ -36,13 +38,15 @@ export class Townsfolk {
     for (let i = 0; i < count; i++) {
       const start = spots[(i * 3) % spots.length] ?? { x: 15, y: 15 };
       const seat = (i * 5 + 2) % 9;
-      const wear: Wear = { hat: HATS[i % HATS.length] ?? '', shades: i % 4 === 3 ? 'shades:classic' : '', outfit: '' };
+      const costume = EVERYDAY_COSTUMES[(i * 7 + 3) % EVERYDAY_COSTUMES.length] ?? {};
+      const wear: Wear = { hat: costume.head === undefined ? (HATS[i % HATS.length] ?? '') : '', shades: costume.eyes === undefined && i % 4 === 3 ? 'shades:classic' : '', outfit: '' };
       const shadow = new Phaser.GameObjects.Image(scene, 6 * ART_SCALE, 2 * ART_SCALE, 'fx-shadow').setScale(0.2, 0.2).setTint(0x3b2752).setAlpha(0.4);
       const body = new Phaser.GameObjects.Graphics(scene);
       drawGuardian(body, seatColors(seat), 1, wear);
+      drawCostume(body, costume, 1);
       const root = new Phaser.GameObjects.Container(scene, 0, 0, [shadow, body]);
       layer.add(root);
-      this.#walkers.push({ root, body, seat, wear, pos: { ...start }, path: [], waitUntil: i * 900, facing: 1, phase: i * 1.7 });
+      this.#walkers.push({ root, body, seat, wear, costume, pos: { ...start }, path: [], waitUntil: i * 900, facing: 1, phase: i * 1.7 });
     }
   }
 
@@ -89,6 +93,7 @@ export class Townsfolk {
           if (facing !== w.facing) {
             w.facing = facing;
             drawGuardian(w.body, seatColors(w.seat), facing, w.wear);
+            drawCostume(w.body, w.costume, facing);
           }
         }
       }
