@@ -457,51 +457,69 @@ class Controller {
     return s instanceof CityScene ? s : null;
   }
 
-  // Port Concord: switch scenes, join the city room, and come back to the menu on leaving.
-  async #visitCity(): Promise<void> {
-    if (this.#busy || this.#room !== null || this.#beach?.active === true || this.#city?.active === true || this.#mission?.active === true) return;
+  #beachScene(): BeachScene | null {
+    const s = this.scene.scene.get(BEACH_SCENE_KEY);
+    return s instanceof BeachScene ? s : null;
+  }
+
+  // Launches a world scene over the sleeping Citadel once nothing else is running and the nickname is valid; on
+  // success the caller owns `#busy` and must clear it.
+  async #openWorld<S extends Phaser.Scene>(key: string, find: () => S | null, data?: object): Promise<{ scene: S; nickname: string } | null> {
+    if (this.#busy || this.#room !== null || this.#beach?.active === true || this.#city?.active === true || this.#mission?.active === true) return null;
     const nickname = this.#menu.validNickname();
-    if (nickname === null) return;
+    if (nickname === null) return null;
     this.#busy = true;
     await this.#profileReady;
-    const city = this.#cityScene();
-    if (city === null) {
+    const scene = find();
+    if (scene === null) {
       this.#busy = false;
-      return;
+      return null;
     }
     const created = new Promise<void>((resolve) => {
-      city.events.once(Phaser.Scenes.Events.CREATE, () => {
+      scene.events.once(Phaser.Scenes.Events.CREATE, () => {
         resolve();
       });
     });
-    this.scene.scene.launch(CITY_SCENE_KEY);
+    this.scene.scene.launch(key, data);
     this.scene.scene.sleep();
     await created;
+    return { scene, nickname };
+  }
+
+  #closeWorld(key: string): void {
+    this.scene.scene.stop(key);
+    this.scene.scene.wake();
+    document.documentElement.dataset['phase'] = 'menu';
+    this.#menu.show();
+  }
+
+  #wireWorld(controller: { onToast: (text: string) => void; onProfile: (p: ProfileSummary) => void; onLeft: () => void }, key: string): void {
+    controller.onToast = (text) => {
+      this.#hud.toast(text);
+    };
+    controller.onProfile = (p) => {
+      this.#setProfile(p);
+    };
+    controller.onLeft = () => {
+      this.#closeWorld(key);
+    };
+  }
+
+  // Port Concord: switch scenes, join the city room, and come back to the menu on leaving.
+  async #visitCity(): Promise<void> {
+    const opened = await this.#openWorld(CITY_SCENE_KEY, () => this.#cityScene());
+    if (opened === null) return;
     if (this.#city === null) {
-      const controller = new CityController(this.session, this.profiles, city, this.#input);
-      controller.onToast = (text) => {
-        this.#hud.toast(text);
-      };
-      controller.onProfile = (p) => {
-        this.#setProfile(p);
-      };
-      controller.onLeft = () => {
-        this.scene.scene.stop(CITY_SCENE_KEY);
-        this.scene.scene.wake();
-        document.documentElement.dataset['phase'] = 'menu';
-        this.#menu.show();
-      };
+      const controller = new CityController(this.session, this.profiles, opened.scene, this.#input);
+      this.#wireWorld(controller, CITY_SCENE_KEY);
       this.#city = controller;
     }
     this.#menu.hide();
     document.documentElement.dataset['phase'] = 'city';
     try {
-      await this.#city.enter(nickname);
+      await this.#city.enter(opened.nickname);
     } catch (error) {
-      this.scene.scene.stop(CITY_SCENE_KEY);
-      this.scene.scene.wake();
-      document.documentElement.dataset['phase'] = 'menu';
-      this.#menu.show();
+      this.#closeWorld(CITY_SCENE_KEY);
       this.#menu.showError(joinErrorMessage(error));
     } finally {
       this.#busy = false;
@@ -511,39 +529,11 @@ class Controller {
   // A story mission: Port Concord at night, launched in mission mode, in a private room for the crew; a room id joins
   // a friend's crew instead of starting a new night.
   async #playStory(start: { readonly act?: ActId; readonly roomId?: string }): Promise<void> {
-    if (this.#busy || this.#room !== null || this.#beach?.active === true || this.#city?.active === true || this.#mission?.active === true) return;
-    const nickname = this.#menu.validNickname();
-    if (nickname === null) return;
-    this.#busy = true;
-    await this.#profileReady;
-    const city = this.#cityScene();
-    if (city === null) {
-      this.#busy = false;
-      return;
-    }
-    const created = new Promise<void>((resolve) => {
-      city.events.once(Phaser.Scenes.Events.CREATE, () => {
-        resolve();
-      });
-    });
-    this.scene.scene.launch(CITY_SCENE_KEY, { mission: true });
-    this.scene.scene.sleep();
-    await created;
-    const back = (): void => {
-      this.scene.scene.stop(CITY_SCENE_KEY);
-      this.scene.scene.wake();
-      document.documentElement.dataset['phase'] = 'menu';
-      this.#menu.show();
-    };
+    const opened = await this.#openWorld(CITY_SCENE_KEY, () => this.#cityScene(), { mission: true });
+    if (opened === null) return;
     if (this.#mission === null) {
-      const controller = new MissionController(this.session, this.profiles, city, this.#input);
-      controller.onToast = (text) => {
-        this.#hud.toast(text);
-      };
-      controller.onProfile = (p) => {
-        this.#setProfile(p);
-      };
-      controller.onLeft = back;
+      const controller = new MissionController(this.session, this.profiles, opened.scene, this.#input);
+      this.#wireWorld(controller, CITY_SCENE_KEY);
       controller.onFinale = () => {
         const name = this.#menu.validNickname();
         if (name !== null) void this.#join({ kind: 'create', nickname: name, ceremony: true });
@@ -553,50 +543,24 @@ class Controller {
     this.#menu.hide();
     document.documentElement.dataset['phase'] = 'city';
     try {
-      await this.#mission.enter(nickname, start);
+      await this.#mission.enter(opened.nickname, start);
       if (window.location.hash !== '') window.history.replaceState(null, '', window.location.pathname + window.location.search);
     } catch (error) {
-      back();
+      this.#closeWorld(CITY_SCENE_KEY);
       this.#menu.showError(joinErrorMessage(error));
     } finally {
       this.#busy = false;
     }
   }
 
-  #beachScene(): BeachScene | null {
-    const s = this.scene.scene.get(BEACH_SCENE_KEY);
-    return s instanceof BeachScene ? s : null;
-  }
-
   // Beach Town: switch scenes, join the hub room, and come back to the map on leaving.
   async #visitBeach(): Promise<void> {
-    if (this.#busy || this.#room !== null || this.#beach?.active === true || this.#city?.active === true || this.#mission?.active === true) return;
-    const nickname = this.#menu.validNickname();
-    if (nickname === null) return;
-    this.#busy = true;
-    await this.#profileReady;
-    const beach = this.#beachScene();
-    if (beach === null) {
-      this.#busy = false;
-      return;
-    }
-    const created = new Promise<void>((resolve) => {
-      beach.events.once(Phaser.Scenes.Events.CREATE, () => {
-        resolve();
-      });
-    });
-    this.scene.scene.launch(BEACH_SCENE_KEY);
-    this.scene.scene.sleep();
-    await created;
-    beach.setSeason(this.#seasonColors);
+    const opened = await this.#openWorld(BEACH_SCENE_KEY, () => this.#beachScene());
+    if (opened === null) return;
+    opened.scene.setSeason(this.#seasonColors);
     if (this.#beach === null) {
-      const controller = new BeachController(this.session, this.profiles, beach, this.#input);
-      controller.onProfile = (p) => {
-        this.#setProfile(p);
-      };
-      controller.onToast = (text) => {
-        this.#hud.toast(text);
-      };
+      const controller = new BeachController(this.session, this.profiles, opened.scene, this.#input);
+      this.#wireWorld(controller, BEACH_SCENE_KEY);
       controller.onWardrobe = () => {
         controller.holdStill(true);
         this.#wardrobe.open();
@@ -607,21 +571,14 @@ class Controller {
         controller.holdStill(true);
         this.#story.open(chapter);
       };
-      controller.onLeft = () => {
-        this.scene.scene.stop(BEACH_SCENE_KEY);
-        this.scene.scene.wake();
-        this.#menu.show();
-      };
       this.#beach = controller;
     }
     this.#beach.setProfile(this.#lastProfile);
     this.#menu.hide();
     try {
-      await this.#beach.enter(nickname);
+      await this.#beach.enter(opened.nickname);
     } catch (error) {
-      this.scene.scene.stop(BEACH_SCENE_KEY);
-      this.scene.scene.wake();
-      this.#menu.show();
+      this.#closeWorld(BEACH_SCENE_KEY);
       this.#menu.showError(joinErrorMessage(error));
     } finally {
       this.#busy = false;

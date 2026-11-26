@@ -44,6 +44,9 @@ export function leaderOf(at: Vec2, crew: readonly Vec2[]): Vec2 | null {
   return best;
 }
 
+// Tiles one follow search may open: plenty for a leader within earshot, and a bound when none is reachable.
+const MAGS_SEARCH = 4096;
+
 // One step of Mags following whoever is nearest within earshot; she stands still once close, or if nobody is near.
 export function follow(f: Follower, crew: readonly Vec2[], dt: number, map: CitadelMap): Follower {
   const w = f.walker;
@@ -51,9 +54,10 @@ export function follow(f: Follower, crew: readonly Vec2[], dt: number, map: Cita
   if (leader === null || Math.hypot(leader.x - w.x, leader.y - w.y) <= MAGS_GAP) return f;
   let { path, goal } = f;
   let walker = w;
-  if (goal === null || Math.hypot(goal.x - leader.x, goal.y - leader.y) > MAGS_REPATH || walker.leg >= path.length - 1) {
-    const found = findPath(map, w, leader);
-    if (!found.ok) return f;
+  if (goal === null || Math.hypot(goal.x - leader.x, goal.y - leader.y) > MAGS_REPATH || (path.length > 0 && walker.leg >= path.length - 1)) {
+    const found = findPath(map, w, leader, { maxExpansions: MAGS_SEARCH });
+    // No way through: wait until the leader has moved on instead of searching again every tick.
+    if (!found.ok) return { walker: w, path: [], goal: { x: leader.x, y: leader.y } };
     path = [{ x: w.x, y: w.y }, ...found.value];
     goal = { x: leader.x, y: leader.y };
     walker = { ...w, leg: 0 };

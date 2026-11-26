@@ -98,12 +98,28 @@ function octile(dc: number, dr: number): number {
   return STRAIGHT * Math.max(a, b) + (DIAGONAL - STRAIGHT) * Math.min(a, b);
 }
 
-// Per-search view of the map: walkability plus the extra predicate, each tile asked at most once.
+// Walkable tiles per map (1 open, 2 blocked), worked out once: maps are frozen, so the object is a safe key.
+const WALKABLE = new WeakMap<CitadelMap, Uint8Array>();
+
+function walkable(map: CitadelMap): Uint8Array {
+  let cells = WALKABLE.get(map);
+  if (cells === undefined) {
+    cells = new Uint8Array(map.width * map.height);
+    for (let row = 0; row < map.height; row++) {
+      for (let col = 0; col < map.width; col++) cells[row * map.width + col] = isWalkableTile(map, col, row) ? 1 : 2;
+    }
+    WALKABLE.set(map, cells);
+  }
+  return cells;
+}
+
+// Per-search view of the map: walkability plus the extra predicate, each extra-predicate tile asked at most once.
 class Grid {
   readonly width: number;
   readonly height: number;
-  // 0 unknown, 1 open, 2 blocked.
-  readonly #known: Uint8Array;
+  readonly #walk: Uint8Array;
+  // Extra-predicate answers: 0 unknown, 1 open, 2 blocked; only kept when there is a predicate.
+  readonly #known: Uint8Array | null;
 
   constructor(
     readonly map: CitadelMap,
@@ -113,7 +129,8 @@ class Grid {
   ) {
     this.width = map.width;
     this.height = map.height;
-    this.#known = new Uint8Array(map.width * map.height);
+    this.#walk = walkable(map);
+    this.#known = blocked === undefined ? null : new Uint8Array(map.width * map.height);
   }
 
   index(col: number, row: number): number {
@@ -123,20 +140,17 @@ class Grid {
   open(col: number, row: number): boolean {
     if (col < 0 || row < 0 || col >= this.width || row >= this.height) return false;
     const i = this.index(col, row);
-    const known = this.#known[i] ?? 0;
-    if (known !== 0) return known === 1;
-    const free =
-      isWalkableTile(this.map, col, row) && (i === this.exempt || this.blocked === undefined || !this.blocked(col, row));
-    this.#known[i] = free ? 1 : 2;
+    if (this.#walk[i] !== 1) return false;
+    const known = this.#known;
+    if (known === null || this.blocked === undefined || i === this.exempt) return true;
+    const seen = known[i] ?? 0;
+    if (seen !== 0) return seen === 1;
+    const free = !this.blocked(col, row);
+    known[i] = free ? 1 : 2;
     return free;
   }
 
-  // Square footprint of half-width `half` at `pos` overlaps only open tiles.
-  clear(pos: Vec2, half: number): boolean {
-    const minCol = Math.floor(pos.x - half);
-    const maxCol = Math.floor(pos.x + half);
-    const minRow = Math.floor(pos.y - half);
-    const maxRow = Math.floor(pos.y + half);
+  #box(minCol: number, maxCol: number, minRow: number, maxRow: number): boolean {
     for (let row = minRow; row <= maxRow; row++) {
       for (let col = minCol; col <= maxCol; col++) {
         if (!this.open(col, row)) return false;
@@ -145,16 +159,44 @@ class Grid {
     return true;
   }
 
+  // Square footprint of half-width `half` at `pos` overlaps only open tiles.
+  clear(pos: Vec2, half: number): boolean {
+    return this.#box(Math.floor(pos.x - half), Math.floor(pos.x + half), Math.floor(pos.y - half), Math.floor(pos.y + half));
+  }
+
+  // Samples a ray until the footprint leaves the map or hits a blocked tile, re-testing only when the covered tiles
+  // change. Sample s sits at a + d·(s / steps), or a + d·s when `perStep`; returns the last clear sample (first - 1
+  // if none is clear).
+  clearRun(ax: number, ay: number, dx: number, dy: number, steps: number, half: number, first: number, perStep: boolean): number {
+    let c0 = Number.NaN;
+    let c1 = Number.NaN;
+    let r0 = Number.NaN;
+    let r1 = Number.NaN;
+    for (let s = first; s <= steps; s++) {
+      const t = perStep ? s : s / steps;
+      const x = ax + dx * t;
+      const y = ay + dy * t;
+      if (!(x >= 0 && y >= 0 && x < this.width && y < this.height)) return s - 1;
+      const n0 = Math.floor(x - half);
+      const n1 = Math.floor(x + half);
+      const m0 = Math.floor(y - half);
+      const m1 = Math.floor(y + half);
+      if (n0 === c0 && n1 === c1 && m0 === r0 && m1 === r1) continue;
+      c0 = n0;
+      c1 = n1;
+      r0 = m0;
+      r1 = m1;
+      if (!this.#box(n0, n1, m0, m1)) return s - 1;
+    }
+    return steps;
+  }
+
   // Every sample is at most half a step from any point of the segment; segmentHalf already allows for that.
   clearSegment(a: Vec2, b: Vec2, half: number): boolean {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / SEGMENT_STEP));
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps;
-      if (!this.clear({ x: a.x + dx * t, y: a.y + dy * t }, half)) return false;
-    }
-    return true;
+    return this.clearRun(a.x, a.y, dx, dy, steps, half, 0, false) === steps;
   }
 }
 
@@ -223,6 +265,32 @@ function before(a: OpenEntry, b: OpenEntry): boolean {
   return a.seq < b.seq;
 }
 
+// Search buffers reused across calls of one map size; a tile's cost and parent count only when its stamp is this
+// search's generation, so nothing is cleared between searches. Searches never nest, so one set per size is enough.
+interface Scratch {
+  gen: number;
+  readonly stamp: Uint32Array;
+  readonly closed: Uint32Array;
+  readonly cost: Int32Array;
+  readonly parent: Int32Array;
+}
+const SCRATCH = new Map<number, Scratch>();
+
+function scratch(size: number): Scratch {
+  let s = SCRATCH.get(size);
+  if (s === undefined) {
+    s = { gen: 0, stamp: new Uint32Array(size), closed: new Uint32Array(size), cost: new Int32Array(size), parent: new Int32Array(size) };
+    SCRATCH.set(size, s);
+  }
+  if (s.gen === 0xffffffff) {
+    s.stamp.fill(0);
+    s.closed.fill(0);
+    s.gen = 0;
+  }
+  s.gen += 1;
+  return s;
+}
+
 // A* from `start` to any tile `isGoal` accepts; returns tile indexes from start to goal.
 function search(
   grid: Grid,
@@ -231,26 +299,25 @@ function search(
   heuristic: (col: number, row: number) => number,
   maxExpansions: number,
 ): Result<number[], PathError> {
-  const size = grid.width * grid.height;
-  const cost = new Int32Array(size).fill(-1);
-  const parent = new Int32Array(size).fill(-1);
-  const closed = new Uint8Array(size);
+  const { gen, stamp, closed, cost, parent } = scratch(grid.width * grid.height);
   const heap = new OpenHeap();
   let seq = 0;
   let expanded = 0;
   const startCol = start % grid.width;
   const startRow = Math.floor(start / grid.width);
   const h0 = heuristic(startCol, startRow);
+  stamp[start] = gen;
   cost[start] = 0;
+  parent[start] = -1;
   heap.push({ f: h0, h: h0, seq: seq++, tile: start });
 
   for (let entry = heap.pop(); entry !== undefined; entry = heap.pop()) {
     const tile = entry.tile;
-    if (closed[tile] === 1) continue;
+    if (closed[tile] === gen) continue;
     if (isGoal(tile)) return ok(trace(parent, tile));
     if (expanded >= maxExpansions) return err('searchLimit');
     expanded += 1;
-    closed[tile] = 1;
+    closed[tile] = gen;
     const col = tile % grid.width;
     const row = Math.floor(tile / grid.width);
     const g = cost[tile] ?? 0;
@@ -262,10 +329,11 @@ function search(
       // No corner cutting: a diagonal step sweeps the footprint across both side tiles.
       if (diagonal && (!grid.open(col + dc, row) || !grid.open(col, row + dr))) continue;
       const next = grid.index(nc, nr);
-      if (closed[next] === 1) continue;
+      if (closed[next] === gen) continue;
       const g2 = g + (diagonal ? DIAGONAL : STRAIGHT);
-      const known = cost[next] ?? -1;
+      const known = stamp[next] === gen ? (cost[next] ?? -1) : -1;
       if (known !== -1 && known <= g2) continue;
+      stamp[next] = gen;
       cost[next] = g2;
       parent[next] = tile;
       const h = heuristic(nc, nr);
@@ -411,13 +479,8 @@ export function clearReaches(map: CitadelMap, eye: Vec2, angles: readonly number
   if (!grid.clear(eye, set.segmentHalf)) return angles.map(() => 0);
   const steps = Math.ceil(max / SEGMENT_STEP);
   return angles.map((angle) => {
-    const dx = (Math.cos(angle) * max) / steps;
-    const dy = (Math.sin(angle) * max) / steps;
-    for (let s = 1; s <= steps; s++) {
-      const p = { x: eye.x + dx * s, y: eye.y + dy * s };
-      if (!insideGrid(map, p) || !grid.clear(p, set.segmentHalf)) return ((s - 1) * max) / steps;
-    }
-    return max;
+    const last = grid.clearRun(eye.x, eye.y, (Math.cos(angle) * max) / steps, (Math.sin(angle) * max) / steps, steps, set.segmentHalf, 1, true);
+    return last === steps ? max : (last * max) / steps;
   });
 }
 

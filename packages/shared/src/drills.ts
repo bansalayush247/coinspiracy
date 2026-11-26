@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { isHalted, threshold } from './federation.js';
 import { TaskAnswerSchema, TaskChallengeSchema, checkAnswer, generateChallenge, solveChallenge, type TaskContext } from './minigames.js';
-import type { RandomSource } from './roles.js';
+import { type RandomSource, shuffled } from './roles.js';
 import { TASK_KINDS, type TaskKind } from './tasks.js';
 
 export const ISLAND_DRILL_KINDS = ['threshold', 'quorum', 'council', 'partition'] as const;
@@ -65,19 +65,6 @@ export function isTaskKind(kind: DrillKind): kind is TaskKind {
 
 function between(rng: RandomSource, min: number, max: number): number {
   return min + rng.int(max - min + 1);
-}
-
-function shuffled<T>(items: readonly T[], rng: RandomSource): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = rng.int(i + 1);
-    const a = out[i];
-    const b = out[j];
-    if (a === undefined || b === undefined) throw new RangeError('RandomSource out of range');
-    out[i] = b;
-    out[j] = a;
-  }
-  return out;
 }
 
 // Honest guardians that can be rotated out by mistake before Byzantines reach a third and the federation halts.

@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { ROOM_CODE_ALPHABET } from './lobby.js';
 import { toDenominations } from './notes.js';
-import type { RandomSource } from './roles.js';
+import { type RandomSource, shuffled } from './roles.js';
 import type { TaskKind } from './tasks.js';
 
 // Deposit Gate: the note buttons on offer, largest first.
@@ -94,19 +94,6 @@ function pick<T>(items: readonly T[], rng: RandomSource): T {
   const item = items[rng.int(items.length)];
   if (item === undefined) throw new RangeError('RandomSource out of range');
   return item;
-}
-
-function shuffled<T>(items: readonly T[], rng: RandomSource): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = rng.int(i + 1);
-    const a = out[i];
-    const b = out[j];
-    if (a === undefined || b === undefined) throw new RangeError('RandomSource out of range');
-    out[i] = b;
-    out[j] = a;
-  }
-  return out;
 }
 
 function popcount(n: number): number {

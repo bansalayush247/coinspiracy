@@ -26,6 +26,20 @@ export const cryptoRandom: RandomSource = {
   },
 };
 
+/** A shuffled copy of `items` (Fisher-Yates); throws RangeError if `rng` answers out of range. */
+export function shuffled<T>(items: readonly T[], rng: RandomSource): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = rng.int(i + 1);
+    const a = out[i];
+    const b = out[j];
+    if (a === undefined || b === undefined) throw new RangeError('RandomSource out of range');
+    out[i] = b;
+    out[j] = a;
+  }
+  return out;
+}
+
 // Deals hidden roles with a Fisher-Yates shuffle.
 export function assignRoles(
   playerIds: readonly PlayerId[],
