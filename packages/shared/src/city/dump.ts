@@ -81,6 +81,8 @@ export const JUNK: readonly string[] = Object.freeze([
   'A garden gnome holding a smaller garden gnome.',
   'A fax machine. Still warm, somehow.',
 ]);
+/** What the crew finds in the heap the device was buried in. */
+export const DEVICE_NOTE = 'A small black device, flat as a coaster.';
 export const GUITAR = 'Your old guitar, strings curled like question marks. Dani wasn’t lying.';
 export const SKIP_HEAP = 'Turned over already. Somebody beat you to it and found a toaster.';
 

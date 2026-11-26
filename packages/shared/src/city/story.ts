@@ -93,12 +93,18 @@ export const canWork = (who: Vec2, spot: StorySpot, reach: number): boolean => M
 export const honestIn = (act: StoryAct, marks: Iterable<string>): boolean => [...marks].some((m) => act.marks[m]?.honest === true);
 
 // The button text for a spot, e.g. "Dig the 2013 · winter heap" or "Ask Osei to sign".
-export const workLabel = (act: StoryAct, spot: StorySpot): string => act.workVerb.replace('{}', spot.label);
+export const workLabel = (act: StoryAct, spot: StorySpot, translate: (text: string) => string = (text) => text): string => translate(act.workVerb).replace('{}', translate(spot.label));
 
 export const nightAt = (act: StoryAct, step: string): number => act.nights?.[step] ?? act.night;
 
-// The line over the story HUD, e.g. "The Cold Key · Act two · The Ransom Call".
-export const storyEyebrow = (act: StoryAct): string => (act.kind === 'case' ? `Ripped from the ledger · ${act.title}` : `The Cold Key · ${act.number} · ${act.title}`);
+/** Story lines with {placeholders} filled in as they happen, kept whole so each translates as one sentence. */
+export const STORY_TEMPLATES = Object.freeze({
+  rexNote: 'Rex talked {label} round: “Bigger notes, love! Faster!” Win them back.',
+  bookAlone: '{name} has been alone with a letter too long. Alone now: {alone}. Mr Varnish needs {needed}.',
+});
+
+/** Fills a template's {placeholders}; an unknown one is left as it is. */
+export const fillTemplate = (template: string, params: Readonly<Record<string, string>>): string => template.replace(/\{(\w+)\}/g, (whole, key: string) => params[key] ?? whole);
 
 // Every scene a script can start from: the steps' scenes and the spots' own.
 export const sceneStarts = (act: StoryAct): string[] => [...Object.values(act.scenes), ...act.spots.flatMap((s) => (s.scene === undefined ? [] : [s.scene]))];

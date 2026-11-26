@@ -1,7 +1,7 @@
 // The Old Receipt's own rules: which of Nell's boats holds the newest receipt (picked here, never sent until it is
 // found, and only narrowed to a jetty if Nell is helped to remember), Silas's deckhands on the jetties, and the
 // tide: a clock that starts with the search and, if it runs out first, lets Silas's old receipt stand.
-import { BOATS, BOAT_NOTES, COOP_YARD, DECKHAND_BACKS, DECKHAND_ROUTES, DECKHAND_SPEED, HARBOUR_OFFICE, IVY_SPOT, JETTY_MARKS, MissionNpc, RECEIPT_FOUND, TIDE_MS } from '@byzantine-council/shared/city';
+import { BOATS, BOAT_NOTES, COOP_YARD, DECKHAND_BACKS, DECKHAND_NAME, DECKHAND_ROUTES, DECKHAND_SPEED, HARBOUR_OFFICE, IVY_SPOT, JETTY_MARKS, MissionNpc, RECEIPT_FOUND, TIDE_MS } from '@byzantine-council/shared/city';
 import { Patrols } from './patrols.js';
 import { place, type ActContext, type ActRules, type CrewMember } from './rules.js';
 
@@ -12,7 +12,7 @@ export class ReceiptRules implements ActRules {
   #wrong = 0;
   #tideAt = 0;
   readonly #patrols = new Patrols(
-    DECKHAND_ROUTES.map((route, i) => ({ id: `deckhand${String(i)}`, kind: 'lookout', name: 'Deckhand', route, speed: DECKHAND_SPEED, by: 'guard', back: DECKHAND_BACKS[i] ?? COOP_YARD })),
+    DECKHAND_ROUTES.map((route, i) => ({ id: `deckhand${String(i)}`, kind: 'lookout', name: DECKHAND_NAME, route, speed: DECKHAND_SPEED, by: 'guard', back: DECKHAND_BACKS[i] ?? COOP_YARD })),
     ['search', 'deliver'],
   );
 

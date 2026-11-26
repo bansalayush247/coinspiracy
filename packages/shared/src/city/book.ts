@@ -4,7 +4,7 @@ import { threshold } from '../federation.js';
 import type { Vec2 } from '../map.js';
 import { GUARDIANS } from './ransom.js';
 import type { Mark, Script } from './script.js';
-import type { StoryAct, StorySpot } from './story.js';
+import { STORY_TEMPLATES, fillTemplate, type StoryAct, type StorySpot } from './story.js';
 import raw from './tuning/book.json' with { type: 'json' };
 
 const PointSchema = z.strictObject({ x: z.number(), y: z.number() });
@@ -184,7 +184,7 @@ export function takeLetter(posts: readonly Post[], guardian: number): { posts: r
 
 /** Told to the crew whenever a guardian is newly alone with a letter, with how many are. */
 export const BOOK_ALONE = (name: string, alone: number): string =>
-  `${name} has been alone with a letter too long. Alone now: ${String(alone)}. Mr Varnish needs ${String(MOTION_NEEDED)}.`;
+  fillTemplate(STORY_TEMPLATES.bookAlone, { name, alone: String(alone), needed: String(MOTION_NEEDED) });
 /** Told to the crew the first time a letter is read out at the table. */
 export const BOOK_READ = 'Read out at the table: “You are the last guardian still holding out.” Every guardian got the same letter, word for word.';
 /** Told to the crew when four guardians are alone at once and Mr Varnish calls the vote early. */

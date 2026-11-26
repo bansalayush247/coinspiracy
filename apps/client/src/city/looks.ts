@@ -25,6 +25,9 @@ function look(name: string, lit: number, shadow: number, highlight: number, cost
   return { name, colors: { lit, shadow, highlight }, wear: PLAIN, costume };
 }
 
+/** The name tags over the animals in the story. */
+export const ANIMAL_NAMES: Readonly<Record<'duncan' | 'gull', string>> = { duncan: 'Duncan', gull: 'Gull' };
+
 /** Every robed story character's look, by NPC kind. */
 export const LOOKS: Readonly<Record<FigureKind, Look>> = {
   dani: look('Dani', 0x4fb3a9, 0x2b6b66, 0xa6e3dc, { head: ['beanie', 0x2f4858], eyes: ['glasses', SILVER] }),

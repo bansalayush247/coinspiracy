@@ -164,6 +164,28 @@ export function makeFxTextures(scene: Phaser.Scene): void {
     c.fillStyle = g;
     c.fillRect(0, 0, 32, 32);
   });
+  // A rounded gold chevron pointing right, drawn large so it stays crisp when turned and scaled down.
+  make('fx-arrow', 64, 64, (c) => {
+    c.lineJoin = 'round';
+    c.beginPath();
+    c.moveTo(14, 13);
+    c.lineTo(54, 32);
+    c.lineTo(14, 51);
+    c.lineTo(23, 32);
+    c.closePath();
+    c.fillStyle = '#ffd27a';
+    c.strokeStyle = '#2a1a33';
+    c.lineWidth = 6;
+    c.stroke();
+    c.fill();
+    c.beginPath();
+    c.moveTo(20, 20);
+    c.lineTo(46, 32);
+    c.lineTo(27, 32);
+    c.closePath();
+    c.fillStyle = 'rgba(255,246,218,0.7)';
+    c.fill();
+  });
   make('fx-spark', 32, 32, (c) => {
     c.fillStyle = '#fff';
     c.beginPath();
@@ -225,6 +247,18 @@ export function makeFxTextures(scene: Phaser.Scene): void {
       c.arc(x, y, r, 0, Math.PI * 2);
       c.fill();
     }
+  });
+  // A ground pool of light that fades out smoothly, with no rim at its edge.
+  make('fx-pool', 256, 128, (c) => {
+    const g = c.createRadialGradient(128, 128, 0, 128, 128, 128);
+    for (const [at, a] of [[0, 1], [0.25, 0.8], [0.5, 0.42], [0.75, 0.13], [1, 0]] as const) g.addColorStop(at, `rgba(255,255,255,${String(a)})`);
+    c.fillStyle = g;
+    c.save();
+    c.scale(1, 0.5);
+    c.beginPath();
+    c.arc(128, 128, 128, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
   });
   make('fx-shadow', 256, 128, (c) => {
     const g = c.createRadialGradient(128, 64, 0, 128, 64, 128);

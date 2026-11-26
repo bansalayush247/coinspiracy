@@ -38,6 +38,7 @@ import { MatchView } from './matchView.js';
 import { Hud, type LobbyInfo, type RosterEntry } from './ui/hud.js';
 import { Menu, type MenuAction } from './ui/menu.js';
 import { bindLanguagePicker, initLocale, onLocaleChange, t, type PlainKey } from './i18n/index.js';
+import { preloadStory } from './i18n/story.js';
 import { feedbackWhere } from '@byzantine-council/shared';
 import { FeedbackForm } from './ui/feedback.js';
 
@@ -934,6 +935,7 @@ function setupQuality(): void {
 
 function boot(): void {
   initLocale();
+  preloadStory();
   bindLanguagePicker(el('language', HTMLSelectElement));
   setupSound();
   setupQuality();

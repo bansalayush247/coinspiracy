@@ -94,6 +94,8 @@ export const VOLUNTEER_ROUTES: readonly (readonly Vec2[])[] = Object.freeze([
 ]);
 export const VOLUNTEER_SPEED = 1.5;
 export const MAGS_SPOTTED = 'A torch finds Mags. “Rex’s lot!” She’s back in the hatch quicker than you’d think. Go and fetch her.';
+/** What the volunteers walking the yard are called over their heads. */
+export const VOLUNTEER_NAME = 'Volunteer';
 
 export const ALERT_OBJECTIVES: Readonly<Record<(typeof ALERT_STEPS)[number], string>> = Object.freeze({
   call: 'The Mint’s watchtower room. Ozzy has traced the voice.',

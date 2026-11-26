@@ -5,6 +5,7 @@ import { DUMP_ACT, SPEAKER_NAMES, visibleChoices, visibleLines, type ScriptChoic
 import { audio } from '../audio/engine.js';
 import { el, h } from '../ui/dom.js';
 import { t } from '../i18n/index.js';
+import { storyT } from '../i18n/story.js';
 
 const TYPE_MS = 16;
 const LINE_GAP_MS = 320;
@@ -52,7 +53,7 @@ export class Dialogue {
     if (this.#offered !== null) {
       const chosen = this.#offered.find((c) => c.id === said);
       if (chosen === undefined) this.#say('rook', '…', 'says nothing');
-      else this.#say('rook', chosen.text);
+      else this.#say('rook', storyT(chosen.text));
     }
     const held = this.#held;
     this.#held = [];
@@ -67,7 +68,7 @@ export class Dialogue {
     this.#hint.textContent = '';
     if (node.slug !== undefined) {
       this.#log.replaceChildren();
-      this.#entry('story-slug', node.slug);
+      this.#entry('story-slug', storyT(node.slug));
     }
     for (const mark of held) this.#write(mark);
     void this.#play(node, id, marks, ++this.#token);
@@ -95,7 +96,7 @@ export class Dialogue {
   #write(mark: string): void {
     const m = this.act.marks[mark];
     if (m === undefined || (m.clue !== true && m.who === undefined)) return;
-    const text = m.clue === true ? t('dialogue.clue', { text: m.text }) : m.who === 'rook' ? t('dialogue.youRemember') : t('dialogue.remembers', { name: SPEAKER_NAMES[m.who ?? 'rook'] });
+    const text = m.clue === true ? t('dialogue.clue', { text: storyT(m.text) }) : m.who === 'rook' ? t('dialogue.youRemember') : t('dialogue.remembers', { name: storyT(SPEAKER_NAMES[m.who ?? 'rook']) });
     this.#entry(m.clue === true ? 'story-clue' : 'story-memory', text);
   }
 
@@ -140,12 +141,12 @@ export class Dialogue {
   async #play(node: ScriptNode, id: string, marks: ReadonlySet<string>, token: number): Promise<void> {
     this.#typing = true;
     this.#skipTyping = this.#reduced;
-    if (node.action !== undefined) await this.#type('story-action', node.action, token);
+    if (node.action !== undefined) await this.#type('story-action', storyT(node.action), token);
     for (const line of visibleLines(node, marks)) {
       if (token !== this.#token) return;
-      await this.#line(line.who, line.text, line.paren, token);
+      await this.#line(line.who, storyT(line.text), line.paren === undefined ? undefined : storyT(line.paren), token);
     }
-    if (node.after !== undefined) await this.#type('story-action', node.after, token);
+    if (node.after !== undefined) await this.#type('story-action', storyT(node.after), token);
     if (token !== this.#token) return;
     this.#typing = false;
     const choices = visibleChoices(node, marks);
@@ -163,7 +164,7 @@ export class Dialogue {
       const b = h('button', 'story-choice');
       b.type = 'button';
       b.dataset['choice'] = c.id;
-      b.append(h('kbd', '', String(i + 1)), h('em', '', c.tag), document.createTextNode(c.text), h('span', 'story-votes'));
+      b.append(h('kbd', '', String(i + 1)), h('em', '', storyT(c.tag)), document.createTextNode(storyT(c.text)), h('span', 'story-votes'));
       b.addEventListener('click', () => {
         if (this.#waitingChoice !== id) return;
         audio.play('click');
@@ -200,7 +201,7 @@ export class Dialogue {
 
   #say(who: Speaker, text: string, paren?: string): HTMLElement {
     const p = h('p', `story-line story-${who}`);
-    p.append(h('span', 'story-who', SPEAKER_NAMES[who]));
+    p.append(h('span', 'story-who', storyT(SPEAKER_NAMES[who])));
     if (paren !== undefined) p.append(h('span', 'story-paren', `(${paren})`));
     p.append(h('span', 'story-say', text));
     this.#push(p);

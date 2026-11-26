@@ -6,7 +6,7 @@
 import type { Vec2 } from '../map.js';
 import { IVY_SPOT } from './ransom.js';
 import type { Mark, Script } from './script.js';
-import type { StoryAct, StorySpot } from './story.js';
+import { STORY_TEMPLATES, fillTemplate, type StoryAct, type StorySpot } from './story.js';
 
 export const SPLIT_STEPS = ['call', 'toHall', 'hall', 'canvass', 'count', 'done'] as const;
 
@@ -55,7 +55,7 @@ export function rexTarget(rex: Vec2, won: readonly boolean[], guarded: readonly 
   });
   return best;
 }
-export const REX_NOTE = (label: string): string => `Rex talked ${label} round: “Bigger notes, love! Faster!” Win them back.`;
+export const REX_NOTE = (label: string): string => fillTemplate(STORY_TEMPLATES.rexNote, { label });
 
 export const SPLIT_OBJECTIVES: Readonly<Record<(typeof SPLIT_STEPS)[number], string>> = Object.freeze({
   call: 'Mint Hall. Ivy has bad news, calmly.',

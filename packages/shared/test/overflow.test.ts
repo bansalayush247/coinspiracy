@@ -20,7 +20,6 @@ import {
   honestIn,
   sceneStarts,
   scriptProblems,
-  storyEyebrow,
 } from '../src/city/index.js';
 import { PLAYER_SPEED } from '../src/movement.js';
 import { canStand, findPath, isClearSegment } from '../src/pathfinding.js';
@@ -29,7 +28,7 @@ describe('season two, act one: The Overflow', () => {
   it('follows the season-one acts and is labelled as season two', () => {
     expect(Object.keys(STORY_ACTS).slice(0, 5)).toEqual(['dump', 'ransom', 'insider', 'founder', 'overflow']);
     expect(OVERFLOW_ACT.kind).toBe('act');
-    expect(storyEyebrow(OVERFLOW_ACT)).toBe('The Cold Key · Season two, act one · The Overflow');
+    expect(OVERFLOW_ACT.number).toBe('Season two, act one');
   });
 
   it('has a sound script with every speaker and mark known', () => {

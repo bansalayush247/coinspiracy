@@ -59,19 +59,21 @@ describe('catalog completeness', () => {
   });
 
   it('keeps plural keys plural and text keys text in every language', () => {
-    for (const key of KEYS) {
-      const source = en[key];
-      const target = es[key];
-      expect(typeof target, key).toBe(typeof source);
-      if (typeof target !== 'string') {
-        expect(target.one, key).toBeTruthy();
-        expect(target.other, key).toBeTruthy();
+    for (const locale of LOCALES) {
+      for (const key of KEYS) {
+        const source = en[key];
+        const target = CATALOGS[locale][key];
+        expect(typeof target, `${locale} ${key}`).toBe(typeof source);
+        if (typeof target !== 'string') {
+          expect(target.one, `${locale} ${key}`).toBeTruthy();
+          expect(target.other, `${locale} ${key}`).toBeTruthy();
+        }
       }
     }
   });
 
   it('uses the same placeholders as English in every form', () => {
-    for (const key of KEYS) expect(placeholders(forms(es[key]).join(' ')), key).toEqual(placeholders(forms(en[key]).join(' ')));
+    for (const locale of LOCALES) for (const key of KEYS) expect(placeholders(forms(CATALOGS[locale][key]).join(' ')), `${locale} ${key}`).toEqual(placeholders(forms(en[key]).join(' ')));
   });
 
   it('has no empty or markup-bearing messages', () => {

@@ -51,6 +51,12 @@ export const YARD_NOTES: readonly string[] = Object.freeze([
   'Under Biscuit’s blanket, in the kennel: a dented popcorn tin.',
 ]);
 export const BRANNIGAN_NOTE = 'Brannigan searched it. Nothing, he says, humming.';
+/** Told when Brannigan's search reaches the kennel, where the tin is. */
+export const BRANNIGAN_FOUND = 'Brannigan found the tin in the kennel.';
+/** Told to the crew when Biscuit leaves the kennel for the bins. */
+export const BISCUIT_LEAPS = 'Biscuit leaps off the kennel and trots to the bins.';
+/** Told to the crew when Biscuit comes back to lie on the kennel. */
+export const BISCUIT_BACK = 'Biscuit wanders back to the kennel and flops down on it.';
 export const BISCUIT_REFUSES = 'Biscuit is asleep on the kennel. All of him. He’d move for food, though.';
 
 export const POPCORN_OBJECTIVES: Readonly<Record<(typeof POPCORN_STEPS)[number], string>> = Object.freeze({

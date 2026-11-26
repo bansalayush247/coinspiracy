@@ -2,11 +2,10 @@
 // goes dark, three of four generators to put the station back on air, Dr Sharpe at the microphone, and the cut to
 // the tip gate at dawn where every ending closes.
 import { TICK_SECONDS } from '@byzantine-council/shared';
-import { CHOIR_ROUTES, CHOIR_SPEED, GATE_SPOT, GENERATORS_NEEDED, KENNEL, MAST_SPOT, MissionNpc, inTorch, walkRoute } from '@byzantine-council/shared/city';
+import { CHOIR_ROUTES, CHOIR_SPEED, GATE_SPOT, GENERATORS_NEEDED, GENERATOR_STARTED, KENNEL, MAST_SPOT, MissionNpc, inTorch, walkRoute } from '@byzantine-council/shared/city';
 import { npc, type ActContext, type ActRules, type CrewMember } from './rules.js';
 
 const COMBING: ReadonlySet<string> = new Set(['blackout', 'power']);
-const STARTED = 'The generator coughs, then roars. Somewhere above, a red light blinks on the mast.';
 
 export class FounderRules implements ActRules {
   #running = 0;
@@ -80,6 +79,6 @@ export class FounderRules implements ActRules {
 
   worked(ctx: ActContext, _spot: number, _by: CrewMember, now: number): string {
     if (++this.#running >= GENERATORS_NEEDED) ctx.setStep('radio', now);
-    return STARTED;
+    return GENERATOR_STARTED;
   }
 }

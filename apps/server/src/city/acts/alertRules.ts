@@ -9,6 +9,7 @@ import {
   HATCH,
   IVY_SPOT,
   MAGS_SPOTTED,
+  VOLUNTEER_NAME,
   MISSION_MESSAGES,
   MissionNpc,
   VOLUNTEER_ROUTES,
@@ -21,7 +22,7 @@ import {
 import { Patrols } from './patrols.js';
 import { near, place, type ActContext, type ActRules } from './rules.js';
 
-const VOLUNTEERS = VOLUNTEER_ROUTES.map((route, i) => ({ id: `volunteer${String(i)}`, kind: 'lookout' as const, name: 'Volunteer', route, speed: VOLUNTEER_SPEED, by: 'lookout' as const, back: GATE_SPOT }));
+const VOLUNTEERS = VOLUNTEER_ROUTES.map((route, i) => ({ id: `volunteer${String(i)}`, kind: 'lookout' as const, name: VOLUNTEER_NAME, route, speed: VOLUNTEER_SPEED, by: 'lookout' as const, back: GATE_SPOT }));
 const REX_BELOW = Object.freeze({ x: AERIAL.x + 3, y: AERIAL.y });
 
 export class AlertRules implements ActRules {

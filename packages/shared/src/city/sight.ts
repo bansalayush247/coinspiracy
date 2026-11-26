@@ -61,30 +61,3 @@ export function inSight(eye: Vec2, at: Vec2): boolean {
   const py = (dx / dist) * SHOULDER;
   return clearLine(eye, { x: at.x + px, y: at.y + py }) || clearLine(eye, { x: at.x - px, y: at.y - py });
 }
-
-// How far a look in direction `angle` (radians) travels before a building stops it, up to `max` tiles.
-export function sightDistance(eye: Vec2, angle: number, max: number): number {
-  const dx = Math.cos(angle);
-  const dy = Math.sin(angle);
-  let c = Math.floor(eye.x);
-  let r = Math.floor(eye.y);
-  const stepC = dx > 0 ? 1 : -1;
-  const stepR = dy > 0 ? 1 : -1;
-  const deltaC = Math.abs(dx) < 1e-9 ? Infinity : Math.abs(1 / dx);
-  const deltaR = Math.abs(dy) < 1e-9 ? Infinity : Math.abs(1 / dy);
-  let maxC = deltaC === Infinity ? Infinity : (dx > 0 ? c + 1 - eye.x : eye.x - c) * deltaC;
-  let maxR = deltaR === Infinity ? Infinity : (dy > 0 ? r + 1 - eye.y : eye.y - r) * deltaR;
-  for (let i = 0; i < MAX_STEPS; i++) {
-    const t = Math.min(maxC, maxR);
-    if (t >= max) return max;
-    if (maxC < maxR) {
-      maxC += deltaC;
-      c += stepC;
-    } else {
-      maxR += deltaR;
-      r += stepR;
-    }
-    if (blocksSight(c, r)) return t;
-  }
-  return max;
-}

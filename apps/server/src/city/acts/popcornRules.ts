@@ -4,10 +4,13 @@ import { TICK_SECONDS } from '@byzantine-council/shared';
 import {
   BINS,
   BISCUIT_AWAY_MS,
+  BISCUIT_BACK,
   BISCUIT_BED,
+  BISCUIT_LEAPS,
   BISCUIT_REFUSES,
   BISCUIT_SPEED,
   BISCUIT_TO_BINS,
+  BRANNIGAN_FOUND,
   BRANNIGAN_NOTE,
   BRANNIGAN_ROUNDS,
   BRANNIGAN_SEARCH_MS,
@@ -86,7 +89,7 @@ export class PopcornRules implements ActRules {
       }
       spot.done = true;
       if (round.spot === KENNEL_SPOT) {
-        spot.note = 'Brannigan found the tin in the kennel.';
+        spot.note = BRANNIGAN_FOUND;
         ctx.setStep('beaten', now);
         return;
       }
@@ -117,7 +120,7 @@ export class PopcornRules implements ActRules {
   }
 
   #lure(ctx: ActContext, now: number): void {
-    if (this.#awayUntil === 0) ctx.broadcast(MISSION_MESSAGES.NOTE, { text: 'Biscuit leaps off the kennel and trots to the bins.' });
+    if (this.#awayUntil === 0) ctx.broadcast(MISSION_MESSAGES.NOTE, { text: BISCUIT_LEAPS });
     this.#awayUntil = now + BISCUIT_AWAY_MS;
     if (this.#heading !== 'bins') {
       this.#heading = 'bins';
@@ -130,7 +133,7 @@ export class PopcornRules implements ActRules {
       this.#awayUntil = 0;
       this.#heading = 'home';
       this.#biscuit = { ...this.#biscuit, leg: this.#legFrom(BISCUIT_HOME) };
-      ctx.broadcast(MISSION_MESSAGES.NOTE, { text: 'Biscuit wanders back to the kennel and flops down on it.' });
+      ctx.broadcast(MISSION_MESSAGES.NOTE, { text: BISCUIT_BACK });
     }
     if (this.#heading === null) return;
     const path = this.#heading === 'bins' ? BISCUIT_TO_BINS : BISCUIT_HOME;

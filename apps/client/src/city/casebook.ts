@@ -4,6 +4,7 @@ import { SIDE_CASES, type ActId } from '@byzantine-council/shared/city';
 import type { ProfileSummary } from '../profile/api.js';
 import { el, h } from '../ui/dom.js';
 import { t } from '../i18n/index.js';
+import { storyT } from '../i18n/story.js';
 
 export class Casebook {
   readonly #root = el('cases', HTMLElement);
@@ -43,12 +44,12 @@ export class Casebook {
         const action = t(solved ? 'cases.again' : 'cases.take');
         const play = h('button', '', action);
         play.type = 'button';
-        play.setAttribute('aria-label', t('cases.playAria', { action, title: c.title }));
+        play.setAttribute('aria-label', t('cases.playAria', { action, title: storyT(c.title) }));
         play.addEventListener('click', () => {
           this.close();
           this.onPlay(c.id);
         });
-        li.append(h('h3', '', c.title), h('p', '', c.blurb), h('p', 'meta', solved ? t('cases.solved') : t('cases.reward', { sats: String(c.rewardSats) })), play);
+        li.append(h('h3', '', storyT(c.title)), h('p', '', storyT(c.blurb)), h('p', 'meta', solved ? t('cases.solved') : t('cases.reward', { sats: String(c.rewardSats) })), play);
         return li;
       }),
     );

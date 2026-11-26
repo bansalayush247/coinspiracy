@@ -7,17 +7,25 @@ import { CAMERA_HALF_ANGLE, CAMERA_RANGE, CITY_MAP, GLANCE_HALF_ANGLE, GLANCE_RA
 import { clearReaches } from '@byzantine-council/shared/pathfinding';
 import { drawCostume } from '../game/costumes.js';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow } from '../game/guardianArt.js';
-import { LOOKS, shopperLook, type Look } from './looks.js';
+import { ANIMAL_NAMES, LOOKS, shopperLook, type Look } from './looks.js';
 import { sceneDpr } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer } from '../game/interpolation.js';
 import { ART_SCALE, worldToScreen } from '../game/iso.js';
 import { poseOf } from '../game/facing.js';
+import { NightLights } from './nightLights.js';
+import { t } from '../i18n/index.js';
+import { storyT } from '../i18n/story.js';
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 // Rays per sight cone; enough that a wall corner cuts it cleanly at the longest reach.
 const CONE_RAYS = 24;
-const ANIMAL_NAMES: Readonly<Record<'duncan' | 'gull', string>> = { duncan: 'Duncan', gull: 'Gull' };
+// The guide arrow: how far out from your feet it rides, how fast it turns and fades, and where it hides.
+const ARROW_REACH = 46;
+const ARROW_SIZE = 30;
+const ARROW_TURN_MS = 110;
+const ARROW_FADE_MS = 220;
+const ARROW_NEAR = 6;
 
 interface Figure {
   readonly kind: NpcKind;
@@ -66,10 +74,12 @@ export interface NpcView {
 
 export class MissionView {
   readonly #figures = new Map<string, Figure>();
-  readonly #night: Phaser.GameObjects.Rectangle;
+  readonly #night: NightLights;
   readonly #torch: Phaser.GameObjects.Graphics;
   readonly #beacon: Phaser.GameObjects.Graphics;
-  readonly #pointer: Phaser.GameObjects.Graphics;
+  readonly #pointer: Phaser.GameObjects.Image;
+  #pointerAngle: number | null = null;
+  #pointerAlpha = 0;
   readonly #signs: Phaser.GameObjects.Text[] = [];
   readonly #digMarks: Phaser.GameObjects.Graphics[] = [];
   readonly #tmp = { x: 0, y: 0 };
@@ -85,10 +95,10 @@ export class MissionView {
     private readonly depthOf: (x: number, y: number) => number,
     private readonly reduced: boolean,
   ) {
-    this.#night = scene.add.rectangle(0, 0, 10, 10, 0x0b1530, 0.55).setOrigin(0).setDepth(15);
+    this.#night = new NightLights(scene, 5, 15);
     this.#torch = scene.add.graphics().setDepth(16).setBlendMode(Phaser.BlendModes.ADD);
     this.#beacon = scene.add.graphics().setDepth(17);
-    this.#pointer = scene.add.graphics().setDepth(18);
+    this.#pointer = scene.add.image(0, 0, 'fx-arrow').setDepth(18).setAlpha(0);
   }
 
   // Puts up the act's markers: a sign on every heap or place, or a badge over each guardian once asked.
@@ -106,7 +116,7 @@ export class MissionView {
       const s = worldToScreen(spot.at.x, spot.at.y);
       const winter = dig && HEAPS[i]?.winter === true;
       const sign = this.scene.add
-        .text(s.x, s.y - (labelled ? 40 : 78) * ART_SCALE, labelled ? spot.label : '', { fontFamily: FONT, fontSize: '15px', fontStyle: '800', color: winter ? '#cfe8ff' : '#fff1de', backgroundColor: '#2a1a33cc', padding: { x: 6, y: 3 } })
+        .text(s.x, s.y - (labelled ? 40 : 78) * ART_SCALE, labelled ? storyT(spot.label) : '', { fontFamily: FONT, fontSize: '15px', fontStyle: '800', color: winter ? '#cfe8ff' : '#fff1de', backgroundColor: '#2a1a33cc', padding: { x: 6, y: 3 } })
         .setOrigin(0.5, 1)
         .setDepth(-1)
         .setVisible(labelled);
@@ -134,7 +144,7 @@ export class MissionView {
       const body = new Phaser.GameObjects.Graphics(this.scene);
       const root = new Phaser.GameObjects.Container(this.scene, 0, 0, [ring, body]);
       this.entities.add(root);
-      const label = new Phaser.GameObjects.Text(this.scene, 0, 0, npc.name !== '' ? npc.name : kind === 'letter' ? '' : kind === 'duncan' || kind === 'gull' ? ANIMAL_NAMES[kind] : LOOKS[kind].name, {
+      const label = new Phaser.GameObjects.Text(this.scene, 0, 0, storyT(npc.name !== '' ? npc.name : kind === 'letter' ? '' : kind === 'duncan' || kind === 'gull' ? ANIMAL_NAMES[kind] : LOOKS[kind].name), {
         fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffe3a8', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this.scene)),
       }).setOrigin(0.5, 1);
       this.names.add(label);
@@ -163,7 +173,7 @@ export class MissionView {
       return;
     }
     const refused = this.#act.spots[index]?.refuses === true;
-    sign.setText(refused ? 'Won’t sign' : (this.#act.badge ?? 'Signed')).setColor(refused ? '#ff9c85' : '#ffe3a8').setVisible(done);
+    sign.setText(refused ? t('mission.wontSign') : this.#act.badge === undefined ? t('mission.signed') : storyT(this.#act.badge)).setColor(refused ? '#ff9c85' : '#ffe3a8').setVisible(done);
   }
 
   setDigging(heaps: readonly number[]): void {
@@ -172,17 +182,16 @@ export class MissionView {
 
   // How dark the night lies over the city: deep at night, a thin blue haze for dawn and morning scenes.
   setDark(alpha: number): void {
-    this.#night.setFillStyle(0x0b1530, alpha);
+    this.#night.setDark(alpha);
   }
 
   setTarget(target: Vec2 | null): void {
     this.#target = target;
   }
 
-  update(time: number, me: Vec2 | null): void {
+  update(time: number, deltaMs: number, me: Vec2 | null): void {
     const cam = this.scene.cameras.main;
-    const view = cam.worldView;
-    this.#night.setPosition(view.x - 400, view.y - 400).setSize(view.width + 800, view.height + 800);
+    this.#night.update(me);
     const renderTime = performance.now() - INTERP_DELAY_MS;
     const zoom = cam.zoom / sceneDpr(this.scene);
     for (const f of this.#figures.values()) {
@@ -203,7 +212,7 @@ export class MissionView {
     for (const sign of this.#signs) sign.setScale(1 / zoom);
     this.#drawTorch();
     this.#drawBeacon(time);
-    this.#drawPointer(me, zoom);
+    this.#drawPointer(me, zoom, time, deltaMs);
     this.#digMarks.forEach((m, i) => {
       if (this.#digging.has(i) && !this.reduced) m.setVisible(true).setAlpha(0.5 + 0.5 * Math.abs(Math.sin(time / 120)));
     });
@@ -309,26 +318,30 @@ export class MissionView {
     g.fillTriangle(s.x - 10 * ART_SCALE, s.y - 70 * ART_SCALE - pulse * 8, s.x + 10 * ART_SCALE, s.y - 70 * ART_SCALE - pulse * 8, s.x, s.y - 52 * ART_SCALE - pulse * 8);
   }
 
-  // A small arrow at the player's feet pointing to the next place, when it is off in the distance.
-  #drawPointer(me: Vec2 | null, zoom: number): void {
+  // The arrow at the player's feet towards the next place: it turns, bobs and fades smoothly, and hides close by.
+  #drawPointer(me: Vec2 | null, zoom: number, time: number, deltaMs: number): void {
     const g = this.#pointer;
-    g.clear();
-    if (me === null || this.#target === null) return;
-    const dist = Math.hypot(this.#target.x - me.x, this.#target.y - me.y);
-    if (dist < 6) return;
+    const dist = me === null || this.#target === null ? 0 : Math.hypot(this.#target.x - me.x, this.#target.y - me.y);
+    const want = dist >= ARROW_NEAR ? 1 : 0;
+    this.#pointerAlpha += (want - this.#pointerAlpha) * Math.min(1, deltaMs / ARROW_FADE_MS);
+    if (me === null || this.#target === null || this.#pointerAlpha < 0.01) {
+      g.setVisible(false);
+      if (want === 0) this.#pointerAngle = null;
+      return;
+    }
     const from = worldToScreen(me.x, me.y);
     const to = worldToScreen(this.#target.x, this.#target.y);
     const a = Math.atan2(to.y - from.y, to.x - from.x);
-    const r = 46 / zoom;
-    const tip = { x: from.x + Math.cos(a) * r, y: from.y + Math.sin(a) * r * 0.6 };
-    const size = 12 / zoom;
-    g.fillStyle(0xffd27a, 0.95);
-    g.lineStyle(3 / zoom, 0x2a1a33, 1);
-    const p1 = { x: tip.x + Math.cos(a) * size, y: tip.y + Math.sin(a) * size };
-    const p2 = { x: tip.x + Math.cos(a + 2.4) * size, y: tip.y + Math.sin(a + 2.4) * size };
-    const p3 = { x: tip.x + Math.cos(a - 2.4) * size, y: tip.y + Math.sin(a - 2.4) * size };
-    g.fillTriangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
-    g.strokeTriangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+    let angle = this.#pointerAngle ?? a;
+    angle += Phaser.Math.Angle.Wrap(a - angle) * (1 - Math.exp(-deltaMs / ARROW_TURN_MS));
+    this.#pointerAngle = angle;
+    const bob = this.reduced ? 0 : Math.sin(time / 260) * 4;
+    const r = (ARROW_REACH + bob) / zoom;
+    g.setVisible(true)
+      .setPosition(from.x + Math.cos(angle) * r, from.y + Math.sin(angle) * r * 0.6)
+      .setRotation(angle)
+      .setScale(ARROW_SIZE / 64 / zoom)
+      .setAlpha(this.#pointerAlpha);
   }
 }
 

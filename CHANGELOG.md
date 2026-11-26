@@ -2,6 +2,18 @@
 
 ## 26 November 2026
 
+### The story in Spanish, and lamplit nights
+- The whole story plays in Spanish when Spanish is picked: all four acts of The Cold Key, season two and three, every
+  side case, the casebook, the end cards, the notes and the name tags. That is 1,855 lines, written for Latin
+  America. The Spanish lines load only when Spanish is picked, so English players download nothing extra; any line
+  missing a translation shows in English, and a test fails the build if one is missing.
+- The shade over ground your guardian can't see is gone. People out of sight still don't show; the city just isn't
+  cut into dark wedges any more.
+- Story nights are lit by the city: every street lamp throws a warm pool on the road and glows at its head, and a
+  soft light around your guardian keeps the way ahead readable. Buildings stand in front of the light, not under it.
+- The arrow pointing to your next stop is a crisp gold chevron that follows your guardian smoothly, turns and bobs
+  gently, and fades in and out instead of popping.
+
 ### Controls that follow the streets, and a smoother city
 - The arrow keys and WASD now follow the streets: one key walks straight down a road instead of up the screen and
   into a wall. The touch stick still points on screen.
@@ -18,7 +30,6 @@
   dust on landing. Everyone who can see you sees the jump; the server paces it so nobody can spam it.
 - Every car is redrawn as a modern car: a rounded body, a sloped tinted glass cabin, alloy wheels, mirrors, a sheen
   on the roof and LED strips, white in front and red behind.
-- The shade over ground you can't see has a soft edge now and sweeps smoothly as you walk instead of jumping.
 - Street lights are slim modern LED lamps with a small warm glow, instead of a big yellow blob that washed over
   anyone walking past; your own guardian is marked by a faint gold glow instead of a thick gold ring.
 - Street lamps are thin posts now, not a tile of wall: you brush past them. Walking straight into a corner or post you

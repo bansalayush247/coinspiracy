@@ -53,6 +53,8 @@ export const DECKHAND_ROUTES: readonly (readonly Vec2[])[] = Object.freeze([
   ],
 ]);
 export const DECKHAND_SPEED = 1.5;
+/** What the deckhands walking the jetties are called over their heads. */
+export const DECKHAND_NAME = 'Deckhand';
 export const DECKHAND_BACKS: readonly Vec2[] = Object.freeze([
   { x: 24.5, y: 46.6 },
   { x: 24.5, y: 56.5 },

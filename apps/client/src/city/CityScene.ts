@@ -18,7 +18,6 @@ import { Townsfolk } from '../game/townsfolk.js';
 import { MissionView } from './missionView.js';
 import { drawModernCar } from './carArt.js';
 import { CAR_COLORS, Traffic } from './traffic.js';
-import { Vision } from './vision.js';
 import { buildingFront, drawBuilding, drawContainer, drawMound, drawStreetLamp, drawStreetTree, makeCoinTexture, paintChunk } from './cityArt.js';
 import { shadowScale, startJump, stepHop } from '../game/jump.js';
 
@@ -169,7 +168,6 @@ export class CityScene extends Phaser.Scene {
   #effects!: Effects;
   #townsfolk: Townsfolk | null = null;
   #mission: MissionView | null = null;
-  #vision: Vision | null = null;
   #traffic: Traffic | null = null;
   #reduced = false;
   #myId: string | null = null;
@@ -210,7 +208,6 @@ export class CityScene extends Phaser.Scene {
     }
     this.#vaultMark();
     this.#mission = data?.mission === true ? new MissionView(this, this.#entities, this.#names, sortDepth, this.#reduced) : null;
-    this.#vision = new Vision(this, 5, this.#mission === null ? 0.42 : 0.6);
     this.#traffic = new Traffic(this, this.#entities, sortDepth, this.#reduced, this.#mission === null ? 44 : 12);
     // A few townsfolk wander between the city's squares and stalls; on a story night the streets are empty.
     const spots = [
@@ -233,8 +230,6 @@ export class CityScene extends Phaser.Scene {
       for (const key of [...this.#chunks.keys()]) this.#unload(key);
       this.#mission?.destroy();
       this.#mission = null;
-      this.#vision?.destroy();
-      this.#vision = null;
       this.#traffic?.destroy();
       this.#traffic = null;
     });
@@ -573,7 +568,6 @@ export class CityScene extends Phaser.Scene {
     this.#cull();
     this.#seeThrough(delta);
     const eye = this.predictedPosition();
-    this.#vision?.update(eye, delta);
     const sees = (p: Vec2): boolean => eye === null || inSight(eye, p);
     this.#townsfolk?.cull(sees);
     const people = this.#people;
@@ -582,7 +576,7 @@ export class CityScene extends Phaser.Scene {
     for (const c of this.#cars.values()) people.push(c.pos);
     this.#townsfolk?.collectPositions(people);
     this.#traffic?.update(time, delta, people, sees);
-    this.#mission?.update(time, eye);
+    this.#mission?.update(time, delta, (this.#myId === null ? undefined : this.#avatars.get(this.#myId))?.pos ?? eye);
     const k = lerpFactor(0.12, delta);
     this.cameras.main.setLerp(k, k);
   }

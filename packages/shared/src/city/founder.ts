@@ -16,6 +16,8 @@ export const MAST_SPOT: Vec2 = Object.freeze({ x: 117, y: 5.5 });
 
 // Four backup generators either side of the mast; any three keep the station on the air.
 export const GENERATORS_NEEDED = 3;
+/** Told when a generator is started. */
+export const GENERATOR_STARTED = 'The generator coughs, then roars. Somewhere above, a red light blinks on the mast.';
 export const GENERATORS: readonly StorySpot[] = Object.freeze([
   { at: { x: 105, y: 4.5 }, label: 'west yard' },
   { at: { x: 105, y: 6.5 }, label: 'west gate' },

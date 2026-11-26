@@ -12,9 +12,8 @@ import {
   SPEAKER_NAMES,
   actOf,
   canWork,
-  nightAt,
-  storyEyebrow,
   workLabel,
+  nightAt,
   type ActId,
   type CityPlayer,
   type MissionNpc,
@@ -31,6 +30,7 @@ import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { el, h } from '../ui/dom.js';
 import { t } from '../i18n/index.js';
+import { storyT } from '../i18n/story.js';
 import type { CityScene } from './CityScene.js';
 import { drawMapDot, paintMinimap } from './cityController.js';
 import { Dialogue } from './dialogue.js';
@@ -188,7 +188,7 @@ export class MissionController {
         this.#renderGoal();
         if (spot.note !== '' && spot.note !== this.#found[index]) {
           this.#found[index] = spot.note;
-          this.#dug(spot.note);
+          this.#dug(storyT(spot.note));
         }
       });
     });
@@ -220,21 +220,21 @@ export class MissionController {
       const catcher = this.#act.catchers[line.data.by];
       if (catcher === undefined) return;
       if (line.data.name !== undefined) {
-        this.onToast(`${catcher.name} caught ${line.data.name}. Back to ${catcher.where} with them.`);
+        this.onToast(t('mission.caughtCrew', { catcher: storyT(catcher.name), name: line.data.name, where: storyT(catcher.where) }));
         return;
       }
       audio.play('refuse');
-      this.onToast(catcher.lines[Math.min(catcher.lines.length - 1, line.data.count - 1)] ?? '');
+      this.onToast(storyT(catcher.lines[Math.min(catcher.lines.length - 1, line.data.count - 1)] ?? ''));
     });
     room.onMessage(MISSION_MESSAGES.NOTE, (payload: unknown) => {
       const note = MissionNoteSchema.safeParse(payload);
       if (!note.success) return;
       audio.play('refuse');
-      this.onToast(note.data.text);
+      this.onToast(storyT(note.data.text));
     });
     room.onMessage(MISSION_MESSAGES.DUNCAN, () => {
       audio.play('whiff');
-      this.onToast('A chain rattles behind the gatehouse. Duncan heard the digging.');
+      this.onToast(t('mission.duncanHeard'));
     });
     room.onMessage(MISSION_MESSAGES.RESULT, (payload: unknown) => {
       const result = MissionResultSchema.safeParse(payload);
@@ -329,7 +329,7 @@ export class MissionController {
         const li = h('li');
         const dot = h('i');
         dot.style.setProperty('--seat', cssColor(seatColors(p.seat).lit));
-        li.append(dot, document.createTextNode(id === room.sessionId ? `${p.name} (you)` : p.name));
+        li.append(dot, document.createTextNode(id === room.sessionId ? t('mission.youNamed', { name: p.name }) : p.name));
         if (id === room.state.lead) li.append(h('small', '', 'lead'));
         return li;
       });
@@ -384,9 +384,9 @@ export class MissionController {
       this.scene.mission?.setSpot(i, spot.done);
     });
     this.scene.mission?.setDark(nightAt(act, this.#step));
-    el('story-eyebrow', HTMLElement).textContent = storyEyebrow(act);
-    this.#hud.setAttribute('aria-label', act.kind === 'case' ? t('mission.caseAria', { title: act.title }) : t('mission.storyAria', { number: act.number.toLowerCase() }));
-    this.#objective.textContent = act.objectives[this.#step] ?? '';
+    el('story-eyebrow', HTMLElement).textContent = act.kind === 'case' ? t('mission.eyebrowCase', { title: storyT(act.title) }) : t('mission.eyebrowAct', { number: storyT(act.number), title: storyT(act.title) });
+    this.#hud.setAttribute('aria-label', act.kind === 'case' ? t('mission.caseAria', { title: storyT(act.title) }) : t('mission.storyAria', { number: storyT(act.number).toLowerCase() }));
+    this.#objective.textContent = storyT(act.objectives[this.#step] ?? '');
   }
 
   #setStep(step: string): void {
@@ -394,12 +394,12 @@ export class MissionController {
     this.#step = step;
     this.#renderCode();
     this.#renderGoal();
-    this.#objective.textContent = this.#act.objectives[step] ?? '';
+    this.#objective.textContent = storyT(this.#act.objectives[step] ?? '');
     this.scene.mission?.setTarget(this.#act.targets[step] ?? null);
     this.scene.mission?.setDark(nightAt(this.#act, step));
     if (step === this.#act.workStep) {
       audio.setMood('proposals');
-      this.onToast(this.#act.hint);
+      this.onToast(storyT(this.#act.hint));
     }
     if (step === 'sneak') audio.setMood('proposals');
     if (before === this.#act.workStep && step !== before) {
@@ -417,7 +417,7 @@ export class MissionController {
       this.#clock.textContent = '';
       return;
     }
-    this.#clock.textContent = `${label} ${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`;
+    this.#clock.textContent = `${storyT(label)} ${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`;
     this.#clock.classList.toggle('short', seconds <= 30);
   }
 
@@ -432,7 +432,7 @@ export class MissionController {
     room.state.spots.forEach((spot, i) => {
       if (spot.done && this.#act.spots[i]?.refuses !== true) n++;
     });
-    this.#goal.textContent = t('mission.goal', { label: this.#act.goalLabel ?? t('common.done'), n: String(Math.min(n, goal)), goal: String(goal) });
+    this.#goal.textContent = t('mission.goal', { label: this.#act.goalLabel === undefined ? t('common.done') : storyT(this.#act.goalLabel), n: String(Math.min(n, goal)), goal: String(goal) });
   }
 
   #dug(found: string): void {
@@ -448,7 +448,7 @@ export class MissionController {
   #renderClues(): void {
     const clues = [...this.#marks].flatMap((m) => {
       const mark = this.#act.marks[m];
-      return mark?.clue === true ? [mark.text] : [];
+      return mark?.clue === true ? [storyT(mark.text)] : [];
     });
     this.#clues.replaceChildren(...clues.map((c) => h('li', '', c)));
   }
@@ -467,7 +467,7 @@ export class MissionController {
     if (near !== this.#near) this.#near = near;
     const spot = act.spots[near];
     this.#dig.hidden = spot === undefined;
-    if (spot !== undefined) this.#dig.firstChild?.replaceWith(document.createTextNode(workLabel(act, spot)));
+    if (spot !== undefined) this.#dig.firstChild?.replaceWith(document.createTextNode(workLabel(act, spot, storyT)));
     const ctx = this.#dots.getContext('2d');
     if (ctx === null) return;
     this.#dots.width = el('story-minimap', HTMLCanvasElement).width;
@@ -487,27 +487,27 @@ export class MissionController {
       const mark = this.#act.marks[m];
       if (mark?.who === undefined || mark.who === 'rook') continue;
       const list = who.get(mark.who) ?? [];
-      list.push(mark.text);
+      list.push(storyT(mark.text));
       who.set(mark.who, list);
     }
     const act = this.#act;
-    const voice = (k: string): string => (k === 'voice' ? 'The voice on the phone' : SPEAKER_NAMES[k as Speaker]);
+    const voice = (k: string): string => (k === 'voice' ? t('mission.voiceOnPhone') : storyT(SPEAKER_NAMES[k as Speaker]));
     el('story-remembers', HTMLElement).replaceChildren(...[...who].map(([k, list]) => h('li', '', t('mission.remembers', { who: voice(k), list: list.join('; ') }))));
     el('story-honest', HTMLElement).textContent = t(r.honest ? 'mission.honest' : 'mission.dishonest');
-    const number = act.kind === 'case' ? t('mission.theCase') : act.number.toLowerCase();
+    const number = act.kind === 'case' ? t('mission.theCase') : storyT(act.number).toLowerCase();
     const reward: Record<MissionResult['reason'], string> = {
-      paid: r.paid > 0 ? t('mission.paid', { sats: String(r.paid), act: number }) : t('mission.saved', { act: act.kind === 'case' ? act.title : act.number }),
+      paid: r.paid > 0 ? t('mission.paid', { sats: String(r.paid), act: number }) : t('mission.saved', { act: storyT(act.kind === 'case' ? act.title : act.number) }),
       replay: t('mission.replay'),
       noProfile: t('mission.noProfile', { sats: String(act.rewardSats) }),
       error: t('mission.error'),
     };
     el('story-end-eyebrow', HTMLElement).textContent = act.kind === 'case' ? t('mission.caseClosed') : t('mission.endOf', { act: number });
-    el('story-end-title', HTMLElement).textContent = act.title;
-    el('story-lesson', HTMLElement).textContent = act.lesson;
-    el('story-end-next', HTMLElement).textContent = act.next;
+    el('story-end-title', HTMLElement).textContent = storyT(act.title);
+    el('story-lesson', HTMLElement).textContent = storyT(act.lesson);
+    el('story-end-next', HTMLElement).textContent = storyT(act.next);
     const finale = el('story-finale', HTMLButtonElement);
     finale.hidden = act.finale === undefined;
-    finale.textContent = act.finale ?? '';
+    finale.textContent = storyT(act.finale ?? '');
     el('story-reward', HTMLElement).textContent = reward[r.reason];
     this.#end.hidden = false;
     this.#dig.hidden = true;

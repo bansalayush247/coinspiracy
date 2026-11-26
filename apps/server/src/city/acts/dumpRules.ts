@@ -5,6 +5,7 @@ import { findPath } from '@byzantine-council/shared/pathfinding';
 import {
   CITY_MAP,
   DANI_SPOT,
+  DEVICE_NOTE,
   DEVICE_HEAPS,
   DUNCAN_CATCH,
   DUNCAN_SMELL,
@@ -28,7 +29,6 @@ import { near, npc, type ActContext, type ActRules, type CrewMember } from './ru
 
 const DUNCAN_REPATH_MS = 400;
 const DUNCAN_REST_MS = 4_000;
-const DEVICE_NOTE = 'A small black device, flat as a coaster.';
 
 export class DumpRules implements ActRules {
   secret = -1;

@@ -42,7 +42,6 @@ import {
   afterPunch,
   clearLine,
   inSight,
-  sightDistance,
   atVault,
   canHit,
   canPickUp,
@@ -269,8 +268,6 @@ describe('line of sight', () => {
     expect(clearLine(north, south)).toBe(false);
     expect(inSight(north, south)).toBe(false);
     expect(inSight(north, { x: midX + 3, y: north.y })).toBe(true);
-    expect(sightDistance(north, Math.PI / 2, 30)).toBeCloseTo(r0 - north.y, 5);
-    expect(sightDistance(north, -Math.PI / 2, 2)).toBe(2);
     let tree: { c: number; r: number } | undefined;
     for (let r = 0; r < CITY_HEIGHT && tree === undefined; r++) for (let c = 1; c < CITY_WIDTH - 1 && tree === undefined; c++) if (tileAt(CITY_MAP, c, r) === 'T' && walkable(c - 1, r) && walkable(c + 1, r)) tree = { c, r };
     if (tree === undefined) throw new Error('tree');
