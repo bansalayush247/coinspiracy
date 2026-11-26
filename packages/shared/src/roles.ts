@@ -54,18 +54,3 @@ export function assignRoles(
   for (const id of playerIds) roles.set(id, byzantine.has(id) ? 'byzantine' : 'honest');
   return roles;
 }
-
-// Roles a viewer may see: their own, plus fellow Byzantines if they are one.
-export function visibleRoles(
-  roles: ReadonlyMap<PlayerId, Role>,
-  viewerId: PlayerId,
-): Map<PlayerId, Role> {
-  const own = roles.get(viewerId);
-  const visible = new Map<PlayerId, Role>();
-  if (own === undefined) return visible;
-  visible.set(viewerId, own);
-  if (own === 'byzantine') {
-    for (const [id, role] of roles) if (role === 'byzantine') visible.set(id, role);
-  }
-  return visible;
-}

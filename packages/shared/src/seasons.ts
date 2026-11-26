@@ -22,8 +22,6 @@ export const MAX_SEASON_TIME_MS = 8_640_000_000_000_000;
 export const SEASONAL_EVENT_IDS = ['halving', 'genesisDay', 'whitepaperDay', 'pizzaDay', 'halvingCountdown', 'retarget'] as const;
 export type SeasonalEventId = (typeof SEASONAL_EVENT_IDS)[number];
 export const SeasonalEventIdSchema = z.enum(SEASONAL_EVENT_IDS);
-// A synced "featured event" field: an event id, or '' for none.
-export const FeaturedSeasonSchema = z.union([z.literal(''), SeasonalEventIdSchema]);
 
 export const SEASONAL_DECORATIONS = [
   'confetti',
@@ -50,7 +48,6 @@ export const SEASONAL_HAT_IDS = [
   'hat:retarget-visor',
 ] as const;
 export type SeasonalHatId = (typeof SEASONAL_HAT_IDS)[number];
-export const SeasonalHatIdSchema = z.enum(SEASONAL_HAT_IDS);
 
 export interface SeasonTheme {
   readonly decorations: readonly SeasonalDecoration[];

@@ -18,18 +18,6 @@ export interface Proposal {
   readonly expiresAtTick: number;
 }
 
-// Client view; `forged?: never` makes a raw Proposal fail to type-check as one.
-export interface PublicProposal {
-  readonly id: string;
-  readonly amount: number;
-  readonly requestedBy: PlayerId;
-  readonly signatures: readonly PlayerId[];
-  readonly refusals: readonly PlayerId[];
-  readonly status: ProposalStatus;
-  readonly expiresAtTick: number;
-  readonly forged?: never;
-}
-
 export interface NewProposal {
   readonly id: string;
   readonly amount: number;
@@ -44,19 +32,6 @@ export function createProposal(input: NewProposal): Proposal {
   }
   assertTick(input.expiresAtTick, 'expiresAtTick');
   return { ...input, signatures: [], refusals: [], status: 'open' };
-}
-
-// Explicit field copy so new server fields never leak by default.
-export function toPublicProposal(p: Proposal): PublicProposal {
-  return {
-    id: p.id,
-    amount: p.amount,
-    requestedBy: p.requestedBy,
-    signatures: [...p.signatures],
-    refusals: [...p.refusals],
-    status: p.status,
-    expiresAtTick: p.expiresAtTick,
-  };
 }
 
 // Re-evaluates from current members' responses; an overdue proposal expires first.
@@ -119,11 +94,4 @@ export function refuseProposal(
   if (!check.ok) return check;
   const next = { ...p, refusals: [...p.refusals, refuserId] };
   return ok(settleProposal(next, guardians, nowTick));
-}
-
-// Closes an open proposal whose deadline has passed.
-export function expireProposal(p: Proposal, nowTick: number): Proposal {
-  assertTick(nowTick);
-  if (p.status === 'open' && !(nowTick < p.expiresAtTick)) return { ...p, status: 'expired' };
-  return p;
 }

@@ -132,8 +132,8 @@ The game server binds `127.0.0.1` and expects a TLS reverse proxy (nginx, Caddy)
   - Secret fields use Colyseus StateView tags, one bit per secret. Never declare default-tag
     view fields, never send or log `state.toJSON()` (it includes view fields), and never
     replace `room.state` while views exist.
-  - Proposals carry a server-only `forged` flag. Send clients only `toPublicProposal(...)`; the
-    `PublicProposal` type rejects a raw `Proposal` at compile time.
+  - Proposals carry a server-only `forged` flag. Clients see them only through `ProposalState`,
+    which has no such field; its `verdict` is filled in once the proposal closes.
 - **Who can connect.** WebSocket upgrades from origins outside `ALLOWED_ORIGINS` get a 403.
   Matchmaking and code lookups from a foreign `Origin` get a 403, and matchmake bodies must be
   JSON, so another site cannot reserve seats through its visitors' browsers. CORS answers

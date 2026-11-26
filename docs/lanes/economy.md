@@ -21,7 +21,7 @@ and does not re-export this module.
 |---|---|
 | `packages/shared/src/economy/index.ts` | Re-exports `catalog.ts` and `wallet.ts` |
 | `packages/shared/src/economy/catalog.ts` | Slots, shops, rewards, the item catalogue, lookups, zod schemas, `Look`, `DEFAULT_LOOK`, wardrobe and purchase checks |
-| `packages/shared/src/economy/wallet.ts` | A wallet of power-of-two notes: build, validate, pay with chosen notes, suggest notes, credit, reissue, plus wire schemas |
+| `packages/shared/src/economy/wallet.ts` | A wallet of power-of-two notes: build, validate, pay with chosen notes and credit (both reissue past 64 notes), plus wire schemas |
 | `packages/shared/test/economy/catalog.test.ts` | Catalogue data, golden ids, lookups, schemas, looks, ownership, purchases, hostile inputs |
 | `packages/shared/test/economy/wallet.test.ts` | Wallet rules, every typed error, abuse inputs, seeded property tests with independent oracles |
 
@@ -42,9 +42,8 @@ were booleans got real values, so later styles fit the same slot: `beard:trim` a
 | `COSMETIC_SLOTS` | `outfit` (robes), `hair`, `dye` (hair colour), `beard` (grooming), `hat`, `shades` (eyewear), `board` (surfboards) |
 | `REQUIRED_SLOTS` / `OPTIONAL_SLOTS` | `outfit`, `hair` and `dye` always hold an item. `beard`, `hat`, `shades` and `board` may be `null` |
 | `ITEM_CATEGORIES` | The seven slots plus `food` (consumable, never owned) |
-| `CATEGORY_LABELS` | Section titles for shops and the wardrobe: Robes, Haircuts, Hair colour, Grooming, Hats, Eyewear, Boards, Menu |
 | `SHOP_IDS`, `SHOPS`, `getShop(id)` | `tailor`, `barber`, `hats`, `surf`, `cafe`, `pupusa-stand`, `coconut-stand`, each with `name`, `sells` (one line) and `color` (sign colour) |
-| `REWARD_IDS`, `REWARDS`, `rewardItem(reward)`, `VETERAN_MATCHES` | Match rewards. Each unlocks exactly one cosmetic. `REWARDS[i].hint` says how to earn it |
+| `REWARD_IDS`, `rewardItem(reward)` | Match rewards. Each unlocks exactly one cosmetic. The seal that grants it (`progression/seals.ts`) says how to earn it |
 | `CATALOG` | Every item, deeply frozen, in shop order |
 | `ITEM_IDS`, `COSMETIC_IDS`, `FOOD_IDS` | Frozen id lists |
 | `getItem(id)` | `CatalogItem \| undefined` for any `unknown`. It uses a Map lookup, so prototype keys find nothing |
@@ -110,12 +109,12 @@ Prices follow the concept. Default items cost 0, and everyone owns them.
 
 The match rewards are original and Bitcoin-flavoured, and they are never sold:
 
-| Reward id | How it is earned (`hint`) | Item |
+| Reward id | How it is earned (its seal) | Item |
 |---|---|---|
 | `firstMatch` | Finish your first Council match | Genesis Robe (`outfit:genesis`), black with a gold trim, named after the genesis block |
 | `honestWin` | Win a match as an honest guardian | Threshold Crown (`hat:threshold`), named after the signing threshold |
 | `byzantineWin` | Win a match as a Byzantine guardian | Partition Shades (`shades:partition`), one violet and one teal lens, a split view |
-| `veteran` | Finish `VETERAN_MATCHES` (10) Council matches | Lightning Board (`board:lightning`) |
+| `veteran` | Finish 10 Council matches | Lightning Board (`board:lightning`) |
 
 ### Wallet (`wallet.ts`)
 
@@ -130,9 +129,7 @@ largest note first. Inputs may come in any order.
 | `walletFromAmount(amount)` | `Result<Wallet, 'invalidAmount'>`, the fewest notes for 0 to `MAX_WALLET_BALANCE`: whole 2^20 notes, then `toDenominations` of the rest |
 | `balanceOf(wallet)` | The sum. It throws `RangeError` on an invalid wallet, so validate untrusted data first |
 | `payWithNotes(wallet, selected, price)` | `Result<Payment, PayError>`, where `Payment = { wallet, spent, change, reissued }` |
-| `suggestNotes(wallet, price)` | `Result<Wallet, 'invalidWallet' \| 'invalidAmount' \| 'insufficientFunds'>` |
 | `credit(wallet, amount)` | `Result<Credit, 'invalidWallet' \| 'invalidAmount' \| 'walletFull'>`, where `Credit = { wallet, received, reissued }` |
-| `reissue(wallet)` | `Result<Wallet, 'invalidWallet'>`, the fewest notes for the same balance |
 
 `PayError` is `'invalidWallet' | 'invalidAmount' | 'insufficientFunds' | 'invalidSelection' |
 'notInWallet' | 'underpaid' | 'overpaid'`. The checks run in that order. `WalletError` is the
@@ -143,8 +140,8 @@ Schemas:
 - `NoteSchema`: one denomination.
 - `WalletSchema`: at most 64 notes, within the balance cap.
 - `NoteSelectionSchema`: 1 to 64 notes. Use it for a client's chosen notes.
-- `PaymentSchema` and `CreditSchema`: strict wire shapes for a result sent to its owner. A client
-  validates them before rendering.
+- `PaymentSchema` and `CreditSchema`: strict shapes of a payment and a credit; the tests check every
+  result against them.
 
 Payment rules:
 
@@ -161,21 +158,12 @@ Payment rules:
 7. The new wallet is the old one minus the selection plus the change. If that would exceed 64
    notes, the wallet is reissued as the fewest notes for its balance, and `reissued` is `true`.
 
-`suggestNotes` picks, in this order:
-
-1. Exact notes, when some subset sums to the price. Greedy largest-first is exact whenever any
-   subset is, because each power of two divides every larger one.
-2. Otherwise, the smallest single note that covers the price.
-3. Otherwise, notes largest-first until the price is covered.
-
-Every suggestion passes `payWithNotes`.
-
 ## Invariants (all tested)
 
 - Value is conserved exactly:
   - A payment lowers the balance by exactly the price, and `sum(spent) - sum(change) = price`.
   - A credit raises the balance by exactly the amount.
-  - A reissue keeps the balance.
+  - A reissue past 64 notes keeps the balance.
 - No function mutates its inputs. Each untrusted list is read once, element by element, into a
   private copy. Catalogue data is deeply frozen.
 - Every returned wallet passes `validateWallet`. The fewest-notes form of any allowed balance has
@@ -198,8 +186,8 @@ Every suggestion passes `payWithNotes`.
 - **New profile.** Use `walletFromAmount(START_BALANCE)`, where profiles picks the amount, with
   owned `[]` and look `DEFAULT_LOOK`.
 - **Play-sat rewards.** Pay them with `credit(wallet, amount)`. On `walletFull`, skip the payout;
-  never clamp it. Grant reward cosmetics with `rewardItem(reward)`, using the `REWARDS` hints for
-  the conditions.
+  never clamp it. Grant reward cosmetics with `rewardItem(reward)` when the seal that names
+  the reward is earned.
 - **Wardrobe messages.**
   - `{ item: CosmeticIdSchema }`: check `ownsItem`, then call `wear`.
   - `{ slot: OptionalSlotSchema }`: call `takeOff`.
@@ -217,10 +205,10 @@ Every suggestion passes `payWithNotes`.
   4. It saves the wallet, plus the item unless the item is food, in one transaction.
   5. It sends the `Payment` to that player only.
   Food is consumed on the spot and never added to owned.
-- **Choosing notes.** The client preselects `suggestNotes(wallet, price)` and lets the player
-  change the selection. The server never trusts a client's price or wallet, only its note selection.
-- **Income and reissue.** Courier pay and other income go through `credit`. The Beach Mint's
-  reissue button calls `reissue`.
+- **Choosing notes.** The player picks the notes to pay with; the shop shows whether the pick
+  pays exactly, underpays or overpays before it is sent. The server never trusts a client's price or wallet, only its note selection.
+- **Income and reissue.** Courier pay and other income go through `credit`. A wallet that would
+  pass 64 notes is reissued automatically by `credit` or `payWithNotes`.
 - **Shop data.** `SHOPS` gives names, "sells" lines and sign colours. Map positions, keeper lines
   and the Beach Mint building belong to the hub.
 - **zod configuration.** zod 4.6 decides whether to JIT-compile an object schema when the schema

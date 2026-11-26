@@ -56,4 +56,3 @@ export function toProgressView(p: Progress, nowMs: number) {
     stories: Object.entries(p.story ?? {}).flatMap(([k, r]) => (r.done ? [k as StoryKey] : [])),
   };
 }
-export type ProgressView = ReturnType<typeof toProgressView>;

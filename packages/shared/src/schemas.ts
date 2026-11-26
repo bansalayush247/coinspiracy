@@ -74,7 +74,6 @@ export const CLIENT_MESSAGE_PAYLOADS = {
   setTier: SetTierPayloadSchema,
 } as const;
 export type ClientMessageType = keyof typeof CLIENT_MESSAGE_PAYLOADS;
-export type MovePayload = z.infer<typeof MovePayloadSchema>;
 export type OpenTaskPayload = z.infer<typeof OpenTaskPayloadSchema>;
 export type TaskAnswerPayload = z.infer<typeof TaskAnswerPayloadSchema>;
 

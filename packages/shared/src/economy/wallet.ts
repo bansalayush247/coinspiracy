@@ -145,12 +145,6 @@ export function balanceOf(wallet: Wallet): number {
   return total(notes);
 }
 
-// Same balance as the fewest fresh notes.
-export function reissue(wallet: Wallet): Result<Wallet, 'invalidWallet'> {
-  const notes = readWallet(wallet);
-  return notes === null ? err('invalidWallet') : ok(fewestNotes(total(notes)));
-}
-
 // Pays with chosen notes: they must be in the wallet, cover the price, and none can be dropped while still covering it.
 export function payWithNotes(wallet: Wallet, selected: readonly number[], price: number): Result<Payment, PayError> {
   const notes = readWallet(wallet);
@@ -171,38 +165,6 @@ export function payWithNotes(wallet: Wallet, selected: readonly number[], price:
   const kept = fromCounts(have.map((count, bit) => count - (take[bit] ?? 0)));
   const { wallet: next, reissued } = settle([...kept, ...change]);
   return ok({ wallet: next, spent: chosen.sort(largestFirst), change, reissued });
-}
-
-// Exact notes if any subset sums to the price, else the smallest single covering note, else largest first.
-export function suggestNotes(
-  wallet: Wallet,
-  price: number,
-): Result<Wallet, 'invalidWallet' | 'invalidAmount' | 'insufficientFunds'> {
-  const notes = readWallet(wallet);
-  if (notes === null) return err('invalidWallet');
-  if (!isAmount(price, 1)) return err('invalidAmount');
-  if (total(notes) < price) return err('insufficientFunds');
-  // Greedy is exact whenever any subset is, since each note divides every larger one.
-  const exact: number[] = [];
-  let rest = price;
-  for (const note of notes) {
-    if (note <= rest) {
-      exact.push(note);
-      rest -= note;
-    }
-  }
-  if (rest === 0) return ok(exact);
-  let single: number | null = null;
-  for (const note of notes) if (note >= price) single = note;
-  if (single !== null) return ok([single]);
-  const picked: number[] = [];
-  let sum = 0;
-  for (const note of notes) {
-    if (sum >= price) break;
-    picked.push(note);
-    sum += note;
-  }
-  return ok(picked);
 }
 
 // Adds fresh notes for an amount, refusing anything that would pass MAX_WALLET_BALANCE.

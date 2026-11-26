@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_BLOCK_HEIGHT } from '../src/minigames.js';
 import {
-  FeaturedSeasonSchema,
   HALVING_CELEBRATION_BLOCKS,
   HALVING_COUNTDOWN_BLOCKS,
   HALVING_INTERVAL,
@@ -15,7 +14,6 @@ import {
   SEASONAL_EVENT_IDS,
   SEASONAL_HAT_IDS,
   SeasonalEventIdSchema,
-  SeasonalHatIdSchema,
   chainCalendar,
   formatBitcoin,
   groupDigits,
@@ -296,14 +294,9 @@ describe('copy and formatting', () => {
     expect([...hats].sort()).toStrictEqual([...SEASONAL_HAT_IDS].sort());
   });
 
-  it('validates synced ids and hats with strict schemas', () => {
+  it('validates synced event ids with a strict schema', () => {
     for (const id of SEASONAL_EVENT_IDS) expect(SeasonalEventIdSchema.safeParse(id).success).toBe(true);
     for (const bad of ['Halving', '__proto__', 'constructor', '', 7, null]) expect(SeasonalEventIdSchema.safeParse(bad).success).toBe(false);
-    expect(FeaturedSeasonSchema.safeParse('').success).toBe(true);
-    expect(FeaturedSeasonSchema.safeParse('retarget').success).toBe(true);
-    expect(FeaturedSeasonSchema.safeParse('summer').success).toBe(false);
-    expect(SeasonalHatIdSchema.safeParse('hat:pizza-chef').success).toBe(true);
-    expect(SeasonalHatIdSchema.safeParse('hat:threshold').success).toBe(false);
   });
 });
 

@@ -2,15 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { rotateOut, setDisconnected } from '../src/guardians.js';
 import {
   createProposal,
-  expireProposal,
   refuseProposal,
   settleProposal,
   signProposal,
-  toPublicProposal,
   type NewProposal,
   type Proposal,
   type ProposalStatus,
-  type PublicProposal,
 } from '../src/proposals.js';
 import type { Result } from '../src/result.js';
 import type { Guardian, GuardianStatus, PlayerId } from '../src/types.js';
@@ -30,7 +27,6 @@ const [G1, G2, G3, G4, G5] = IDS;
 const G7 = IDS[6];
 const STRANGER = 'stranger-99';
 const DEADLINE = 10;
-const PUBLIC_KEYS = ['amount', 'expiresAtTick', 'id', 'refusals', 'requestedBy', 'signatures', 'status'];
 
 // Spec threshold t and fault limit f for every match size.
 const SIZES = [
@@ -131,7 +127,7 @@ function closed(status: Exclude<ProposalStatus, 'open'>, overrides: Partial<NewP
   const guardians = roster(5);
   if (status === 'passed') return signAll(open(overrides), [G2, G3, G4, G5], guardians);
   if (status === 'rejected') return refuseAll(open(overrides), [G2, G3], guardians);
-  return freeze(expireProposal(signAll(open(overrides), [G2, G3, G4], guardians), DEADLINE));
+  return freeze(settleProposal(signAll(open(overrides), [G2, G3, G4], guardians), guardians, DEADLINE));
 }
 
 // A response is refused if it returns an error or throws a RangeError.
@@ -191,79 +187,6 @@ describe('createProposal', () => {
     { label: 'unsafe integer (2^53)', value: 2 ** 53 },
   ])('rejects a $label expiresAtTick with RangeError', ({ value }) => {
     expect(() => createProposal(draft({ expiresAtTick: value }))).toThrow(RangeError);
-  });
-});
-
-describe('toPublicProposal', () => {
-  // Open proposal signed by G2 and refused by G3 on a 5-member roster.
-  function answered(forged: boolean): Proposal {
-    const guardians = roster(5);
-    return refuseAll(signAll(open({ forged }), [G2], guardians), [G3], guardians);
-  }
-
-  it.each([true, false])('never exposes the forged flag (forged = %s)', (forged) => {
-    const pub = toPublicProposal(answered(forged));
-    expect(Object.keys(pub).sort()).toEqual(PUBLIC_KEYS);
-    expect(Object.hasOwn(pub, 'forged')).toBe(false);
-    expect('forged' in pub).toBe(false);
-    expect(JSON.stringify(pub)).not.toContain('forged');
-  });
-
-  it('keeps every public field', () => {
-    expect(toPublicProposal(answered(true))).toStrictEqual({
-      id: 'proposal-1',
-      amount: 500,
-      requestedBy: G1,
-      signatures: [G2],
-      refusals: [G3],
-      status: 'open',
-      expiresAtTick: DEADLINE,
-    });
-  });
-
-  it('makes a forged proposal indistinguishable from an honest one', () => {
-    expect(JSON.stringify(toPublicProposal(answered(true)))).toBe(
-      JSON.stringify(toPublicProposal(answered(false))),
-    );
-  });
-
-  it('copies the response arrays instead of sharing them', () => {
-    const p = answered(false);
-    const pub = toPublicProposal(p);
-    expect(pub.signatures).not.toBe(p.signatures);
-    expect(pub.refusals).not.toBe(p.refusals);
-    (pub.signatures as PlayerId[]).push(STRANGER);
-    (pub.refusals as PlayerId[]).push(STRANGER);
-    expect(p.signatures).toEqual([G2]);
-    expect(p.refusals).toEqual([G3]);
-  });
-
-  it('copies only the public fields, so new server fields never leak', () => {
-    const withSecret = { ...answered(true), vaultKey: 'server-only-secret' };
-    const pub = toPublicProposal(withSecret);
-    expect(Object.keys(pub).sort()).toEqual(PUBLIC_KEYS);
-    expect(JSON.stringify(pub)).not.toContain('server-only-secret');
-  });
-
-  it.each(CLOSED)('shows a %s status but still hides forged', (status) => {
-    const pub = toPublicProposal(closed(status, { forged: true }));
-    expect(pub.status).toBe(status);
-    expect(Object.keys(pub).sort()).toEqual(PUBLIC_KEYS);
-    expect(JSON.stringify(pub)).not.toContain('forged');
-  });
-
-  it('does not mutate the proposal', () => {
-    const p = answered(true);
-    const before = structuredClone(p);
-    toPublicProposal(p);
-    expect(p).toStrictEqual(before);
-  });
-
-  it('refuses a raw Proposal where a PublicProposal is expected, at compile time', () => {
-    const raw = open({ forged: true });
-    // @ts-expect-error a raw Proposal carries forged and must never type-check as public
-    const leaked: PublicProposal = raw;
-    expect(leaked).toBe(raw);
   });
 });
 
@@ -372,7 +295,6 @@ describe.each(RESPONDERS)('$name', ({ respond, field, other }) => {
   it('fails closed on a proposal whose deadline was corrupted', () => {
     const corrupted = freeze({ ...open(), expiresAtTick: Number.NaN });
     expect(respond(corrupted, G1, guardians, 0)).toEqual({ ok: false, error: 'expired' });
-    expect(expireProposal(corrupted, 0).status).toBe('expired');
     expect(settleProposal(corrupted, guardians, 0).status).toBe('expired');
   });
 
@@ -529,49 +451,23 @@ describe('settleProposal', () => {
   });
 });
 
-describe('expireProposal', () => {
-  it.each([0, DEADLINE - 1])('leaves an open proposal open at tick %d', (tick) => {
-    const p = open();
-    expect(expireProposal(p, tick)).toStrictEqual(p);
-  });
-
-  it.each([DEADLINE, DEADLINE + 1, Number.MAX_SAFE_INTEGER])(
-    'expires an open proposal at tick %d and keeps its other fields',
-    (tick) => {
-      const guardians = roster(5);
-      const p = refuseAll(signAll(open({ forged: true }), [G1], guardians), [G2], guardians);
-      const before = structuredClone(p);
-      expect(expireProposal(p, tick)).toStrictEqual({ ...before, status: 'expired' });
-      expect(p).toStrictEqual(before);
-    },
-  );
-
-  it.each(CLOSED)('leaves a %s proposal unchanged', (status) => {
-    const p = closed(status);
-    expect(expireProposal(p, DEADLINE - 1)).toStrictEqual(p);
-    expect(expireProposal(p, DEADLINE + 100)).toStrictEqual(p);
-  });
-
-  it('blocks every further response once expired', () => {
+describe('an expired proposal', () => {
+  it('blocks every further response', () => {
     const guardians = roster(5);
-    const expired = freeze(expireProposal(open(), DEADLINE));
+    const expired = freeze(settleProposal(open(), guardians, DEADLINE));
+    expect(expired.status).toBe('expired');
     expect(signProposal(expired, G1, guardians, 0)).toEqual({ ok: false, error: 'notOpen' });
     expect(refuseProposal(expired, G1, guardians, 0)).toEqual({ ok: false, error: 'notOpen' });
-  });
-
-  it.each(BAD_TICKS)('throws RangeError for a $label tick', ({ value }) => {
-    expect(() => expireProposal(open(), value)).toThrow(RangeError);
   });
 });
 
 describe('a forged proposal', () => {
-  it('keeps its hidden flag on the server while every public view hides it', () => {
+  it('keeps its hidden flag through every signature until it passes', () => {
     const guardians = roster(5);
     let p = open({ forged: true });
     for (const id of [G1, G2, G3, G4]) {
       p = freeze(unwrap(signProposal(p, id, guardians, 0)));
       expect(p.forged).toBe(true);
-      expect(toPublicProposal(p)).not.toHaveProperty('forged');
     }
     expect(p.status).toBe('passed');
   });

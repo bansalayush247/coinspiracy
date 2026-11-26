@@ -67,8 +67,6 @@ export const DEVICE_HEAPS: readonly number[] = Object.freeze(HEAPS.flatMap((h, i
 
 export const DIG_REACH = 1.5;
 export const DIG_MS = 1_800;
-// Moving further than this from where you started digging stops the dig.
-export const DIG_WOBBLE = 0.35;
 
 export const canDig = (who: Vec2, heap: Heap): boolean => Math.hypot(who.x - heap.tile[0] - 0.5, who.y - heap.tile[1] - 0.5) <= DIG_REACH;
 

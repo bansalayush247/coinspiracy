@@ -228,5 +228,3 @@ export function createGameServer(options: GameServerOptions) {
 
   return { server, httpServer, listen, openSockets };
 }
-
-export type GameServer = ReturnType<typeof createGameServer>['server'];

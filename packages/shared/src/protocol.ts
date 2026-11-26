@@ -14,11 +14,6 @@ export const CLOSE_CODES = Object.freeze({
 } as const);
 export type CloseCode = (typeof CLOSE_CODES)[keyof typeof CLOSE_CODES];
 
-// Server kicks never get a reconnection window.
-export function isKickCode(code: number): boolean {
-  return Object.values(CLOSE_CODES).some((c) => c === code);
-}
-
 // Messages the server sends to one client; payloads are in schemas.ts.
 export const SERVER_MESSAGES = Object.freeze({
   TASK_OPENED: 'taskOpened',

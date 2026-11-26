@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   CATALOG,
-  CATEGORY_LABELS,
   COSMETIC_IDS,
   COSMETIC_SLOTS,
   CosmeticIdSchema,
@@ -19,13 +18,11 @@ import {
   OptionalSlotSchema,
   OwnedCosmeticsSchema,
   REQUIRED_SLOTS,
-  REWARDS,
   REWARD_IDS,
   RewardIdSchema,
   SHOPS,
   SHOP_IDS,
   ShopIdSchema,
-  VETERAN_MATCHES,
   categoryOf,
   checkLook,
   checkPurchase,
@@ -250,13 +247,8 @@ describe('slots and categories', () => {
     expect(sorted([...REQUIRED_SLOTS, ...OPTIONAL_SLOTS])).toStrictEqual(sorted(COSMETIC_SLOTS));
   });
 
-  it('labels every category and has items in each', () => {
-    for (const category of ITEM_CATEGORIES) {
-      expect(CATEGORY_LABELS[category].length).toBeGreaterThan(0);
-      expect(itemsInCategory(category).length).toBeGreaterThan(0);
-    }
-    expect(CATEGORY_LABELS.outfit).toBe('Robes');
-    expect(CATEGORY_LABELS.shades).toBe('Eyewear');
+  it('has items in every category', () => {
+    for (const category of ITEM_CATEGORIES) expect(itemsInCategory(category).length).toBeGreaterThan(0);
   });
 
   it('partitions the catalogue by category in catalogue order', () => {
@@ -342,11 +334,6 @@ describe('prices and sources', () => {
     expect(() => rewardItem('__proto__' as RewardId)).toThrow(RangeError);
   });
 
-  it('describes every reward, and the veteran one names its match count', () => {
-    expect(REWARDS.map((r) => r.id)).toStrictEqual([...REWARD_IDS]);
-    for (const reward of REWARDS) expect(reward.hint.length).toBeGreaterThan(0);
-    expect(REWARDS.find((r) => r.id === 'veteran')?.hint).toContain(String(VETERAN_MATCHES));
-  });
 });
 
 describe('shops', () => {
@@ -452,11 +439,8 @@ describe('frozen data', () => {
       ITEM_CATEGORIES,
       SHOP_IDS,
       REWARD_IDS,
-      CATEGORY_LABELS,
       SHOPS,
       ...SHOPS,
-      REWARDS,
-      ...REWARDS,
       DEFAULT_LOOK,
       DEFAULT_OWNED,
       itemsInShop('tailor'),

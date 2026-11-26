@@ -8,23 +8,11 @@ export type CosmeticSlot = (typeof COSMETIC_SLOTS)[number];
 // Slots that always hold an item; the others can be empty.
 export const REQUIRED_SLOTS = Object.freeze(['outfit', 'hair', 'dye'] as const satisfies readonly CosmeticSlot[]);
 export const OPTIONAL_SLOTS = Object.freeze(['beard', 'hat', 'shades', 'board'] as const satisfies readonly CosmeticSlot[]);
-export type RequiredSlot = (typeof REQUIRED_SLOTS)[number];
 export type OptionalSlot = (typeof OPTIONAL_SLOTS)[number];
 
 // Food is a consumable category, never a slot.
 export const ITEM_CATEGORIES = Object.freeze([...COSMETIC_SLOTS, 'food'] as const);
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
-
-export const CATEGORY_LABELS: Readonly<Record<ItemCategory, string>> = Object.freeze({
-  outfit: 'Robes',
-  hair: 'Haircuts',
-  dye: 'Hair colour',
-  beard: 'Grooming',
-  hat: 'Hats',
-  shades: 'Eyewear',
-  board: 'Boards',
-  food: 'Menu',
-});
 
 export const SHOP_IDS = Object.freeze(['tailor', 'barber', 'hats', 'surf', 'cafe', 'pupusa-stand', 'coconut-stand'] as const);
 export type ShopId = (typeof SHOP_IDS)[number];
@@ -66,14 +54,6 @@ export const REWARD_IDS = Object.freeze([
   'mountaineer',
 ] as const);
 export type RewardId = (typeof REWARD_IDS)[number];
-
-// Finished matches that earn the veteran reward.
-export const VETERAN_MATCHES = 10;
-
-export interface RewardInfo {
-  readonly id: RewardId;
-  readonly hint: string;
-}
 
 // A shop item at a fixed price, or a match reward that is never sold.
 export type ItemSource =
@@ -206,32 +186,6 @@ export const SHOPS: readonly ShopInfo[] = deepFreeze([
   { id: 'cafe', name: 'Lightning Café', sells: 'Coffee', color: '#7FD8FF' },
   { id: 'pupusa-stand', name: 'Pupusa Stand', sells: 'Pupusas fresh off the griddle', color: '#FF9A6A' },
   { id: 'coconut-stand', name: 'Coconut Stand', sells: 'Ice-cold coconuts', color: '#A8DDA0' },
-]);
-
-export const REWARDS: readonly RewardInfo[] = deepFreeze([
-  { id: 'firstMatch', hint: 'Finish your first Council match.' },
-  { id: 'honestWin', hint: 'Win a match as an honest guardian.' },
-  { id: 'byzantineWin', hint: 'Win a match as a Byzantine guardian.' },
-  { id: 'veteran', hint: `Finish ${VETERAN_MATCHES} Council matches.` },
-  { id: 'rank5', hint: 'Reach Guardian Rank 5.' },
-  { id: 'rank10', hint: 'Reach Guardian Rank 10.' },
-  { id: 'rank15', hint: 'Reach Guardian Rank 15.' },
-  { id: 'rank20', hint: 'Reach Guardian Rank 20.' },
-  { id: 'rank30', hint: 'Reach Guardian Rank 30.' },
-  { id: 'rank40', hint: 'Reach Guardian Rank 40.' },
-  { id: 'rank50', hint: 'Reach Guardian Rank 50.' },
-  { id: 'graduate', hint: 'Clear every Academy level.' },
-  { id: 'epochAmber', hint: 'Finish the Epoch Road in an amber epoch.' },
-  { id: 'epochTeal', hint: 'Finish the Epoch Road in a teal epoch.' },
-  { id: 'epochViolet', hint: 'Finish the Epoch Road in a violet epoch.' },
-  { id: 'epochCoral', hint: 'Finish the Epoch Road in a coral epoch.' },
-  { id: 'epochLime', hint: 'Finish the Epoch Road in a lime epoch.' },
-  { id: 'epochFrost', hint: 'Finish the Epoch Road in a frost epoch.' },
-  { id: 'reefWalker', hint: 'Finish a match on Lightning Reef.' },
-  { id: 'channelHopper', hint: 'Route 10 payments through the Gateway Harbour on Lightning Reef.' },
-  { id: 'signingScholar', hint: 'Clear both Signing Isle Academy levels.' },
-  { id: 'councilScholar', hint: 'Clear both Council Isle Academy levels.' },
-  { id: 'mountaineer', hint: 'Finish a match on Watchtower Peaks.' },
 ]);
 
 export const CATALOG: readonly CatalogItem[] = Object.freeze(ITEM_SPECS.map((spec) => buildItem(spec)));

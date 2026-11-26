@@ -1,6 +1,6 @@
 import { Decoder, Encoder, StateView, type Iterator } from '@colyseus/schema';
 import { describe, expect, it } from 'vitest';
-import { CLOSE_CODES, isKickCode } from '../src/protocol.js';
+import { CLOSE_CODES } from '../src/protocol.js';
 import { CitadelState, PlayerState, VIEW_TAGS } from '../src/state.js';
 
 // Same steps as Colyseus SchemaSerializer: shared bytes, then the per-view bytes.
@@ -221,12 +221,7 @@ describe('hidden roles', () => {
   });
 });
 
-describe('isKickCode', () => {
-  it('recognises every app close code and nothing else', () => {
-    for (const code of Object.values(CLOSE_CODES)) expect(isKickCode(code)).toBe(true);
-    for (const code of [1000, 1001, 1005, 1006, 4000, 4001, 4002, 4010, 4999]) expect(isKickCode(code)).toBe(false);
-  });
-
+describe('CLOSE_CODES', () => {
   it('keeps app codes clear of the range Colyseus reserves', () => {
     for (const code of Object.values(CLOSE_CODES)) {
       expect(code).toBeGreaterThan(4010);

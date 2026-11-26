@@ -13,8 +13,6 @@ import {
   balanceOf,
   credit,
   payWithNotes,
-  reissue,
-  suggestNotes,
   validateWallet,
   walletFromAmount,
   type Payment,
@@ -490,45 +488,6 @@ describe('payWithNotes', () => {
   });
 });
 
-describe('suggestNotes', () => {
-  it('picks exact notes when some subset sums to the price', () => {
-    expect(suggestNotes([16, 8, 4, 2, 1], 13)).toStrictEqual({ ok: true, value: [8, 4, 1] });
-    expect(suggestNotes([4, 4, 4], 8)).toStrictEqual({ ok: true, value: [4, 4] });
-    expect(suggestNotes([1, 2, 1, 4], 8)).toStrictEqual({ ok: true, value: [4, 2, 1, 1] });
-  });
-
-  it('otherwise picks the smallest single note that covers the price', () => {
-    expect(suggestNotes([16, 8, 8], 12)).toStrictEqual({ ok: true, value: [16] });
-    expect(suggestNotes([1024, 64, 32], 40)).toStrictEqual({ ok: true, value: [64] });
-    expect(suggestNotes([MAX, 4, 2], 7)).toStrictEqual({ ok: true, value: [MAX] });
-  });
-
-  it('otherwise adds notes largest first until the price is covered', () => {
-    expect(suggestNotes([8, 4, 4, 2], 15)).toStrictEqual({ ok: true, value: [8, 4, 4] });
-    expect(suggestNotes([2, 2, 2], 5)).toStrictEqual({ ok: true, value: [2, 2, 2] });
-  });
-
-  it('refuses a price above the balance', () => {
-    expect(suggestNotes([8, 4], 13)).toStrictEqual({ ok: false, error: 'insufficientFunds' });
-    expect(suggestNotes([], 1)).toStrictEqual({ ok: false, error: 'insufficientFunds' });
-  });
-
-  it('refuses bad prices and wallets', () => {
-    for (const price of [0, -1, 0.5, Number.NaN, MAX_WALLET_BALANCE + 1]) {
-      expect(suggestNotes([8], price)).toStrictEqual({ ok: false, error: 'invalidAmount' });
-    }
-    for (const { value } of INVALID_WALLETS) {
-      expect(suggestNotes(asWallet(value), 1)).toStrictEqual({ ok: false, error: 'invalidWallet' });
-    }
-  });
-
-  it('leaves a frozen wallet alone', () => {
-    const wallet = Object.freeze([1, 8, 2]);
-    expect(unwrap(suggestNotes(wallet, 3))).toStrictEqual([2, 1]);
-    expect(wallet).toStrictEqual([1, 8, 2]);
-  });
-});
-
 describe('credit', () => {
   it('adds fresh notes for the amount', () => {
     expect(credit([], 400)).toStrictEqual({
@@ -564,30 +523,6 @@ describe('credit', () => {
     for (const { value } of INVALID_WALLETS) {
       expect(credit(asWallet(value), 1)).toStrictEqual({ ok: false, error: 'invalidWallet' });
     }
-  });
-});
-
-describe('reissue', () => {
-  it('swaps many notes for the fewest with the same balance', () => {
-    expect(reissue(repeat(1, MAX_WALLET_NOTES))).toStrictEqual({ ok: true, value: [64] });
-    expect(reissue([32, 64, 4, 4])).toStrictEqual({ ok: true, value: [64, 32, 8] });
-    expect(reissue([])).toStrictEqual({ ok: true, value: [] });
-  });
-
-  it('keeps the balance and settles in one step', () => {
-    const rng = mulberry32(0x5eed03);
-    for (let i = 0; i < 500; i++) {
-      const wallet = Object.freeze(randomWallet(rng));
-      const once = unwrap(reissue(wallet));
-      expect(sum(once)).toBe(sum(wallet));
-      expect([...once]).toStrictEqual(fewest(sum(wallet)));
-      expect(unwrap(reissue(once))).toStrictEqual(once);
-      expect(once.length).toBeLessThanOrEqual(wallet.length);
-    }
-  });
-
-  it.each(INVALID_WALLETS)('refuses $label', ({ value }) => {
-    expect(reissue(asWallet(value))).toStrictEqual({ ok: false, error: 'invalidWallet' });
   });
 });
 
@@ -644,6 +579,31 @@ describe('note schemas', () => {
   });
 });
 
+// Exact notes when greedy finds them, else the smallest covering note, else largest first: always a valid payment.
+function coveringNotes(wallet: readonly number[], price: number): number[] {
+  const notes = desc(wallet);
+  const exact: number[] = [];
+  let rest = price;
+  for (const note of notes) {
+    if (note <= rest) {
+      exact.push(note);
+      rest -= note;
+    }
+  }
+  if (rest === 0) return exact;
+  const covering = notes.filter((note) => note >= price);
+  const smallest = covering[covering.length - 1];
+  if (smallest !== undefined) return [smallest];
+  const picked: number[] = [];
+  let total = 0;
+  for (const note of notes) {
+    if (total >= price) break;
+    picked.push(note);
+    total += note;
+  }
+  return picked;
+}
+
 describe('wallet properties (seeded)', () => {
   it('pays every affordable price with the suggested notes and conserves value', () => {
     const seed = 0xec0001;
@@ -655,7 +615,7 @@ describe('wallet properties (seeded)', () => {
       if (balance === 0) continue;
       const price = 1 + randInt(rng, balance);
       const context = `seed ${seed} case ${i}: price ${price} wallet ${JSON.stringify(wallet)}`;
-      const suggestion = unwrap(suggestNotes(wallet, price));
+      const suggestion = coveringNotes(wallet, price);
       expect(expectedPayError(wallet, suggestion, price), context).toBeNull();
       const payment = unwrap(payWithNotes(wallet, Object.freeze([...suggestion]), price));
       checkPayment(wallet, price, payment, context);
@@ -692,38 +652,6 @@ describe('wallet properties (seeded)', () => {
     }
     for (const outcome of ['ok', 'insufficientFunds', 'invalidSelection', 'notInWallet', 'underpaid', 'overpaid']) {
       expect(seen.get(outcome) ?? 0, outcome).toBeGreaterThan(20);
-    }
-  });
-
-  it('suggests exact notes whenever any subset sums to the price', () => {
-    const seed = 0xec0003;
-    const rng = mulberry32(seed);
-    for (let i = 0; i < 200; i++) {
-      const wallet = Object.freeze(randomWallet(rng, 12, 7));
-      const balance = sum(wallet);
-      // Subset sums by dynamic programming, independent of the greedy rule.
-      const reachable = new Uint8Array(balance + 1);
-      reachable[0] = 1;
-      for (const note of wallet) {
-        for (let s = balance; s >= note; s--) if (reachable[s - note] === 1) reachable[s] = 1;
-      }
-      const sortedWallet = desc(wallet);
-      for (let price = 1; price <= balance; price++) {
-        const context = `seed ${seed} case ${i}: price ${price} wallet ${JSON.stringify(wallet)}`;
-        const suggestion = unwrap(suggestNotes(wallet, price));
-        expect(expectedPayError(wallet, suggestion, price), context).toBeNull();
-        if (reachable[price] === 1) {
-          expect(sum(suggestion), context).toBe(price);
-          continue;
-        }
-        const covering = sortedWallet.filter((note) => note >= price);
-        const smallest = covering[covering.length - 1];
-        if (smallest !== undefined) {
-          expect([...suggestion], context).toStrictEqual([smallest]);
-        } else {
-          expect([...suggestion], context).toStrictEqual(sortedWallet.slice(0, suggestion.length));
-        }
-      }
     }
   });
 

@@ -11,9 +11,6 @@ export const LOCALES = ['en', 'es'] as const;
 /** A language the client can show. */
 export type Locale = (typeof LOCALES)[number];
 
-/** Each language's name in itself, as the picker lists it. */
-export const LOCALE_NAMES: Readonly<Record<Locale, string>> = { en: 'English', es: 'Español' };
-
 /** Every catalog by language. */
 export const CATALOGS: Readonly<Record<Locale, Messages>> = { en, es };
 

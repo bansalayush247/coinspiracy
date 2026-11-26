@@ -29,9 +29,6 @@ export const BISCUIT_BED: Vec2 = Object.freeze({ x: 95.6, y: 94.6 });
 export const BISCUIT_TO_BINS: readonly Vec2[] = Object.freeze([BISCUIT_BED, { x: 96.5, y: 92.5 }, { x: 101, y: 92.5 }, { x: 101.6, y: 92.9 }]);
 export const BISCUIT_SPEED = 2.2;
 export const BISCUIT_AWAY_MS = 14_000;
-// Biscuit counts as on the kennel while he's this close to it.
-export const BISCUIT_GUARDS = 1.6;
-
 // Brannigan searches the yard in his own order, the obvious places first and the kennel last, skipping anything
 // already searched. Each round is the path he walks to that spot.
 export const BRANNIGAN_ROUNDS: readonly { readonly spot: number; readonly path: readonly Vec2[] }[] = Object.freeze([

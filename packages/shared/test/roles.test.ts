@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isHalted } from '../src/federation.js';
-import { assignRoles, cryptoRandom, visibleRoles, type RandomSource } from '../src/roles.js';
+import { assignRoles, cryptoRandom, type RandomSource } from '../src/roles.js';
 import type { PlayerId, Role } from '../src/types.js';
 
 const NAMES = ['alice', 'bob', 'carol', 'dave', 'erin', 'frank', 'grace', 'heidi', 'ivan'];
@@ -77,15 +77,6 @@ const keep: RandomSource = { int: (max) => max - 1 };
 const zero: RandomSource = { int: () => 0 };
 // An arbitrary in-range pattern.
 const half: RandomSource = { int: (max) => Math.floor(max / 2) };
-
-// A map whose mutators throw, to prove the code under test only reads it.
-function readOnlyMap<K, V>(source: ReadonlyMap<K, V>): ReadonlyMap<K, V> {
-  const refuse = (): never => {
-    throw new TypeError('input map was mutated');
-  };
-  const mutators = { set: refuse, delete: refuse, clear: refuse };
-  return Object.freeze(Object.assign(new Map(source), mutators));
-}
 
 // Makes crypto.getRandomValues yield the given 32-bit words in order.
 function feedWords(words: readonly number[]) {
@@ -415,100 +406,4 @@ describe('cryptoRandom.int', () => {
     expect(low).toBeGreaterThan(800);
     expect(low).toBeLessThan(1200);
   });
-});
-
-describe('visibleRoles', () => {
-  const roles = new Map<PlayerId, Role>([
-    ['alice', 'honest'],
-    ['bob', 'byzantine'],
-    ['carol', 'honest'],
-    ['dave', 'byzantine'],
-    ['erin', 'honest'],
-    ['frank', 'honest'],
-    ['grace', 'honest'],
-  ]);
-  const team = new Map<PlayerId, Role>([
-    ['bob', 'byzantine'],
-    ['dave', 'byzantine'],
-  ]);
-
-  it.each(['alice', 'carol', 'erin', 'frank', 'grace'])(
-    'shows honest %s only their own role',
-    (viewer) => {
-      expect([...visibleRoles(roles, viewer)]).toEqual([[viewer, 'honest']]);
-    },
-  );
-
-  it.each(['bob', 'dave'])('shows Byzantine %s both Byzantines and nobody else', (viewer) => {
-    const visible = visibleRoles(roles, viewer);
-    expect(visible).toEqual(team);
-    expect(visible.get(viewer)).toBe('byzantine');
-  });
-
-  it('shows a lone Byzantine only themself', () => {
-    const five = new Map<PlayerId, Role>([
-      ['alice', 'honest'],
-      ['bob', 'honest'],
-      ['carol', 'byzantine'],
-      ['dave', 'honest'],
-      ['erin', 'honest'],
-    ]);
-    expect([...visibleRoles(five, 'carol')]).toEqual([['carol', 'byzantine']]);
-  });
-
-  it.each(['mallory', '', 'Alice', 'alice '])('shows unknown viewer %j nothing', (viewer) => {
-    expect(visibleRoles(roles, viewer).size).toBe(0);
-  });
-
-  it('shows anyone nothing when there are no roles', () => {
-    expect(visibleRoles(new Map(), 'alice').size).toBe(0);
-  });
-
-  it('returns a fresh copy that is safe to mutate', () => {
-    const visible = visibleRoles(roles, 'bob');
-    expect(visible).not.toBe(roles);
-    expect(visibleRoles(roles, 'bob')).not.toBe(visible);
-    visible.set('alice', 'byzantine');
-    visible.delete('dave');
-    expect(roles.get('alice')).toBe('honest');
-    expect(roles.get('dave')).toBe('byzantine');
-    expect(visibleRoles(roles, 'bob')).toEqual(team);
-  });
-
-  it('returns a fresh empty map to every unknown viewer', () => {
-    const first = visibleRoles(roles, 'mallory');
-    first.set('alice', 'byzantine');
-    const second = visibleRoles(roles, 'mallory');
-    expect(second).not.toBe(first);
-    expect(second.size).toBe(0);
-  });
-
-  it('only reads the roles map', () => {
-    const guarded = readOnlyMap(roles);
-    for (const viewer of [...roles.keys(), 'mallory']) {
-      expect(() => visibleRoles(guarded, viewer)).not.toThrow();
-    }
-    expect([...guarded]).toEqual([...roles]);
-  });
-
-  it.each(DEALS)(
-    'shows each viewer of a dealt $n-player match only what they may see',
-    ({ n, k }) => {
-      const ids = seats(n);
-      for (let deal = 0; deal < 20; deal++) {
-        const dealt = assignRoles(ids);
-        const byzantine = new Set(byzantines(dealt));
-        expect(byzantine.size).toBe(k);
-        for (const viewer of ids) {
-          const visible = visibleRoles(dealt, viewer);
-          if (byzantine.has(viewer)) {
-            expect(new Set(visible.keys())).toEqual(byzantine);
-            expect([...visible.values()].every((role) => role === 'byzantine')).toBe(true);
-          } else {
-            expect([...visible]).toEqual([[viewer, 'honest']]);
-          }
-        }
-      }
-    },
-  );
 });
