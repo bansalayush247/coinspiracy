@@ -97,7 +97,10 @@ export function isWalkableTile(map: CitadelMap, col: number, row: number): boole
   return WALKABLE_TILES.has(tileAt(map, col, row));
 }
 
-// Square footprint test: blocked if any overlapped tile is not walkable.
+/** Half-width in tiles of a lamp post: a thin pole in the middle of its tile, not a whole tile of wall. */
+export const POST_HALF = 0.12;
+
+// Square footprint test: blocked if any overlapped tile is not walkable; a lamp tile only blocks at its post.
 export function isBlocked(map: CitadelMap, pos: Vec2, radius: number): boolean {
   const minCol = Math.floor(pos.x - radius);
   const maxCol = Math.floor(pos.x + radius);
@@ -105,7 +108,12 @@ export function isBlocked(map: CitadelMap, pos: Vec2, radius: number): boolean {
   const maxRow = Math.floor(pos.y + radius);
   for (let row = minRow; row <= maxRow; row++) {
     for (let col = minCol; col <= maxCol; col++) {
-      if (!isWalkableTile(map, col, row)) return true;
+      const tile = tileAt(map, col, row);
+      if (tile === 'L') {
+        if (Math.abs(pos.x - col - 0.5) < radius + POST_HALF && Math.abs(pos.y - row - 0.5) < radius + POST_HALF) return true;
+        continue;
+      }
+      if (!WALKABLE_TILES.has(tile)) return true;
     }
   }
   return false;

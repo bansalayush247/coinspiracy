@@ -53,10 +53,12 @@ function line(g: G, color: number, width: number, pts: readonly Pt[], alpha = 1)
 }
 
 /** Draws a costume over a guardian body already drawn into `g`; `facing` is 1 for screen right, -1 for left. */
-export function drawCostume(g: G, costume: Costume, facing: 1 | -1): void {
-  if (costume.neck !== undefined) drawNeck(g, costume.neck[0], costume.neck[1], facing);
-  if (costume.prop !== undefined) drawProp(g, costume.prop[0], costume.prop[1], facing);
-  if (costume.eyes !== undefined) drawEyes(g, costume.eyes[0], costume.eyes[1], facing);
+export function drawCostume(g: G, costume: Costume, facing: 1 | -1, back = false): void {
+  // From behind only what wraps round shows: a scarf, a carried prop, the hat; glasses, ties, pearls and a camera on
+  // the chest are hidden.
+  if (costume.neck !== undefined && (!back || costume.neck[0] === 'scarf')) drawNeck(g, costume.neck[0], costume.neck[1], facing);
+  if (costume.prop !== undefined && !(back && costume.prop[0] === 'camera')) drawProp(g, costume.prop[0], costume.prop[1], facing);
+  if (costume.eyes !== undefined && !back) drawEyes(g, costume.eyes[0], costume.eyes[1], facing);
   if (costume.head !== undefined) drawHead(g, costume.head[0], costume.head[1], facing);
 }
 

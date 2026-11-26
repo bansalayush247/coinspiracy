@@ -16,7 +16,8 @@ const KEYS: Readonly<Record<string, Dir>> = {
   KeyD: 'right',
 };
 
-function isEditable(target: EventTarget | null): boolean {
+/** Whether a key event is aimed at something the player is typing into. */
+export function isEditable(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement ||
@@ -88,12 +89,21 @@ export class PlayerInput {
     if (!on) this.clear();
   }
 
-  // World-space direction, length 0..1.
+  // World-space direction, length 0..1. The stick points on screen; the keys follow the streets, so one key walks
+  // straight down a road: up and down along one street axis, left and right along the other.
   direction(): Vec2 {
     if (!this.#enabled) return { x: 0, y: 0 };
     if (this.#stick.dx !== 0 || this.#stick.dy !== 0) return screenDirToWorld(this.#stick.dx, this.#stick.dy);
     const k = keysVector(this.#held.has('up'), this.#held.has('down'), this.#held.has('left'), this.#held.has('right'));
-    return screenDirToWorld(k.dx, k.dy);
+    return { x: k.dx, y: k.dy };
+  }
+
+  /** Pedal and wheel from the keys (up/W gas, down/S brake and reverse, left/right steer), or null when no key is held. */
+  pedals(): { throttle: number; steer: number } | null {
+    if (!this.#enabled || this.#held.size === 0) return null;
+    const throttle = (this.#held.has('up') ? 1 : 0) - (this.#held.has('down') ? 1 : 0);
+    const steer = (this.#held.has('right') ? 1 : 0) - (this.#held.has('left') ? 1 : 0);
+    return { throttle, steer };
   }
 
   clear(): void {

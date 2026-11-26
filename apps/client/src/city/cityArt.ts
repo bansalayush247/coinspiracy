@@ -470,16 +470,29 @@ export function drawStreetTree(g: G, seed: number): void {
   g.fillCircle(-8 * s, -52 * s, 9 * s);
 }
 
+// A modern street light: a slim two-tone pole on a small base plate, a thin arm out over the road and a flat LED
+// head that glows warm underneath. Its only glow is a small halo under the head, so nobody walking by is washed out.
 export function drawStreetLamp(g: G, c: number, r: number): void {
-  const foot = P(c + 0.5, r + 0.5);
-  const top = P(c + 0.5, r + 0.5, 110);
-  g.lineStyle(3 * ART_SCALE, 0x3a3440, 1);
-  g.lineBetween(foot.x, foot.y, top.x, top.y);
-  g.lineBetween(top.x, top.y, top.x + 16 * ART_SCALE, top.y + 4 * ART_SCALE);
-  g.fillStyle(0xfff1c9, 0.3);
-  g.fillCircle(top.x + 16 * ART_SCALE, top.y + 8 * ART_SCALE, 18 * ART_SCALE);
-  g.fillStyle(0xffe6a0, 1);
-  g.fillCircle(top.x + 16 * ART_SCALE, top.y + 8 * ART_SCALE, 4 * ART_SCALE);
+  const x = c + 0.5;
+  const y = r + 0.5;
+  const s = ART_SCALE;
+  fan(g, 0x3c3a44, [P(x - 0.1, y, 0), P(x, y - 0.1, 0), P(x + 0.1, y, 0), P(x, y + 0.1, 0)]);
+  fan(g, 0x2b2a32, [P(x - 0.1, y, 0), P(x, y + 0.1, 0), P(x, y + 0.1, 2), P(x - 0.1, y, 2)]);
+  fan(g, 0x22212a, [P(x, y + 0.1, 0), P(x + 0.1, y, 0), P(x + 0.1, y, 2), P(x, y + 0.1, 2)]);
+  const foot = P(x, y, 2);
+  const top = P(x, y, 104);
+  g.lineStyle(2.2 * s, 0x4a4854, 1);
+  g.lineBetween(foot.x - 0.5 * s, foot.y, top.x - 0.5 * s, top.y);
+  g.lineStyle(1.2 * s, 0x2a2930, 1);
+  g.lineBetween(foot.x + 0.7 * s, foot.y, top.x + 0.7 * s, top.y);
+  // The arm rises a touch as it reaches out, then the head: a slim dark housing with a lit strip below.
+  const end = { x: top.x + 22 * s, y: top.y - 3 * s };
+  g.lineStyle(1.6 * s, 0x44424e, 1);
+  g.lineBetween(top.x, top.y, end.x, end.y);
+  fan(g, 0x2e2c36, [{ x: end.x - 8 * s, y: end.y - 1.5 * s }, { x: end.x + 6 * s, y: end.y - 3.5 * s }, { x: end.x + 7 * s, y: end.y - 0.5 * s }, { x: end.x - 7 * s, y: end.y + 1.5 * s }]);
+  fan(g, 0xfff3d2, [{ x: end.x - 6.5 * s, y: end.y + 1.2 * s }, { x: end.x + 6.5 * s, y: end.y - 0.8 * s }, { x: end.x + 6 * s, y: end.y + 0.4 * s }, { x: end.x - 6 * s, y: end.y + 2.4 * s }]);
+  g.fillStyle(0xffe3a8, 0.16);
+  g.fillEllipse(end.x, end.y + 5 * s, 22 * s, 10 * s);
 }
 
 export function drawContainer(g: G, c: number, r: number, seed: number): void {

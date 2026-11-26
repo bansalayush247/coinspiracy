@@ -7,6 +7,7 @@ import { EVERYDAY_COSTUMES, drawCostume, type Costume } from './costumes.js';
 import { drawGuardian, type Wear } from './guardianArt.js';
 import { ART_SCALE, isoDepth, worldToScreen } from './iso.js';
 import { seatColors } from './palette.js';
+import { poseOf } from './facing.js';
 
 const SPEED = 1.4;
 const HATS = ['', '', 'hat:straw', 'hat:cap', 'hat:bucket', ''];
@@ -17,10 +18,11 @@ interface Walker {
   readonly seat: number;
   readonly wear: Wear;
   readonly costume: Costume;
-  pos: Vec2;
+  readonly pos: { x: number; y: number };
   path: Vec2[];
   waitUntil: number;
   facing: 1 | -1;
+  back: boolean;
   phase: number;
 }
 
@@ -46,7 +48,7 @@ export class Townsfolk {
       drawCostume(body, costume, 1);
       const root = new Phaser.GameObjects.Container(scene, 0, 0, [shadow, body]);
       layer.add(root);
-      this.#walkers.push({ root, body, seat, wear, costume, pos: { ...start }, path: [], waitUntil: i * 900, facing: 1, phase: i * 1.7 });
+      this.#walkers.push({ root, body, seat, wear, costume, pos: { ...start }, path: [], waitUntil: i * 900, facing: 1, back: false, phase: i * 1.7 });
     }
   }
 
@@ -55,9 +57,9 @@ export class Townsfolk {
     for (const w of this.#walkers) w.root.setVisible(visible);
   }
 
-  // Where the walkers are, so traffic can stop for them.
-  positions(): Vec2[] {
-    return this.#visible ? this.#walkers.map((w) => w.pos) : [];
+  // Adds where the walkers are to `out`, so traffic can stop for them.
+  collectPositions(out: Vec2[]): void {
+    if (this.#visible) for (const w of this.#walkers) out.push(w.pos);
   }
 
   // Hides the walkers a viewer cannot see, such as those behind a building.
@@ -82,18 +84,21 @@ export class Townsfolk {
         const d = Math.hypot(dx, dy);
         const step = SPEED * dt;
         if (d <= step) {
-          w.pos = { ...next };
+          w.pos.x = next.x;
+          w.pos.y = next.y;
           w.path.shift();
           // A pause to look around at the end of a walk.
           if (w.path.length === 0) w.waitUntil = time + 2500 + Math.random() * 6000;
         } else {
-          w.pos = { x: w.pos.x + (dx / d) * step, y: w.pos.y + (dy / d) * step };
+          w.pos.x += (dx / d) * step;
+          w.pos.y += (dy / d) * step;
           moving = true;
-          const facing = dx - dy > 0 ? 1 : -1;
-          if (facing !== w.facing) {
-            w.facing = facing;
-            drawGuardian(w.body, seatColors(w.seat), facing, w.wear);
-            drawCostume(w.body, w.costume, facing);
+          const pose = poseOf(Math.atan2(dy, dx));
+          if (pose.facing !== w.facing || pose.back !== w.back) {
+            w.facing = pose.facing;
+            w.back = pose.back;
+            drawGuardian(w.body, seatColors(w.seat), w.facing, w.wear, w.back);
+            drawCostume(w.body, w.costume, w.facing, w.back);
           }
         }
       }

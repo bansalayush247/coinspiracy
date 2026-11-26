@@ -3,26 +3,20 @@
 // bridges to the gateway, where the prompt and the task panel use that map's station name.
 // Run: npx tsx --conditions=source e2e/reef.ts (ARENA=peaks for Watchtower Peaks)
 import { randomBytes } from 'node:crypto';
-import { mkdir, rm } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { chromium, type Browser } from 'playwright-core';
-import { build, preview, type PreviewServer } from 'vite';
 import { createGameServer } from '../apps/server/src/app.js';
 import { MemoryProfileStore, type Change, type ChangeOutcome, type ProfileData } from '../apps/server/src/profile/store.js';
 import { ARENAS, SABOTAGE_TIMING, STATION_PROMPT_RANGE, stationCenter } from '../packages/shared/src/index.js';
 import { findPathNear } from '../packages/shared/src/pathfinding.js';
+import { SHOTS, check, checkNoErrors, collectErrors, finish, openRig, type Rig } from './harness.js';
 
-const clientRoot = fileURLToPath(new URL('../apps/client', import.meta.url));
-const shots = fileURLToPath(new URL('../.scratch/e2e/', import.meta.url));
 const ARENA = process.env['ARENA'] === 'peaks' ? ARENAS.peaks : ARENAS.reef;
 // The gateway station's name on this map, as the prompt and the task panel show it.
 const GATEWAY = ARENA.roomNames.gatewayDock.replace(/^the /, '');
 const GAME_PORT = ARENA.id === 'peaks' ? 3952 : 3950;
 const WEB_PORT = ARENA.id === 'peaks' ? 3953 : 3951;
 const WEB = `http://127.0.0.1:${String(WEB_PORT)}`;
-const BRAVE = process.env['BRAVE_PATH'] ?? '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser';
 const OUT = `dist-${ARENA.id}`;
-const SHOT = (name: string): string => `${shots}${ARENA.id}-${name}`;
+const SHOT = (name: string): string => `${SHOTS}${ARENA.id}-${name}`;
 
 // Every guest arrives with twelve Academy stars, which opens Lightning Reef.
 class ReefStore extends MemoryProfileStore {
@@ -31,11 +25,6 @@ class ReefStore extends MemoryProfileStore {
   }
 }
 
-let failures = 0;
-function check(ok: boolean, label: string): void {
-  if (!ok) failures++;
-  console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`);
-}
 
 interface Smoke {
   predicted(): { x: number; y: number } | null;
@@ -53,22 +42,14 @@ async function main(): Promise<void> {
     ...(ARENA.id === 'peaks' ? { sabotageTiming: { ...SABOTAGE_TIMING, openingMs: 0, partitionCooldownMs: 0 } } : {}),
     profiles: { store: new ReefStore(), keys: { current: randomBytes(32), previous: null, secure: false } },
   });
-  let web: PreviewServer | undefined;
-  let browser: Browser | undefined;
+  let rig: Rig | undefined;
   try {
     await game.listen(GAME_PORT, '127.0.0.1');
-    process.env['VITE_SERVER_URL'] = `http://127.0.0.1:${String(GAME_PORT)}`;
-    process.env['VITE_E2E'] = '1';
-    await build({ root: clientRoot, logLevel: 'warn', build: { outDir: OUT, emptyOutDir: true } });
-    web = await preview({ root: clientRoot, logLevel: 'warn', build: { outDir: OUT }, preview: { host: '127.0.0.1', port: WEB_PORT, strictPort: true } });
-    browser = await chromium.launch({ executablePath: BRAVE, headless: true, chromiumSandbox: true, timeout: 30_000 });
-    await mkdir(shots, { recursive: true });
+    rig = await openRig({ outDir: OUT, webPort: WEB_PORT, serverUrl: `http://127.0.0.1:${String(GAME_PORT)}` });
+    const { browser } = rig;
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, locale: 'en-US' });
     const errors: string[] = [];
-    page.on('pageerror', (e) => errors.push(String(e)));
-    page.on('console', (m) => {
-      if (m.type() === 'error') errors.push(m.text());
-    });
+    collectErrors(page, errors);
     await page.goto(`${WEB}/`);
     await page.locator('#open-progress').waitFor({ state: 'visible', timeout: 10_000 });
     await page.fill('#nickname', 'Mara');
@@ -105,8 +86,9 @@ async function main(): Promise<void> {
       if (pos === null) break;
       const route = findPathNear(ARENA.map, pos, harbour, STATION_PROMPT_RANGE - 0.3);
       const next = (route.ok ? route.value : []).find((p) => Math.hypot(p.x - pos.x, p.y - pos.y) > 0.35) ?? harbour;
-      const sx = next.x - pos.x - (next.y - pos.y);
-      const sy = (next.x - pos.x + next.y - pos.y) / 2;
+      // The arrow keys follow the world axes: right and left along x, down and up along y.
+      const sx = next.x - pos.x;
+      const sy = next.y - pos.y;
       const len = Math.hypot(sx, sy) || 1;
       const keys = [...(Math.abs(sx) / len > 0.38 ? [sx > 0 ? 'ArrowRight' : 'ArrowLeft'] : []), ...(Math.abs(sy) / len > 0.38 ? [sy > 0 ? 'ArrowDown' : 'ArrowUp'] : [])];
       for (const k of keys) await page.keyboard.down(k);
@@ -142,19 +124,12 @@ async function main(): Promise<void> {
     await page.waitForTimeout(1200);
     await page.screenshot({ path: SHOT('menu-after.png') });
     check(true, 'leaving returns to the menu over the Citadel');
-    check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
+    checkNoErrors(errors);
   } finally {
-    await browser?.close();
-    await web?.close();
+    await rig?.close();
     await game.server.gracefullyShutdown(false).catch(() => undefined);
-    await rm(`${clientRoot}/${OUT}`, { recursive: true, force: true });
   }
-  if (failures > 0) {
-    console.log(`${String(failures)} check(s) failed`);
-    process.exit(1);
-  }
-  console.log(`${ARENA.id}: ok`);
-  process.exit(0);
+  finish(ARENA.id);
 }
 
 await main();

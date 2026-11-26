@@ -2,12 +2,12 @@
 import { Callbacks } from '@colyseus/sdk';
 import { toDenominations } from '@byzantine-council/shared';
 import { SHOPS, getShop, itemsInShop, ownsItem, payWithNotes, type CatalogItem, type ShopId } from '@byzantine-council/shared/economy';
-import { BEACH_MESSAGES, CourierDoneSchema, CourierJobSchema, CourierRefusedSchema, EMOTES, EMOTE_GLYPHS, EmoteLineSchema, atHome, shopAt, type CourierJob, type Emote, type HubPlayer } from '@byzantine-council/shared/hub';
+import { BEACH_MESSAGES, CourierDoneSchema, CourierJobSchema, CourierRefusedSchema, EMOTES, EMOTE_GLYPHS, EmoteLineSchema, JumpLineSchema, atHome, shopAt, type CourierJob, type Emote, type HubPlayer } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import { Achievements } from '../profile/achievements.js';
 import { Coach } from '../ui/coach.js';
 import { sealName } from '../profile/names.js';
-import type { PlayerInput } from '../game/input.js';
+import { type PlayerInput, isEditable } from '../game/input.js';
 import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { el, h } from '../ui/dom.js';
@@ -114,6 +114,14 @@ export class BeachController {
     );
     window.addEventListener('keydown', (e) => {
       if (this.#room === null || this.#hud.hidden || !el('wardrobe', HTMLElement).hidden || !el('story', HTMLElement).hidden) return;
+      if (e.code === 'Space' && !e.repeat && !isEditable(e.target) && this.#shopRoot.hidden) {
+        // A focused HUD button would otherwise be clicked by Space as well.
+        if (e.target instanceof HTMLButtonElement) e.target.blur();
+        e.preventDefault();
+        this.scene.jump(this.#room.sessionId);
+        this.#room.send('jump');
+        return;
+      }
       const n = Number(e.key);
       if (Number.isInteger(n) && n >= 1 && n <= EMOTES.length && this.#shopRoot.hidden) {
         const emote = EMOTES[n - 1];
@@ -197,6 +205,10 @@ export class BeachController {
     room.onMessage(BEACH_MESSAGES.REFUSED, (payload: unknown) => {
       const r = CourierRefusedSchema.safeParse(payload);
       if (r.success) this.onToast(t(REFUSALS[r.data.reason] ?? 'beach.failed'));
+    });
+    room.onMessage(BEACH_MESSAGES.JUMP, (payload: unknown) => {
+      const line = JumpLineSchema.safeParse(payload);
+      if (line.success) this.scene.jump(line.data.from);
     });
     room.onMessage(BEACH_MESSAGES.EMOTE, (payload: unknown) => {
       const line = EmoteLineSchema.safeParse(payload);

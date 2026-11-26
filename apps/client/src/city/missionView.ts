@@ -11,6 +11,7 @@ import { LOOKS, shopperLook, type Look } from './looks.js';
 import { sceneDpr } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer } from '../game/interpolation.js';
 import { ART_SCALE, worldToScreen } from '../game/iso.js';
+import { poseOf } from '../game/facing.js';
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
@@ -27,11 +28,31 @@ interface Figure {
   readonly pos: { x: number; y: number };
   facing: number;
   side: 1 | -1;
+  // Seen from behind: walking away up the screen.
+  back: boolean;
   chasing: boolean;
   shown: boolean;
   // Its own look, when a kind comes in many (the shoppers in a crowd).
   readonly look?: Look;
+  // The last cone outline in screen space, reused while the figure stands and faces the same way.
+  cone?: ConeShape;
 }
+
+interface ConeShape {
+  readonly x: number;
+  readonly y: number;
+  readonly facing: number;
+  readonly range: number;
+  readonly half: number;
+  readonly points: Phaser.Math.Vector2[];
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+}
+
+// Screen pixels past the camera edge a cone or ring may sit and still be drawn.
+const DRAW_MARGIN = 64;
 
 export interface NpcView {
   readonly kind: string;
@@ -55,6 +76,7 @@ export class MissionView {
   #target: Vec2 | null = null;
   #digging: ReadonlySet<number> = new Set();
   #act: StoryAct | null = null;
+  #ringShape: { readonly at: Vec2; readonly range: number; readonly points: Phaser.Math.Vector2[] } | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -116,15 +138,16 @@ export class MissionView {
         fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffe3a8', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this.scene)),
       }).setOrigin(0.5, 1);
       this.names.add(label);
-      f = { kind, root, body, label, buffer: new InterpBuffer(), pos: { x: npc.x, y: npc.y }, facing: npc.facing, side: 1, chasing: false, shown: npc.shown, ...(kind === 'shopper' ? { look: shopperLook(Number(id.replace(/\D/g, ''))) } : {}) };
+      f = { kind, root, body, label, buffer: new InterpBuffer(), pos: { x: npc.x, y: npc.y }, facing: npc.facing, side: 1, back: false, chasing: false, shown: npc.shown, ...(kind === 'shopper' ? { look: shopperLook(Number(id.replace(/\D/g, ''))) } : {}) };
       this.#draw(f);
       this.#figures.set(id, f);
     }
     f.buffer.push(performance.now(), npc.x, npc.y);
     f.facing = npc.facing;
-    const side: 1 | -1 = Math.cos(f.facing) - Math.sin(f.facing) >= 0 ? 1 : -1;
-    if (side !== f.side || npc.chasing !== f.chasing) {
-      f.side = side;
+    const pose = poseOf(f.facing);
+    if (pose.facing !== f.side || pose.back !== f.back || npc.chasing !== f.chasing) {
+      f.side = pose.facing;
+      f.back = pose.back;
       f.chasing = npc.chasing;
       this.#draw(f);
     }
@@ -214,14 +237,15 @@ export class MissionView {
       return;
     }
     const look = f.look ?? LOOKS[f.kind];
-    drawGuardian(f.body, look.colors, f.side, look.wear);
-    drawCostume(f.body, look.costume, f.side);
+    drawGuardian(f.body, look.colors, f.side, look.wear, f.back);
+    drawCostume(f.body, look.costume, f.side, f.back);
   }
 
   // Torches: a warm cone on the ground in front of every guard, in the same reach the server uses.
   #drawTorch(): void {
     const g = this.#torch;
     g.clear();
+    const view = this.scene.cameras.main.worldView;
     const watch = this.#act?.watch;
     for (const f of this.#figures.values()) {
       if (watch !== undefined && f.kind === watch.npc) {
@@ -229,23 +253,30 @@ export class MissionView {
         continue;
       }
       const c = coneOf(f);
-      if (c !== null) this.#cone(g, f, c.range, c.half, c.color, c.lamp);
+      if (c !== null) this.#cone(g, view, f, c.range, c.half, c.color, c.lamp);
     }
   }
 
   /** Where every figure watching right now stands (a cone, or the act's ring), so the scene can fade whatever would hide them. */
   watchers(): Vec2[] {
     const npc = this.#act?.watch?.npc;
-    return [...this.#figures.values()].filter((f) => (f.kind === npc ? f.shown && f.chasing : coneOf(f) !== null)).map((f) => f.pos);
+    const out: Vec2[] = [];
+    for (const f of this.#figures.values()) if (f.kind === npc ? f.shown && f.chasing : coneOf(f) !== null) out.push(f.pos);
+    return out;
   }
 
   /** The ring on the ground a character watches: inside it, the act's rules can catch you. */
   #ring(g: Phaser.GameObjects.Graphics, at: Vec2, range: number): void {
-    const points = Array.from({ length: 48 }, (_, i) => {
-      const a = (i / 48) * Math.PI * 2;
-      const p = worldToScreen(at.x + Math.cos(a) * range, at.y + Math.sin(a) * range);
-      return new Phaser.Math.Vector2(p.x, p.y);
-    });
+    const ring = this.#ringShape;
+    let points = ring?.points;
+    if (ring === null || ring.at !== at || ring.range !== range || points === undefined) {
+      points = Array.from({ length: 48 }, (_, i) => {
+        const a = (i / 48) * Math.PI * 2;
+        const p = worldToScreen(at.x + Math.cos(a) * range, at.y + Math.sin(a) * range);
+        return new Phaser.Math.Vector2(p.x, p.y);
+      });
+      this.#ringShape = { at, range, points };
+    }
     g.fillStyle(0xbff0e2, 0.12);
     g.fillPoints(points, true);
     g.lineStyle(3 * ART_SCALE, 0xbff0e2, 0.55);
@@ -253,20 +284,14 @@ export class MissionView {
   }
 
   /** A cone on the ground in front of a figure, cut off where the server's line of sight is: a torch's light, or a glance back. */
-  #cone(g: Phaser.GameObjects.Graphics, guard: Figure, range: number, half: number, color: number, lamp: boolean): void {
-    const angles = Array.from({ length: CONE_RAYS + 1 }, (_, i) => guard.facing - half + (2 * half * i) / CONE_RAYS);
-    const reach = clearReaches(CITY_MAP, guard.pos, angles, range);
-    const points: Phaser.Math.Vector2[] = [];
-    const o = worldToScreen(guard.pos.x, guard.pos.y);
-    points.push(new Phaser.Math.Vector2(o.x, o.y));
-    angles.forEach((a, i) => {
-      const r = reach[i] ?? 0;
-      const p = worldToScreen(guard.pos.x + Math.cos(a) * r, guard.pos.y + Math.sin(a) * r);
-      points.push(new Phaser.Math.Vector2(p.x, p.y));
-    });
+  #cone(g: Phaser.GameObjects.Graphics, view: Phaser.Geom.Rectangle, guard: Figure, range: number, half: number, color: number, lamp: boolean): void {
+    const shape = coneShape(guard, range, half);
+    if (shape.right < view.x - DRAW_MARGIN || shape.left > view.right + DRAW_MARGIN || shape.bottom < view.y - DRAW_MARGIN || shape.top > view.bottom + DRAW_MARGIN) return;
     g.fillStyle(color, 0.28);
-    g.fillPoints(points, true);
+    g.fillPoints(shape.points, true);
     if (!lamp) return;
+    const o = shape.points[0];
+    if (o === undefined) return;
     g.fillStyle(0xfff6d8, 0.25);
     g.fillCircle(o.x, o.y - GUARDIAN_HEIGHT * 0.55, 6 * ART_SCALE);
   }
@@ -366,6 +391,35 @@ function drawLetter(g: Phaser.GameObjects.Graphics, alone: boolean): void {
 }
 
 // The sight cone a figure shows right now, if any: a torch, Mr Fennick's glance back, or Lumley's camera.
+// The cone's outline, worked out again only when the figure has moved, turned, or the cone changed size.
+function coneShape(guard: Figure, range: number, half: number): ConeShape {
+  const old = guard.cone;
+  const { x, y } = guard.pos;
+  if (old !== undefined && old.x === x && old.y === y && old.facing === guard.facing && old.range === range && old.half === half) return old;
+  const angles = Array.from({ length: CONE_RAYS + 1 }, (_, i) => guard.facing - half + (2 * half * i) / CONE_RAYS);
+  const reach = clearReaches(CITY_MAP, guard.pos, angles, range);
+  const o = worldToScreen(x, y);
+  const points = [new Phaser.Math.Vector2(o.x, o.y)];
+  angles.forEach((a, i) => {
+    const r = reach[i] ?? 0;
+    const p = worldToScreen(x + Math.cos(a) * r, y + Math.sin(a) * r);
+    points.push(new Phaser.Math.Vector2(p.x, p.y));
+  });
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  let bottom = -Infinity;
+  for (const p of points) {
+    left = Math.min(left, p.x);
+    right = Math.max(right, p.x);
+    top = Math.min(top, p.y - GUARDIAN_HEIGHT);
+    bottom = Math.max(bottom, p.y);
+  }
+  const shape = { x, y, facing: guard.facing, range, half, points, left, right, top, bottom };
+  guard.cone = shape;
+  return shape;
+}
+
 function coneOf(f: Figure): { range: number; half: number; color: number; lamp: boolean } | null {
   if (!f.shown) return null;
   if (TORCH_KINDS.has(f.kind)) return { range: TORCH_RANGE, half: TORCH_HALF_ANGLE, color: 0xffe9a8, lamp: true };

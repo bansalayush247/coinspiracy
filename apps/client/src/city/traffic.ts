@@ -5,7 +5,8 @@ import type { Vec2 } from '@byzantine-council/shared';
 import { CAR_LANES, SHIP_ROUTES, greenFor, lanePoint, type Lane, type ShipKind, type ShipRoute } from '@byzantine-council/shared/city';
 import { prism, fan, P } from '../beach/beachArt.js';
 import { ART_SCALE, worldToScreen } from '../game/iso.js';
-import { lit, shade } from '../game/palette.js';
+import { shade } from '../game/palette.js';
+import { drawModernCar } from './carArt.js';
 
 const CAR_SPEED = 2.8;
 const CAR_ACCEL = 5;
@@ -78,7 +79,7 @@ export class Traffic {
     const view = this.scene.cameras.main.worldView;
     const onScreen = (p: { x: number; y: number }): boolean => p.x > view.x - 300 && p.x < view.right + 300 && p.y > view.y - 300 && p.y < view.bottom + 300;
     for (const car of this.#cars) this.#drive(car, dt, now, people);
-    for (const car of [...this.#cars]) {
+    for (const car of this.#cars) {
       const ahead = (car.s - car.lane.to) * car.lane.dir;
       if (ahead >= 0) this.#respawn(car);
     }
@@ -122,7 +123,7 @@ export class Traffic {
   #addCar(lane: Lane, s: number, color: number): void {
     const g = new Phaser.GameObjects.Graphics(this.scene);
     this.layer.add(g);
-    drawCar(g, lane, color);
+    drawModernCar(g, laneHeading(lane), color);
     const car: Car = { g, lane, s, v: CAR_SPEED, color };
     this.#cars.push(car);
     const list = this.#byLane.get(lane) ?? [];
@@ -173,7 +174,7 @@ export class Traffic {
     const list = this.#byLane.get(car.lane) ?? [];
     list.push(car);
     this.#byLane.set(car.lane, list);
-    drawCar(car.g, car.lane, car.color);
+    drawModernCar(car.g, laneHeading(car.lane), car.color);
   }
 
   #sail(ship: Ship, dt: number): void {
@@ -202,27 +203,8 @@ export class Traffic {
   }
 }
 
-// A little cartoon car, long along its lane, drawn around its middle.
-function drawCar(g: Phaser.GameObjects.Graphics, lane: Lane, color: number): void {
-  const along = lane.axis === 'row';
-  const [hl, hw] = [CAR_LENGTH / 2, 0.36];
-  const [x0, y0, x1, y1] = along ? [-hl, -hw, hl, hw] : [-hw, -hl, hw, hl];
-  g.clear();
-  g.fillStyle(0x2a1a33, 0.25);
-  g.fillEllipse(0, 4 * ART_SCALE, (along ? 70 : 70) * ART_SCALE, 30 * ART_SCALE);
-  for (const [wx, wy] of along ? [[-hl + 0.3, hw], [hl - 0.3, hw]] : [[hw, -hl + 0.3], [hw, hl - 0.3]]) {
-    const w = P(wx ?? 0, wy ?? 0, 3);
-    g.fillStyle(0x1d1a22, 1);
-    g.fillEllipse(w.x, w.y, 9 * ART_SCALE, 9 * ART_SCALE);
-  }
-  prism(g, x0, y0, x1, y1, 3, 9, color);
-  const inset = 0.28;
-  const [cx0, cy0, cx1, cy1] = along ? [x0 + inset, y0 + 0.05, x1 - inset - 0.1, y1 - 0.05] : [x0 + 0.05, y0 + inset, x1 - 0.05, y1 - inset - 0.1];
-  prism(g, cx0, cy0, cx1, cy1, 12, 8, 0x9fd4f0, shade(color, 0.1));
-  const lamp = along ? (lane.dir === 1 ? P(x1, y1 - 0.12, 7) : P(x0 + 0.02, y1 - 0.12, 7)) : lane.dir === 1 ? P(x1 - 0.12, y1, 7) : P(x1 - 0.12, y0 + 0.02, 7);
-  g.fillStyle(0xfff1b0, 1);
-  g.fillCircle(lamp.x, lamp.y, 2.2 * ART_SCALE);
-}
+// A car along its lane: east or west on a row, south or north on a column.
+const laneHeading = (lane: Lane): number => (lane.axis === 'row' ? (lane.dir === 1 ? 0 : Math.PI) : lane.dir === 1 ? Math.PI / 2 : -Math.PI / 2);
 
 // Ships by kind, long along the way they sail.
 function drawShip(g: Phaser.GameObjects.Graphics, kind: ShipKind, eastWest: boolean): void {
@@ -256,44 +238,5 @@ function drawShip(g: Phaser.GameObjects.Graphics, kind: ShipKind, eastWest: bool
     g.lineBetween(base.x, base.y, top.x, top.y);
     const tip = eastWest ? P(l - 0.1, 0, 12) : P(0, l - 0.1, 12);
     fan(g, 0xfff8ee, [top, base, tip]);
-  }
-}
-
-// A drivable car at any heading: a rotated box with the sides facing the camera, a glass cabin and headlights.
-export function drawDrivenCar(g: Phaser.GameObjects.Graphics, heading: number, color: number, occupied: boolean): void {
-  const c = Math.cos(heading);
-  const s = Math.sin(heading);
-  const at = (u: number, v: number, z: number) => P(u * c - v * s, u * s + v * c, z);
-  const box = (u0: number, v0: number, u1: number, v1: number, z0: number, h: number, col: number, top: number): void => {
-    const corners: [number, number][] = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
-    for (let i = 0; i < 4; i++) {
-      const [au, av] = corners[i] ?? [0, 0];
-      const [bu, bv] = corners[(i + 1) % 4] ?? [0, 0];
-      const mu = (au + bu) / 2;
-      const mv = (av + bv) / 2;
-      const nx = mu * c - mv * s;
-      const ny = mu * s + mv * c;
-      if (nx + ny <= 0) continue;
-      fan(g, nx - ny > 0 ? shade(col, 0.25) : col, [at(au, av, z0), at(bu, bv, z0), at(bu, bv, z0 + h), at(au, av, z0 + h)]);
-    }
-    fan(g, top, corners.map(([u, v]) => at(u, v, z0 + h)));
-  };
-  const hl = CAR_LENGTH / 2;
-  const hw = 0.36;
-  g.clear();
-  g.fillStyle(0x2a1a33, 0.28);
-  g.fillEllipse(0, 4 * ART_SCALE, 76 * ART_SCALE, 34 * ART_SCALE);
-  for (const [u, v] of [[-hl + 0.3, -hw], [-hl + 0.3, hw], [hl - 0.3, -hw], [hl - 0.3, hw]] as const) {
-    const w = at(u, v, 3);
-    g.fillStyle(0x1d1a22, 1);
-    g.fillEllipse(w.x, w.y, 9 * ART_SCALE, 9 * ART_SCALE);
-  }
-  box(-hl, -hw, hl, hw, 3, 9, color, lit(color, 0.3));
-  box(-hl + 0.3, -hw + 0.05, hl - 0.4, hw - 0.05, 12, 8, occupied ? 0x6fb4dc : 0x9fd4f0, shade(color, 0.1));
-  const front = c + s > 0;
-  for (const v of [-hw + 0.1, hw - 0.1]) {
-    const lamp = at(front ? hl : -hl, v, 8);
-    g.fillStyle(front ? 0xfff1b0 : 0xff5a4a, 1);
-    g.fillCircle(lamp.x, lamp.y, 2.4 * ART_SCALE);
   }
 }

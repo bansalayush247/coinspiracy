@@ -51,8 +51,8 @@ function diamond(g: G, color: number, cx: number, cy: number, rx: number, ry: nu
   fan(g, color, [[cx, cy - ry], [cx + rx, cy], [cx, cy + ry], [cx - rx, cy]]);
 }
 
-// facing: 1 looks toward screen right, -1 toward screen left.
-export function drawGuardian(g: G, colors: GuardianColors, facing: 1 | -1, wear: Wear = NO_WEAR): void {
+// facing: 1 looks toward screen right, -1 toward screen left; back shows the guardian from behind, walking away.
+export function drawGuardian(g: G, colors: GuardianColors, facing: 1 | -1, wear: Wear = NO_WEAR, back = false): void {
   g.clear();
   // Warm rim light: the silhouette drawn slightly larger behind the body.
   g.lineStyle(1.6 * ART_SCALE, COLORS.rim, 0.85);
@@ -79,11 +79,18 @@ export function drawGuardian(g: G, colors: GuardianColors, facing: 1 | -1, wear:
   // Sleeves and hands, the near arm toward the sun.
   fan(g, colors.lit, [[-11, -30], [-14, -14], [-9, -13], [-7, -28]]);
   fan(g, colors.shadow, [[11, -30], [14, -14], [9, -13], [7, -28]]);
-  fan(g, 0xe8c4a8, [[-13.5, -14], [-9.5, -13.2], [-10.8, -10.5]]);
-  fan(g, 0xb8948a, [[13.5, -14], [9.5, -13.2], [10.8, -10.5]]);
+  if (!back) {
+    fan(g, 0xe8c4a8, [[-13.5, -14], [-9.5, -13.2], [-10.8, -10.5]]);
+    fan(g, 0xb8948a, [[13.5, -14], [9.5, -13.2], [10.8, -10.5]]);
+  }
   fan(g, colors.lit, HOOD_LIT);
   fan(g, colors.shadow, HOOD_SHADOW);
   fan(g, colors.highlight, HOOD_HIGHLIGHT);
+  if (back) {
+    drawHoodBack(g, colors, trim);
+    drawHat(g, wear.hat, facing);
+    return;
+  }
   fan(g, COLORS.face, FACE);
   // The hood's inner shadow over the brow.
   fan(g, mix(COLORS.face, 0x000000, 0.35), [[-7, -42], [0, -46], [7, -42], [0, -43.5]]);
@@ -102,6 +109,18 @@ export function drawGuardian(g: G, colors: GuardianColors, facing: 1 | -1, wear:
   }
   drawShades(g, wear.shades, facing);
   drawHat(g, wear.hat, facing);
+}
+
+// The back of the hood where the face would be: cloth, a seam down the middle and the hood's drape on the shoulders.
+function drawHoodBack(g: G, colors: GuardianColors, trim: number | undefined): void {
+  fan(g, mix(colors.lit, colors.shadow, 0.45), [[-7, -34], [-7, -42], [0, -46], [0, -31]]);
+  fan(g, mix(colors.shadow, 0x000000, 0.12), [[0, -31], [0, -46], [7, -42], [7, -34]]);
+  fan(g, mix(colors.shadow, 0x000000, 0.2), [[-12, -32], [0, -29], [12, -32], [0, -33.5]]);
+  g.lineStyle(1 * ART_SCALE, mix(colors.shadow, 0x000000, 0.3), 0.8);
+  g.lineBetween(0, -55 * ART_SCALE, 0, -31 * ART_SCALE);
+  if (trim === undefined) return;
+  g.lineStyle(1.2 * ART_SCALE, trim, 0.9);
+  g.lineBetween(-12 * ART_SCALE, -32 * ART_SCALE, 12 * ART_SCALE, -32 * ART_SCALE);
 }
 
 function drawShades(g: G, id: string, facing: 1 | -1): void {
@@ -157,10 +176,12 @@ function drawHat(g: G, id: string, facing: 1 | -1): void {
   }
 }
 
+// Marks your own guardian with a faint gold glow on the ground and a hairline rim, quiet enough to walk with.
 export function drawShadow(g: G, isMe: boolean): void {
   g.clear();
-  if (isMe) {
-    g.lineStyle(2 * ART_SCALE, COLORS.gold, 0.75);
-    g.strokeEllipse(0, 0, 40 * ART_SCALE, 18 * ART_SCALE, 32);
-  }
+  if (!isMe) return;
+  g.fillStyle(COLORS.gold, 0.12);
+  g.fillEllipse(0, 0, 30 * ART_SCALE, 13 * ART_SCALE, 32);
+  g.lineStyle(1 * ART_SCALE, COLORS.gold, 0.35);
+  g.strokeEllipse(0, 0, 30 * ART_SCALE, 13 * ART_SCALE, 32);
 }

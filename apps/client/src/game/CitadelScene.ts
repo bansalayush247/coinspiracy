@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { CITADEL, STATION_PROMPT_RANGE, TASK_KINDS, TICK_SECONDS, arenaById, movementMap, stationCenter, tileAt, type Arena, type ArenaId, type Role, type TaskKind, type Vec2, RELAY_RANGE } from '@byzantine-council/shared';
 import type { PlayerState } from '@byzantine-council/shared/state';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from './guardianArt.js';
+import { turnToward } from './facing.js';
 import { paintGround } from './groundPaint.js';
 import { Atmosphere, type Daylight, type NatureNote } from './atmosphere.js';
 import { Effects } from './effects.js';
@@ -66,7 +67,9 @@ interface Avatar {
   out: boolean;
   frozen: boolean;
   facing: 1 | -1;
+  back: boolean;
   lastScreenX: number;
+  lastScreenY: number;
   moving: boolean;
   // Distance walked since the last footstep puff.
   stride: number;
@@ -293,7 +296,9 @@ export class CitadelScene extends Phaser.Scene {
       out: p.out,
       frozen: p.frozen > 0,
       facing: 1,
+      back: false,
       lastScreenX: 0,
+      lastScreenY: 0,
       moving: false,
       stride: 0,
       lastPos: { x: p.x, y: p.y },
@@ -321,7 +326,7 @@ export class CitadelScene extends Phaser.Scene {
     if (a.seat !== p.seat || a.wear.hat !== p.hat || a.wear.shades !== p.shades || a.wear.outfit !== p.outfit) {
       a.seat = p.seat;
       a.wear = { hat: p.hat, shades: p.shades, outfit: p.outfit };
-      drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear);
+      drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear, a.back);
     }
     if (!a.frozen && p.frozen > 0) this.#effects.freeze(a.pos);
     if (a.frozen && p.frozen === 0) this.#effects.thaw(a.pos);
@@ -557,15 +562,11 @@ export class CitadelScene extends Phaser.Scene {
   #place(a: Avatar, time: number): void {
     const screen = worldToScreen(a.pos.x, a.pos.y, this.#tmp);
     const dx = screen.x - a.lastScreenX;
+    const dy = screen.y - a.lastScreenY;
     a.moving = Math.abs(dx) > 0.05 || Math.abs(screen.y - a.root.y) > 0.05;
-    if (Math.abs(dx) > 0.2) {
-      const facing = dx > 0 ? 1 : -1;
-      if (facing !== a.facing) {
-        a.facing = facing;
-        drawGuardian(a.body, seatColors(a.seat), facing, a.wear);
-      }
-    }
+    if (turnToward(a, dx, dy)) drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear, a.back);
     a.lastScreenX = screen.x;
+    a.lastScreenY = screen.y;
     // A puff of dust, or a ripple on the planks over water, every stride.
     const step = Math.hypot(a.pos.x - a.lastPos.x, a.pos.y - a.lastPos.y);
     a.lastPos.x = a.pos.x;

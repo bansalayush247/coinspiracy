@@ -14,7 +14,7 @@ import { CitadelRoom } from '../apps/server/src/CitadelRoom.js';
 import { createGameServer } from '../apps/server/src/app.js';
 import { MemoryProfileStore } from '../apps/server/src/profile/store.js';
 import { keysVector } from '../apps/client/src/game/stick.js';
-import { screenDirToWorld } from '../apps/client/src/game/iso.js';
+import { BRAVE } from './harness.js';
 
 interface SmokePlayer {
   readonly id: string;
@@ -37,7 +37,6 @@ declare global {
   }
 }
 
-const BRAVE = process.env['BRAVE_PATH'] ?? '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser';
 const GAME_PORT = Number(process.env['SMOKE_GAME_PORT'] ?? '3871');
 const WEB_PORT = Number(process.env['SMOKE_WEB_PORT'] ?? '3872');
 const WEB = `http://127.0.0.1:${String(WEB_PORT)}`;
@@ -126,13 +125,13 @@ async function knownRoles(p: Player): Promise<{ me: string; roles: { id: string;
   return p.page.evaluate(() => ({ me: window.__bcSmoke?.me() ?? '', roles: window.__bcSmoke?.roles() ?? [] }));
 }
 
-// The eight key combinations as world directions, the way the client maps them.
+// The eight key combinations as world directions, the way the client maps them: the keys follow the world axes.
 const COMBOS = [
   ['ArrowUp'], ['ArrowDown'], ['ArrowLeft'], ['ArrowRight'],
   ['ArrowUp', 'ArrowLeft'], ['ArrowUp', 'ArrowRight'], ['ArrowDown', 'ArrowLeft'], ['ArrowDown', 'ArrowRight'],
 ].map((keys) => {
   const k = keysVector(keys.includes('ArrowUp'), keys.includes('ArrowDown'), keys.includes('ArrowLeft'), keys.includes('ArrowRight'));
-  return { keys, dir: screenDirToWorld(k.dx, k.dy) };
+  return { keys, dir: { x: k.dx, y: k.dy } };
 });
 
 // Steers with the arrow keys along each leg, reading the predicted position as it goes. It aims at a
@@ -467,9 +466,12 @@ async function main(): Promise<void> {
     const aliceId = await alice.page.evaluate(() => window.__bcSmoke?.me() ?? '');
     const start = (await serverView(bob)).find((p) => p.id === aliceId);
     if (start === undefined) throw new Error('bob cannot see alice');
+    // Up and right together walk toward screen-right now that the keys follow the streets.
+    await alice.page.keyboard.down('ArrowUp');
     await alice.page.keyboard.down('ArrowRight');
     await alice.page.waitForTimeout(700);
     await alice.page.keyboard.up('ArrowRight');
+    await alice.page.keyboard.up('ArrowUp');
     await bob.page.waitForFunction(
       ([id, x]) => (window.__bcSmoke?.server() ?? []).some((p) => p.id === id && p.x !== x),
       [aliceId, start.x] as const,

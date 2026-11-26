@@ -17,12 +17,17 @@ export const EMOTE_GLYPHS: Readonly<Record<Emote, string>> = { wave: '👋', che
 export const EMOTE_GAP_MS = 1500;
 export const EmotePayloadSchema = z.strictObject({ emote: z.enum(EMOTES) });
 export const EmoteLineSchema = z.strictObject({ from: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), emote: z.enum(EMOTES) });
+/** Shortest gap between two jumps by one guardian: a jump is only for show, so it is paced like an emote. */
+export const JUMP_GAP_MS = 600;
+/** Someone jumped, sent to whoever can see them. */
+export const JumpLineSchema = z.strictObject({ from: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/) });
 
 export const BEACH_MESSAGES = Object.freeze({
   JOB: 'courierJob',
   DONE: 'courierDone',
   REFUSED: 'courierRefused',
   EMOTE: 'emote',
+  JUMP: 'jump',
 } as const);
 
 const JobId = z.string().regex(/^[A-Za-z0-9_-]{8,24}$/);

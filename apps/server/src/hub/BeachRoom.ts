@@ -15,6 +15,7 @@ import {
   HubPlayer,
   HubState,
   EMOTE_GAP_MS,
+  JUMP_GAP_MS,
   EmotePayloadSchema,
   TakeJobPayloadSchema,
   type Emote,
@@ -53,6 +54,7 @@ interface Sim {
   job: Job | null;
   lastActiveMs: number;
   lastEmoteMs: number;
+  lastJumpMs: number;
   lastLookMs: number;
 }
 
@@ -87,6 +89,15 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
       sim.lastEmoteMs = now;
       sim.lastActiveMs = now;
       this.broadcast(BEACH_MESSAGES.EMOTE, { from: client.sessionId, emote: payload.emote });
+    }),
+    // A jump, only for show: paced, and shown to everyone else in town.
+    jump: validate(NoPayloadSchema, (client: BeachClient) => {
+      const sim = this.#sims.get(client.sessionId);
+      const now = Date.now();
+      if (sim === undefined || now - sim.lastJumpMs < JUMP_GAP_MS) return;
+      sim.lastJumpMs = now;
+      sim.lastActiveMs = now;
+      this.broadcast(BEACH_MESSAGES.JUMP, { from: client.sessionId }, { except: client });
     }),
     // After a wardrobe change: show the new look to the town, at most every ten seconds (it reads the profile store).
     refreshLook: validate(NoPayloadSchema, (client: BeachClient) => {
@@ -153,7 +164,7 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
     const view = new StateView();
     view.add(player, VIEW_TAGS.OWNER);
     client.view = view;
-    this.#sims.set(client.sessionId, { inputs: new InputQueue(), profileId: auth.profileId, job: null, lastActiveMs: Date.now(), lastEmoteMs: 0, lastLookMs: 0 });
+    this.#sims.set(client.sessionId, { inputs: new InputQueue(), profileId: auth.profileId, job: null, lastActiveMs: Date.now(), lastEmoteMs: 0, lastJumpMs: 0, lastLookMs: 0 });
     if (auth.profileId !== null) void this.#wearLook(client.sessionId, auth.profileId);
   }
 

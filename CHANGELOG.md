@@ -2,6 +2,32 @@
 
 ## 26 November 2026
 
+### Controls that follow the streets, and a smoother city
+- The arrow keys and WASD now follow the streets: one key walks straight down a road instead of up the screen and
+  into a wall. The touch stick still points on screen.
+- Cars drive like cars on the keyboard: W or ↑ for gas, S or ↓ to brake and reverse, A/D or ←/→ to steer. On the touch
+  stick you still point where you want to go. Parked cars now face along their street toward open road, instead of
+  all pointing the same way (some nose-first at the harbour wall).
+- Everyone faces the way they walk, like a real person: walking up the screen you see their back, walking down you see
+  their face. Guardians, story characters, townsfolk and the island explorer all turn; from behind, glasses, ties,
+  pearls and Lumley's camera are hidden while hats, scarves and carried bags still show.
+- Cars are solid: you bump into a parked or driven car instead of walking through it, and a driven car stops for
+  anyone touching any part of its body. Nobody gets trapped: if you are already against a car, you can always walk
+  away from it.
+- Space jumps in the city and Beach Town: a real arc under gravity, the shadow shrinking beneath you and a puff of
+  dust on landing. Everyone who can see you sees the jump; the server paces it so nobody can spam it.
+- Every car is redrawn as a modern car: a rounded body, a sloped tinted glass cabin, alloy wheels, mirrors, a sheen
+  on the roof and LED strips, white in front and red behind.
+- The shade over ground you can't see has a soft edge now and sweeps smoothly as you walk instead of jumping.
+- Street lights are slim modern LED lamps with a small warm glow, instead of a big yellow blob that washed over
+  anyone walking past; your own guardian is marked by a faint gold glow instead of a thick gold ring.
+- Street lamps are thin posts now, not a tile of wall: you brush past them. Walking straight into a corner or post you
+  nearly clear slips you round it instead of stopping dead; flat walls still stop you.
+- Path searches, sight checks and torch cones now cost a third to a quarter of what they did (same results, checked
+  against the old code on 10,200 random queries). Off-camera buildings, trees and lamps are no longer drawn every
+  frame, and the city stops building throwaway arrays each frame.
+- Mags no longer searches the whole city twenty times a second when nobody can reach her.
+
 ### Characters you can tell apart, and playtest feedback
 - Every story character now dresses as who they are: Mr Fennick's bowler and satchel, Lumley's beret and camera,
   Perpetua Glass's bun, white shades and pearls, Mr Varnish's top hat, monocle and briefcase, Marco's chef's hat, Nell's

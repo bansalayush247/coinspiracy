@@ -2,26 +2,20 @@
 // opened the island visits town, walks to a stall, buys a hat with chosen notes and takes a parcel.
 // Run: npx tsx --conditions=source e2e/beach.ts
 import { randomBytes } from 'node:crypto';
-import { mkdir, rm } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { chromium, type Browser } from 'playwright-core';
-import { build, preview, type PreviewServer } from 'vite';
 import { createGameServer } from '../apps/server/src/app.js';
 import { MemoryProfileStore, type ProfileData } from '../apps/server/src/profile/store.js';
 import { findPath } from '../packages/shared/src/pathfinding.js';
 import { BEACH_MAP, atHome, homeDoor } from '../packages/shared/src/hub/index.js';
 import type { Change, ChangeOutcome } from '../apps/server/src/profile/store.js';
+import { SHOTS, check, checkNoErrors, collectErrors, finish, openRig, type Rig } from './harness.js';
 
-const clientRoot = fileURLToPath(new URL('../apps/client', import.meta.url));
-const shots = fileURLToPath(new URL('../.scratch/e2e/', import.meta.url));
 // BEACH_VIEWPORT=phone runs the same visit on a 390 px touch screen (its own ports and build folder).
 const PHONE = process.env['BEACH_VIEWPORT'] === 'phone';
 const GAME_PORT = PHONE ? 3948 : 3946;
 const WEB_PORT = PHONE ? 3949 : 3947;
 const WEB = `http://127.0.0.1:${String(WEB_PORT)}`;
-const BRAVE = process.env['BRAVE_PATH'] ?? '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser';
 const OUT = PHONE ? 'dist-beach-phone' : 'dist-beach';
-const SHOT = (name: string): string => `${shots}${PHONE ? 'phone-' : ''}${name}`;
+const SHOT = (name: string): string => `${SHOTS}${PHONE ? 'phone-' : ''}${name}`;
 
 // Every guest arrives with four Academy stars, which opens Beach Town.
 class OpenedStore extends MemoryProfileStore {
@@ -30,11 +24,6 @@ class OpenedStore extends MemoryProfileStore {
   }
 }
 
-let failures = 0;
-function check(ok: boolean, label: string): void {
-  if (!ok) failures++;
-  console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`);
-}
 
 async function main(): Promise<void> {
   const game = createGameServer({
@@ -43,22 +32,14 @@ async function main(): Promise<void> {
     gracefullyShutdown: false,
     profiles: { store: new OpenedStore(), keys: { current: randomBytes(32), previous: null, secure: false } },
   });
-  let web: PreviewServer | undefined;
-  let browser: Browser | undefined;
+  let rig: Rig | undefined;
   try {
     await game.listen(GAME_PORT, '127.0.0.1');
-    process.env['VITE_SERVER_URL'] = `http://127.0.0.1:${String(GAME_PORT)}`;
-    process.env['VITE_E2E'] = '1';
-    await build({ root: clientRoot, logLevel: 'warn', build: { outDir: OUT, emptyOutDir: true } });
-    web = await preview({ root: clientRoot, logLevel: 'warn', build: { outDir: OUT }, preview: { host: '127.0.0.1', port: WEB_PORT, strictPort: true } });
-    browser = await chromium.launch({ executablePath: BRAVE, headless: true, chromiumSandbox: true, timeout: 30_000 });
-    await mkdir(shots, { recursive: true });
+    rig = await openRig({ outDir: OUT, webPort: WEB_PORT, serverUrl: `http://127.0.0.1:${String(GAME_PORT)}` });
+    const { browser } = rig;
     const page = await browser.newPage({ locale: 'en-US', ...(PHONE ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 800 } }) });
     const errors: string[] = [];
-    page.on('pageerror', (e) => errors.push(String(e)));
-    page.on('console', (m) => {
-      if (m.type() === 'error') errors.push(m.text());
-    });
+    collectErrors(page, errors);
     await page.goto(`${WEB}/`);
     await page.fill('#nickname', 'Mara');
     await page.locator('#open-progress').waitFor({ state: 'visible', timeout: 10_000 });
@@ -74,11 +55,13 @@ async function main(): Promise<void> {
     await page.waitForTimeout(1500);
     await page.screenshot({ path: SHOT('beach-town.png') });
 
-    // Walk up the screen toward the Hats & Shades stall until its counter prompt shows.
+    // Walk up the screen (up and left together) toward the Hats & Shades stall until its counter prompt shows.
     let atStall = false;
     for (let i = 0; i < 20 && !atStall; i++) {
       await page.keyboard.down('ArrowUp');
+      await page.keyboard.down('ArrowLeft');
       await page.waitForTimeout(150);
+      await page.keyboard.up('ArrowLeft');
       await page.keyboard.up('ArrowUp');
       atStall = await page.locator('#beach-prompt').isVisible();
     }
@@ -138,8 +121,9 @@ async function main(): Promise<void> {
       // Steer along a real path: screen direction toward the next waypoint, as a player would with the arrows.
       const route = findPath(BEACH_MAP, pos, homeDoor());
       const next = (route.ok ? route.value : []).find((p) => Math.hypot(p.x - pos.x, p.y - pos.y) > 0.35) ?? homeDoor();
-      const sx = next.x - pos.x - (next.y - pos.y);
-      const sy = (next.x - pos.x + next.y - pos.y) / 2;
+      // The arrow keys follow the world axes: right and left along x, down and up along y.
+      const sx = next.x - pos.x;
+      const sy = next.y - pos.y;
       const len = Math.hypot(sx, sy) || 1;
       const keys = [...(Math.abs(sx) / len > 0.38 ? [sx > 0 ? 'ArrowRight' : 'ArrowLeft'] : []), ...(Math.abs(sy) / len > 0.38 ? [sy > 0 ? 'ArrowDown' : 'ArrowUp'] : [])];
       for (const k of keys) await page.keyboard.down(k);
@@ -160,19 +144,12 @@ async function main(): Promise<void> {
     await page.click('#beach-leave');
     await page.locator('#menu').waitFor({ state: 'visible', timeout: 5000 });
     check(true, 'leaving returns to the map');
-    check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
+    checkNoErrors(errors);
   } finally {
-    await browser?.close();
-    await web?.close();
+    await rig?.close();
     await game.server.gracefullyShutdown(false).catch(() => undefined);
-    await rm(`${clientRoot}/${OUT}`, { recursive: true, force: true });
   }
-  if (failures > 0) {
-    console.log(`${String(failures)} check(s) failed`);
-    process.exit(1);
-  }
-  console.log('beach: ok');
-  process.exit(0);
+  finish('beach');
 }
 
 await main();

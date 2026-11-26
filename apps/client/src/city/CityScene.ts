@@ -1,12 +1,13 @@
 // Port Concord in Phaser. The ground and props stream in by chunk around the camera and are dropped far away,
 // so a city many times the size of a match map costs about the same to draw.
 import Phaser from 'phaser';
-import { TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
+import { PLAYER_RADIUS, TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
 import { canStand } from '@byzantine-council/shared/pathfinding';
-import { CHUNK, CITY_BUILDINGS, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityCar, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
+import { CHUNK, CITY_BUILDINGS, carsSolid, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityCar, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
 import { audio } from '../audio/engine.js';
 import { Effects } from '../game/effects.js';
 import { GUARDIAN_HEIGHT, NO_WEAR, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
+import { turnToward } from '../game/facing.js';
 import { fairZoom, sceneDpr, viewSize } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer, lerpFactor } from '../game/interpolation.js';
 import { ART_SCALE, TILE_H, isoDepth, screenToWorld, worldToScreen } from '../game/iso.js';
@@ -15,9 +16,11 @@ import { PhysicsFx, makeFxTextures } from '../game/physics.js';
 import { CorrectionSmoother, Predictor, type PendingInput } from '../game/prediction.js';
 import { Townsfolk } from '../game/townsfolk.js';
 import { MissionView } from './missionView.js';
-import { CAR_COLORS, Traffic, drawDrivenCar } from './traffic.js';
+import { drawModernCar } from './carArt.js';
+import { CAR_COLORS, Traffic } from './traffic.js';
 import { Vision } from './vision.js';
 import { buildingFront, drawBuilding, drawContainer, drawMound, drawStreetLamp, drawStreetTree, makeCoinTexture, paintChunk } from './cityArt.js';
+import { shadowScale, startJump, stepHop } from '../game/jump.js';
 
 export const CITY_SCENE_KEY = 'city';
 const STEP_MS = TICK_SECONDS * 1000;
@@ -38,6 +41,8 @@ export interface CitySink {
 }
 
 interface Avatar {
+  // The soft ground shadow, which shrinks while the guardian is in the air.
+  readonly soft: Phaser.GameObjects.Image;
   readonly root: Phaser.GameObjects.Container;
   readonly body: Phaser.GameObjects.Graphics;
   readonly bubble: Phaser.GameObjects.Graphics;
@@ -45,7 +50,8 @@ interface Avatar {
   readonly label: Phaser.GameObjects.Text;
   // An outline drawn over everything, shown while a building or prop hides this guardian from the camera.
   readonly ghost: Phaser.GameObjects.Graphics;
-  ghostFacing: 0 | 1 | -1;
+  // The pose the x-ray outline was last drawn in (facing, doubled when seen from behind), 0 to redraw.
+  ghostPose: number;
   stars: Phaser.GameObjects.Text | null;
   health: number;
   down: boolean;
@@ -59,13 +65,17 @@ interface Avatar {
   seat: number;
   wear: Wear;
   facing: 1 | -1;
+  back: boolean;
   lastScreenX: number;
+  lastScreenY: number;
   hop: number;
   hopV: number;
 }
 
 interface DrivenCar {
   readonly g: Phaser.GameObjects.Graphics;
+  // Where the server last put the car, for walking into it the way the server does.
+  readonly body: { x: number; y: number; heading: number };
   readonly buffer: InterpBuffer;
   readonly pos: { x: number; y: number };
   heading: number;
@@ -83,14 +93,18 @@ interface Pile {
   amount: number;
 }
 
-interface Wall {
+// A prop's screen bounds, for skipping it while it is off camera.
+interface Box {
   readonly g: Phaser.GameObjects.Graphics;
-  readonly depth: number;
-  readonly faded: number;
   readonly left: number;
   readonly right: number;
   readonly top: number;
   readonly bottom: number;
+}
+
+interface Wall extends Box {
+  readonly depth: number;
+  readonly faded: number;
 }
 
 interface Chunk {
@@ -98,28 +112,33 @@ interface Chunk {
   readonly walls: readonly Wall[];
   readonly key: string;
   readonly props: Phaser.GameObjects.GameObject[];
+  readonly boxes: readonly Box[];
 }
+
+// World pixels past the camera edge that props stay drawn for, so nothing pops in between culling passes.
+const CULL_MARGIN = 320;
 
 const CORNER = 1.5;
 
-// Buildings by every chunk they touch, for depth checks near the player.
-const BUILDINGS_BY_CHUNK = new Map<string, CityBuilding[]>();
+// Buildings by every chunk they touch (indexed cy * CHUNK_COLS + cx), for depth checks near the player.
+const CHUNK_COLS = Math.ceil((CITY_WIDTH + 6) / CHUNK);
+const BUILDINGS_BY_CHUNK: CityBuilding[][] = [];
 for (const b of CITY_BUILDINGS) {
   for (let cy = Math.floor(Math.max(0, b.box.r0 - CORNER) / CHUNK); cy <= Math.floor((b.box.r1 + 5) / CHUNK); cy++) {
     for (let cx = Math.floor(Math.max(0, b.box.c0 - CORNER) / CHUNK); cx <= Math.floor((b.box.c1 + 5) / CHUNK); cx++) {
-      const key = `${String(cx)},${String(cy)}`;
-      const list = BUILDINGS_BY_CHUNK.get(key) ?? [];
-      list.push(b);
-      BUILDINGS_BY_CHUNK.set(key, list);
+      (BUILDINGS_BY_CHUNK[cy * CHUNK_COLS + cx] ??= []).push(b);
     }
   }
 }
+const NO_BUILDINGS: readonly CityBuilding[] = [];
 
 // Depth that keeps something standing in front of a big building drawn over it: the plain painter's order
 // only compares one point per footprint, which a wide building gets wrong along its front faces.
 export function sortDepth(x: number, y: number): number {
   let d = isoDepth(x, y);
-  const list = BUILDINGS_BY_CHUNK.get(`${String(Math.floor(x / CHUNK))},${String(Math.floor(y / CHUNK))}`) ?? [];
+  const cx = Math.floor(x / CHUNK);
+  const cy = Math.floor(y / CHUNK);
+  const list = cx >= 0 && cy >= 0 && cx < CHUNK_COLS ? (BUILDINGS_BY_CHUNK[cy * CHUNK_COLS + cx] ?? NO_BUILDINGS) : NO_BUILDINGS;
   for (const b of list) {
     const { c0, r0, c1, r1 } = b.box;
     // A margin past each front corner, so someone walking round it is not cut in half by the wall.
@@ -135,6 +154,10 @@ export class CityScene extends Phaser.Scene {
   readonly #chunks = new Map<string, Chunk>();
   readonly #piles = new Map<string, Pile>();
   readonly #walls = new Set<Wall>();
+  // Walls on or near the camera, refreshed with culling; only these can hide anything on screen.
+  readonly #wallsInView: Wall[] = [];
+  readonly #fade = new Set<Wall>();
+  readonly #people: Vec2[] = [];
   readonly #cars = new Map<string, DrivenCar>();
   #driving = false;
   #following: Phaser.GameObjects.GameObject | null = null;
@@ -262,8 +285,8 @@ export class CityScene extends Phaser.Scene {
     const ghost = new Phaser.GameObjects.Graphics(this).setVisible(false).setBlendMode(Phaser.BlendModes.ADD).setDepth(-2);
     this.#names.add(ghost);
     const avatar: Avatar = {
-      root, body, bubble, bar, label, ghost, ghostFacing: 0, stars: null, health: MAX_HEALTH, down: false, shielded: false, lunge: 0,
-      buffer: new InterpBuffer(), isMe, npc: p.npc, inCar: false, pos: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, lastScreenX: 0, hop: 0, hopV: 0,
+      root, soft, body, bubble, bar, label, ghost, ghostPose: 0, stars: null, health: MAX_HEALTH, down: false, shielded: false, lunge: 0,
+      buffer: new InterpBuffer(), isMe, npc: p.npc, inCar: false, pos: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, back: false, lastScreenX: 0, lastScreenY: 0, hop: 0, hopV: 0,
     };
     this.#setFight(avatar, p);
     this.#seat(avatar, p.car);
@@ -271,6 +294,7 @@ export class CityScene extends Phaser.Scene {
     this.#avatars.set(id, avatar);
     if (isMe) {
       this.#predictor = new Predictor({ x: p.x, y: p.y }, CITY_MAP);
+      this.#predictor.solidFrom = (from) => carsSolid([...this.#cars.values()].map((c) => c.body), from, PLAYER_RADIUS);
       this.#prev = { x: p.x, y: p.y };
       this.#acc = 0;
       this.cameras.main.startFollow(root, false, 0.12, 0.12);
@@ -298,9 +322,9 @@ export class CityScene extends Phaser.Scene {
     const g = new Phaser.GameObjects.Graphics(this);
     this.#entities.add(g);
     const color = CAR_COLORS[car.color % CAR_COLORS.length] ?? 0xd9534f;
-    const entry: DrivenCar = { g, buffer: new InterpBuffer(), pos: { x: car.x, y: car.y }, heading: car.heading, target: car.heading, drawn: car.heading, color, driver: car.driver };
+    const entry: DrivenCar = { g, body: { x: car.x, y: car.y, heading: car.heading }, buffer: new InterpBuffer(), pos: { x: car.x, y: car.y }, heading: car.heading, target: car.heading, drawn: car.heading, color, driver: car.driver };
     entry.buffer.push(performance.now(), car.x, car.y);
-    drawDrivenCar(g, car.heading, color, car.driver !== '');
+    drawModernCar(g, car.heading, color, car.driver !== '');
     this.#cars.set(id, entry);
   }
 
@@ -309,9 +333,12 @@ export class CityScene extends Phaser.Scene {
     if (c === undefined) return;
     c.buffer.push(performance.now(), car.x, car.y);
     c.target = car.heading;
+    c.body.x = car.x;
+    c.body.y = car.y;
+    c.body.heading = car.heading;
     if (c.driver !== car.driver) {
       c.driver = car.driver;
-      drawDrivenCar(c.g, c.heading, c.color, car.driver !== '');
+      drawModernCar(c.g, c.heading, c.color, car.driver !== '');
     }
   }
 
@@ -336,7 +363,7 @@ export class CityScene extends Phaser.Scene {
       c.heading += turn * 0.35;
       if (Math.abs(Math.atan2(Math.sin(c.heading - c.drawn), Math.cos(c.heading - c.drawn))) > 0.04) {
         c.drawn = c.heading;
-        drawDrivenCar(c.g, c.heading, c.color, c.driver !== '');
+        drawModernCar(c.g, c.heading, c.color, c.driver !== '');
       }
       const s = worldToScreen(c.pos.x, c.pos.y);
       c.g.setPosition(s.x, s.y).setDepth(sortDepth(c.pos.x, c.pos.y));
@@ -356,8 +383,8 @@ export class CityScene extends Phaser.Scene {
     if (a.wear.hat !== p.hat || a.wear.shades !== p.shades || a.wear.outfit !== p.outfit || a.seat !== p.seat) {
       a.wear = { hat: p.hat, shades: p.shades, outfit: p.outfit };
       a.seat = p.seat;
-      a.ghostFacing = 0;
-      drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear);
+      a.ghostPose = 0;
+      drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear, a.back);
     }
     this.#setFight(a, p);
     this.#seat(a, p.car);
@@ -419,7 +446,7 @@ export class CityScene extends Phaser.Scene {
       const dir = to.pos.x - to.pos.y > from.pos.x - from.pos.y ? 1 : -1;
       if (dir !== from.facing) {
         from.facing = dir;
-        drawGuardian(from.body, seatColors(from.seat), dir, from.wear);
+        drawGuardian(from.body, seatColors(from.seat), dir, from.wear, from.back);
       }
     }
     from.lunge = this.#reduced ? 0 : 9 * ART_SCALE * from.facing;
@@ -506,6 +533,13 @@ export class CityScene extends Phaser.Scene {
     if (!this.#reduced) a.hopV = kind === 'dance' ? 260 : 200;
   }
 
+  /** A jump: up with real gravity, the shadow shrinking under it, and a puff of dust on landing. */
+  jump(id: string): void {
+    const a = this.#avatars.get(id);
+    if (a === undefined) return;
+    startJump(a);
+  }
+
   zoomBy(factor: number): void {
     this.#userZoom = Phaser.Math.Clamp(this.#userZoom * factor, 0.45, 1.8);
     this.#applyZoom();
@@ -536,12 +570,18 @@ export class CityScene extends Phaser.Scene {
       this.#place(a, time);
     }
     this.#placeCars(renderTime);
+    this.#cull();
     this.#seeThrough(delta);
     const eye = this.predictedPosition();
-    this.#vision?.update(eye);
+    this.#vision?.update(eye, delta);
     const sees = (p: Vec2): boolean => eye === null || inSight(eye, p);
     this.#townsfolk?.cull(sees);
-    this.#traffic?.update(time, delta, [...[...this.#avatars.values()].map((a) => a.pos), ...[...this.#cars.values()].map((c) => c.pos), ...(this.#townsfolk?.positions() ?? [])], sees);
+    const people = this.#people;
+    people.length = 0;
+    for (const a of this.#avatars.values()) people.push(a.pos);
+    for (const c of this.#cars.values()) people.push(c.pos);
+    this.#townsfolk?.collectPositions(people);
+    this.#traffic?.update(time, delta, people, sees);
     this.#mission?.update(time, eye);
     const k = lerpFactor(0.12, delta);
     this.cameras.main.setLerp(k, k);
@@ -551,12 +591,13 @@ export class CityScene extends Phaser.Scene {
   // behind a building or prop, so nobody is ever lost behind a tower, a tree or a stack of crates.
   #seeThrough(delta: number): void {
     const k = Math.min(1, delta / 120);
-    const fade = new Set<Wall>();
+    const fade = this.#fade;
+    fade.clear();
     for (const a of this.#avatars.values()) {
       const s = worldToScreen(a.pos.x, a.pos.y, this.#tmp);
       const depth = sortDepth(a.pos.x, a.pos.y);
       let covered = false;
-      for (const w of this.#walls) {
+      for (const w of this.#wallsInView) {
         if (!hides(w, s, depth)) continue;
         covered = true;
         if (a.isMe) fade.add(w);
@@ -567,12 +608,12 @@ export class CityScene extends Phaser.Scene {
     for (const p of this.#mission?.watchers() ?? []) {
       const s = worldToScreen(p.x, p.y, this.#tmp);
       const depth = sortDepth(p.x, p.y);
-      for (const w of this.#walls) {
+      for (const w of this.#wallsInView) {
         if (!hides(w, s, depth)) continue;
         fade.add(w);
       }
     }
-    for (const w of this.#walls) {
+    for (const w of this.#wallsInView) {
       const target = fade.has(w) ? w.faded : 1;
       if (w.g.alpha !== target) w.g.setAlpha(Math.abs(w.g.alpha - target) < 0.02 ? target : w.g.alpha + (target - w.g.alpha) * k);
     }
@@ -581,12 +622,31 @@ export class CityScene extends Phaser.Scene {
   #outline(a: Avatar, show: boolean): void {
     if (a.ghost.visible !== show) a.ghost.setVisible(show);
     if (!show) return;
-    if (a.ghostFacing !== a.facing) {
-      a.ghostFacing = a.facing;
+    const pose = a.facing * (a.back ? 2 : 1);
+    if (a.ghostPose !== pose) {
+      a.ghostPose = pose;
       const c = a.isMe ? GHOST : seatColors(a.seat);
-      drawGuardian(a.ghost, { lit: c.highlight, shadow: c.lit, highlight: 0xffffff }, a.facing, NO_WEAR);
+      drawGuardian(a.ghost, { lit: c.highlight, shadow: c.lit, highlight: 0xffffff }, a.facing, NO_WEAR, a.back);
     }
     a.ghost.setPosition(a.root.x, a.root.y + a.body.y).setAlpha(this.#reduced ? 0.55 : 0.4 + 0.15 * Math.sin(this.time.now / 240));
+  }
+
+  // Hides props well outside the camera: Phaser replays a visible Graphics every frame, on screen or not.
+  #cull(): void {
+    const v = this.cameras.main.worldView;
+    const left = v.x - CULL_MARGIN;
+    const right = v.right + CULL_MARGIN;
+    const top = v.y - CULL_MARGIN;
+    const bottom = v.bottom + CULL_MARGIN;
+    const near = (b: Box): boolean => b.right > left && b.left < right && b.bottom > top && b.top < bottom;
+    this.#wallsInView.length = 0;
+    for (const chunk of this.#chunks.values()) {
+      for (const b of chunk.boxes) {
+        const show = near(b);
+        if (b.g.visible !== show) b.g.setVisible(show);
+      }
+      for (const w of chunk.walls) if (near(w)) this.#wallsInView.push(w);
+    }
   }
 
   // Queues the chunks near the camera and drops the far ones.
@@ -612,6 +672,7 @@ export class CityScene extends Phaser.Scene {
     this.#ground.add(ground);
     const props: Phaser.GameObjects.GameObject[] = [];
     const walls: Wall[] = [];
+    const boxes: Box[] = [];
     const add = (depth: number, draw: (g: Phaser.GameObjects.Graphics) => void, x = 0, y = 0): Phaser.GameObjects.Graphics => {
       const g = new Phaser.GameObjects.Graphics(this);
       draw(g);
@@ -638,6 +699,7 @@ export class CityScene extends Phaser.Scene {
         bottom: worldToScreen(c1 + 1, r1 + 1).y,
       };
       walls.push(wall);
+      boxes.push(wall);
       this.#walls.add(wall);
     }
     for (let r = cy * CHUNK; r < (cy + 1) * CHUNK; r++) {
@@ -649,6 +711,7 @@ export class CityScene extends Phaser.Scene {
         const prop = (g: Phaser.GameObjects.Graphics, half: number, height: number): void => {
           const wall: Wall = { g, depth, faded: 0.3, left: foot.x - half * ART_SCALE, right: foot.x + half * ART_SCALE, top: foot.y - height * ART_SCALE, bottom: foot.y + (TILE_H / 2) };
           walls.push(wall);
+          boxes.push(wall);
           this.#walls.add(wall);
         };
         if (t === 'T') {
@@ -656,9 +719,10 @@ export class CityScene extends Phaser.Scene {
             drawStreetTree(g, seed);
           }, foot.x, foot.y), 34, 90);
         } else if (t === 'L') {
-          add(depth, (g) => {
-            drawStreetLamp(g, c, r);
+          const g = add(depth, (gr) => {
+            drawStreetLamp(gr, c, r);
           });
+          boxes.push({ g, left: foot.x - 12 * ART_SCALE, right: foot.x + 40 * ART_SCALE, top: foot.y - 140 * ART_SCALE, bottom: foot.y + 8 * ART_SCALE });
         } else if (t === 'C') {
           prop(add(depth, (g) => {
             drawContainer(g, c, r, seed);
@@ -670,7 +734,7 @@ export class CityScene extends Phaser.Scene {
         }
       }
     }
-    this.#chunks.set(key, { ground, walls, key: painted.key, props });
+    this.#chunks.set(key, { ground, walls, key: painted.key, props, boxes });
   }
 
   #unload(key: string): void {
@@ -701,24 +765,17 @@ export class CityScene extends Phaser.Scene {
   #place(a: Avatar, time: number): void {
     const s = worldToScreen(a.pos.x, a.pos.y, this.#tmp);
     const dx = s.x - a.lastScreenX;
+    const dy = s.y - a.lastScreenY;
     const moving = Math.abs(dx) > 0.05 || Math.abs(s.y - a.root.y) > 0.05;
-    if (Math.abs(dx) > 0.2) {
-      const facing = dx > 0 ? 1 : -1;
-      if (facing !== a.facing) {
-        a.facing = facing;
-        drawGuardian(a.body, seatColors(a.seat), facing, a.wear);
-      }
-    }
+    if (turnToward(a, dx, dy)) drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear, a.back);
     a.lastScreenX = s.x;
+    a.lastScreenY = s.y;
     a.lunge *= 0.8;
     if (Math.abs(a.lunge) < 0.1) a.lunge = 0;
     a.root.setPosition(s.x + a.lunge, s.y);
-    if (a.hop > 0 || a.hopV > 0) {
-      const dt = Math.min(this.game.loop.delta, 50) / 1000;
-      a.hopV -= 980 * dt;
-      a.hop = Math.max(0, a.hop + a.hopV * dt);
-      if (a.hop === 0) a.hopV = 0;
-    }
+    if (stepHop(a, Math.min(this.game.loop.delta, 50) / 1000) && !this.#reduced) this.#effects.ring(a.pos, 0xe8dcc4, 0.45, 320);
+    const shadow = shadowScale(a.hop);
+    a.soft.setScale(0.2 * shadow).setAlpha(0.45 * shadow);
     a.body.y = (moving && !this.#reduced ? Math.sin(time / 90) * 1.6 * ART_SCALE : 0) - a.hop * 0.5;
     a.root.setDepth(sortDepth(a.pos.x, a.pos.y));
     const zoom = this.cameras.main.zoom / sceneDpr(this);

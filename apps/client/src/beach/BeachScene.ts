@@ -6,6 +6,7 @@ import { BEACH_MAP, HOME_RANGE, SHOP_RANGE, homeDoor, shopCounter, type HubPlaye
 import { Atmosphere, type NatureNote } from '../game/atmosphere.js';
 import { Effects } from '../game/effects.js';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
+import { turnToward } from '../game/facing.js';
 import { fairZoom, sceneDpr, viewSize } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer, lerpFactor } from '../game/interpolation.js';
 import { ART_SCALE, TILE_H, TILE_W, isoDepth, worldToScreen } from '../game/iso.js';
@@ -19,6 +20,7 @@ import { drawBunting } from '../game/festive.js';
 import { SHOP_IDS } from '@byzantine-council/shared/economy';
 import { audio } from '../audio/engine.js';
 import { quality } from '../game/quality.js';
+import { shadowScale, startJump, stepHop } from '../game/jump.js';
 
 export const BEACH_SCENE_KEY = 'beach';
 const STEP_MS = TICK_SECONDS * 1000;
@@ -34,6 +36,8 @@ export interface BeachSink {
 }
 
 interface Avatar {
+  // The soft ground shadow, which shrinks while the guardian is in the air.
+  readonly soft: Phaser.GameObjects.Image;
   readonly root: Phaser.GameObjects.Container;
   readonly body: Phaser.GameObjects.Graphics;
   readonly parcel: Phaser.GameObjects.Graphics;
@@ -45,10 +49,12 @@ interface Avatar {
   seat: number;
   wear: Wear;
   facing: 1 | -1;
+  back: boolean;
   // A hop: height above the ground and vertical speed, integrated under gravity.
   hop: number;
   hopV: number;
   lastScreenX: number;
+  lastScreenY: number;
   stride: number;
 }
 
@@ -176,7 +182,7 @@ export class BeachScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: isMe ? cssColor(COLORS.gold) : '#fff1de', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this)),
     }).setOrigin(0.5, 1);
     this.#names.add(label);
-    const avatar: Avatar = { root, body, parcel, label, buffer: new InterpBuffer(), isMe, pos: { x: p.x, y: p.y }, last: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, lastScreenX: 0, stride: 0, hop: 0, hopV: 0 };
+    const avatar: Avatar = { root, soft, body, parcel, label, buffer: new InterpBuffer(), isMe, pos: { x: p.x, y: p.y }, last: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, back: false, lastScreenX: 0, lastScreenY: 0, stride: 0, hop: 0, hopV: 0 };
     avatar.buffer.push(performance.now(), p.x, p.y);
     this.#avatars.set(id, avatar);
     if (isMe) {
@@ -193,7 +199,7 @@ export class BeachScene extends Phaser.Scene {
     if (a.wear.hat !== p.hat || a.wear.shades !== p.shades || a.wear.outfit !== p.outfit || a.seat !== p.seat) {
       a.wear = { hat: p.hat, shades: p.shades, outfit: p.outfit };
       a.seat = p.seat;
-      drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear);
+      drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear, a.back);
     }
     a.parcel.setVisible(p.carrying);
     if (a.isMe && this.#predictor !== null) {
@@ -270,6 +276,13 @@ export class BeachScene extends Phaser.Scene {
     this.#target.fillRect(s.x - 12, y - 24, 24, 20);
     this.#target.lineStyle(2, 0x7a4e3e, 1);
     this.#target.strokeRect(s.x - 12, y - 24, 24, 20);
+  }
+
+  /** A jump: up with real gravity, the shadow shrinking under it, and a puff of dust on landing. */
+  jump(id: string): void {
+    const a = this.#avatars.get(id);
+    if (a === undefined) return;
+    startJump(a);
   }
 
   // An emote: a bubble over the guardian, a hop with real gravity, and confetti for a cheer.
@@ -398,23 +411,16 @@ export class BeachScene extends Phaser.Scene {
   #place(a: Avatar, time: number): void {
     const s = worldToScreen(a.pos.x, a.pos.y, this.#tmp);
     const dx = s.x - a.lastScreenX;
+    const dy = s.y - a.lastScreenY;
     const moving = Math.abs(dx) > 0.05 || Math.abs(s.y - a.root.y) > 0.05;
-    if (Math.abs(dx) > 0.2) {
-      const facing = dx > 0 ? 1 : -1;
-      if (facing !== a.facing) {
-        a.facing = facing;
-        drawGuardian(a.body, seatColors(a.seat), facing, a.wear);
-      }
-    }
+    if (turnToward(a, dx, dy)) drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear, a.back);
     a.lastScreenX = s.x;
+    a.lastScreenY = s.y;
     a.root.setPosition(s.x, s.y);
     // Hops integrate under gravity and stop on the ground.
-    if (a.hop > 0 || a.hopV > 0) {
-      const dt = Math.min(this.game.loop.delta, 50) / 1000;
-      a.hopV -= 980 * dt;
-      a.hop = Math.max(0, a.hop + a.hopV * dt);
-      if (a.hop === 0) a.hopV = 0;
-    }
+    if (stepHop(a, Math.min(this.game.loop.delta, 50) / 1000) && !this.#reduced) this.#effects.ring(a.pos, 0xe8dcc4, 0.45, 320);
+    const shadow = shadowScale(a.hop);
+    a.soft.setScale(0.2 * shadow).setAlpha(0.45 * shadow);
     a.body.y = (moving && !this.#reduced ? Math.sin(time / 90) * 1.6 * ART_SCALE : 0) - a.hop * 0.5;
     a.parcel.y = a.body.y;
     a.root.setDepth(isoDepth(a.pos.x, a.pos.y));

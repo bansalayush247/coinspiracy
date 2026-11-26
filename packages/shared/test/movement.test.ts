@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CITADEL_MAP, SPAWN_POINTS, isBlocked, type Vec2 } from '../src/map.js';
+import { CITADEL_MAP, POST_HALF, SPAWN_POINTS, isBlocked, tileAt, type Vec2 } from '../src/map.js';
 import {
   MAX_STEP_SECONDS,
   PLAYER_RADIUS,
   PLAYER_SPEED,
+  SLIP_REACH,
   normalizeInput,
   stepMovement,
 } from '../src/movement.js';
@@ -99,13 +100,30 @@ describe('stepMovement', () => {
     expect(next.x).toBeGreaterThan(start.x + 0.5);
   });
 
-  it('never passes through a single-tile lamp, even with the longest frame', () => {
+  it('never passes through a lamp post, even with the longest frame, and steps round it when walking straight at it', () => {
+    expect(tileAt(CITADEL_MAP, 10, 10)).toBe('L');
     let pos: Vec2 = { x: 8.5, y: 10.5 };
+    let widest = 0;
     for (let i = 0; i < 50; i++) {
       pos = stepMovement(pos, { x: 1, y: 0 }, MAX_STEP_SECONDS);
       expect(isBlocked(CITADEL_MAP, pos, PLAYER_RADIUS)).toBe(false);
-      expect(pos.x).toBeLessThan(10 - PLAYER_RADIUS);
+      if (Math.abs(pos.x - 10.5) < PLAYER_RADIUS + POST_HALF) {
+        expect(Math.abs(pos.y - 10.5)).toBeGreaterThanOrEqual(PLAYER_RADIUS + POST_HALF);
+        widest = Math.max(widest, Math.abs(pos.y - 10.5));
+      }
     }
+    expect(pos.x).toBeGreaterThan(11.5);
+    expect(widest).toBeLessThanOrEqual(PLAYER_RADIUS + POST_HALF + SLIP_REACH);
+  });
+
+  it('stops dead against a flat wall: slipping only finds a way round within reach', () => {
+    const map = { width: 12, height: 12, rows: ['############', ...Array.from({ length: 10 }, (_, r) => (r === 5 ? '#.....######' : '#..........#')), '############'] };
+    const start = { x: 4.5, y: 6.5 };
+    expect(stepMovement(start, { x: 1, y: 0 }, MAX_STEP_SECONDS, map).y).toBe(6.5);
+    let pos: Vec2 = start;
+    for (let i = 0; i < 40; i++) pos = stepMovement(pos, { x: 1, y: 0 }, MAX_STEP_SECONDS, map);
+    expect(pos.x).toBeLessThan(6 - PLAYER_RADIUS + 1e-3);
+    expect(pos.y).toBe(6.5);
   });
 
   it('walks onto the dock and stops at its far end', () => {

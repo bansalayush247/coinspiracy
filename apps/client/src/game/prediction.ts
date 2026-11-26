@@ -19,9 +19,16 @@ export class Predictor {
   // The ground can change mid-match (bridges on Watchtower Peaks come down in a partition).
   map: CitadelMap;
 
+  // Obstacles off the map (the city's cars) as the server sees them, for a walker starting a step at `from`.
+  solidFrom: ((from: Vec2) => (p: Vec2) => boolean) | null = null;
+
   constructor(start: Vec2, map: CitadelMap = CITADEL_MAP) {
     this.#position = { x: start.x, y: start.y };
     this.map = map;
+  }
+
+  #step(pos: Vec2, dx: number, dy: number): Vec2 {
+    return stepMovement(pos, { x: dx, y: dy }, TICK_SECONDS, this.map, this.solidFrom?.(pos));
   }
 
   get position(): Vec2 {
@@ -40,7 +47,7 @@ export class Predictor {
   apply(dx: number, dy: number): PendingInput {
     const input = { seq: this.#nextSeq++, dx, dy };
     this.#pending.push(input);
-    this.#position = stepMovement(this.#position, { x: dx, y: dy }, TICK_SECONDS, this.map);
+    this.#position = this.#step(this.#position, dx, dy);
     return input;
   }
 
@@ -48,7 +55,7 @@ export class Predictor {
   reconcile(server: Vec2, ack: number): void {
     while (this.#pending.length > 0 && (this.#pending[0]?.seq ?? Infinity) <= ack) this.#pending.shift();
     let pos: Vec2 = { x: server.x, y: server.y };
-    for (const input of this.#pending) pos = stepMovement(pos, { x: input.dx, y: input.dy }, TICK_SECONDS, this.map);
+    for (const input of this.#pending) pos = this.#step(pos, input.dx, input.dy);
     this.#position = pos;
   }
 

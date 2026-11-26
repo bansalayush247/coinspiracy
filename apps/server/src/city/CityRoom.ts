@@ -20,14 +20,15 @@ import {
   CityCar,
   BULLY_POCKET,
   CAR_COLORS,
-  CAR_RADIUS,
   CAR_TOW_MS,
   DRIVE_INPUT_TTL_MS,
   DrivePayloadSchema,
   ENTER_RANGE,
   PARKING,
   carBlockedByMap,
-  controls,
+  carsSolid,
+  driveControls,
+  touchesCar,
   stepCar,
   type DrivePayload,
   type ParkingSpot,
@@ -78,7 +79,7 @@ import {
   type Fighter,
   type PunchLine,
 } from '@byzantine-council/shared/city';
-import { EMOTE_GAP_MS, EmotePayloadSchema, type Emote } from '@byzantine-council/shared/hub';
+import { EMOTE_GAP_MS, EmotePayloadSchema, JUMP_GAP_MS, type Emote } from '@byzantine-council/shared/hub';
 import { VIEW_TAGS } from '@byzantine-council/shared/state';
 import { ipKey } from '../clientIp.js';
 import { InputQueue, type MoveInput } from '../inputQueue.js';
@@ -125,12 +126,14 @@ interface Car {
   readonly state: CityCar;
   readonly home: ParkingSpot;
   speed: number;
-  want: { x: number; y: number };
+  input: DrivePayload;
   wantAt: number;
   parkedSince: number;
 }
 
 const near = (a: { x: number; y: number }, b: { x: number; y: number }, range: number): boolean => Math.hypot(a.x - b.x, a.y - b.y) <= range;
+// Foot off the pedal, hands off the wheel.
+const LET_GO: DrivePayload = Object.freeze({ throttle: 0, steer: 0 });
 
 interface Sim {
   readonly client: CityClient;
@@ -151,6 +154,7 @@ interface Sim {
   depositing: boolean;
   lastActiveMs: number;
   lastEmoteMs: number;
+  lastJumpMs: number;
   lastLookMs: number;
 }
 
@@ -201,6 +205,15 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       const line = { from: client.sessionId, emote: payload.emote };
       for (const other of this.#sims.values()) if (other.sees.has(client.sessionId)) other.client.send(CITY_MESSAGES.EMOTE, line);
     }),
+    jump: validate(NoPayloadSchema, (client: CityClient) => {
+      const sim = this.#sims.get(client.sessionId);
+      const me = this.state.players.get(client.sessionId);
+      const now = Date.now();
+      if (sim === undefined || me === undefined || me.down || me.car !== '' || now - sim.lastJumpMs < JUMP_GAP_MS) return;
+      sim.lastJumpMs = now;
+      sim.lastActiveMs = now;
+      for (const other of this.#sims.values()) if (other.sees.has(client.sessionId)) other.client.send(CITY_MESSAGES.JUMP, { from: client.sessionId });
+    }),
     punch: validate(NoPayloadSchema, (client: CityClient) => {
       this.#punch(client.sessionId, Date.now());
     }),
@@ -213,7 +226,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       if (sim === undefined || car === undefined) return;
       const now = Date.now();
       sim.lastActiveMs = now;
-      car.want = { x: payload.dx, y: payload.dy };
+      car.input = payload;
       car.wantAt = now;
     }),
     deposit: validate(NoPayloadSchema, (client: CityClient) => {
@@ -245,7 +258,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     this.patchRate = null;
     PARKING.forEach((home, i) => {
       const state = new CityCar({ x: home.x, y: home.y, heading: home.heading, color: i % CAR_COLORS });
-      this.#cars.set(`car${String(i)}`, { state, home, speed: 0, want: { x: 0, y: 0 }, wantAt: 0, parkedSince: Date.now() });
+      this.#cars.set(`car${String(i)}`, { state, home, speed: 0, input: LET_GO, wantAt: 0, parkedSince: Date.now() });
       this.state.cars.set(`car${String(i)}`, state);
     });
     let n = 0;
@@ -301,6 +314,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       depositing: false,
       lastActiveMs: now,
       lastEmoteMs: 0,
+      lastJumpMs: 0,
       lastLookMs: 0,
     });
     this.state.population = this.#sims.size;
@@ -327,6 +341,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
   #step(): void {
     const now = performance.now();
     const wall = Date.now();
+    const cars = this.#carBodies();
     for (const [id, sim] of this.#sims) {
       const player = this.state.players.get(id);
       if (player === undefined) continue;
@@ -335,7 +350,8 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       const seated = player.car !== '';
       sim.inputs.drain(now, (input) => {
         if (down || seated) return;
-        const next = stepMovement({ x: player.x, y: player.y }, { x: input.dx, y: input.dy }, TICK_SECONDS, CITY_MAP);
+        const from = { x: player.x, y: player.y };
+        const next = stepMovement(from, { x: input.dx, y: input.dy }, TICK_SECONDS, CITY_MAP, carsSolid(cars, from, PLAYER_RADIUS));
         if (next.x !== player.x) player.x = next.x;
         if (next.y !== player.y) player.y = next.y;
       });
@@ -490,7 +506,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     if (best === null) return;
     const [carId, car] = best;
     car.state.driver = sessionId;
-    car.want = { x: 0, y: 0 };
+    car.input = LET_GO;
     car.wantAt = 0;
     player.car = carId;
     player.x = car.state.x;
@@ -523,8 +539,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
         this.#park(car, now);
         continue;
       }
-      const want = now - car.wantAt > DRIVE_INPUT_TTL_MS ? { x: 0, y: 0 } : car.want;
-      const c = controls(s.heading, car.speed, want);
+      const c = driveControls(s.heading, car.speed, now - car.wantAt > DRIVE_INPUT_TTL_MS ? LET_GO : car.input);
       const next = stepCar({ x: s.x, y: s.y, heading: s.heading, speed: car.speed }, c.throttle, c.steer, TICK_SECONDS, (p) => this.#carBlocked(carId, s.driver, p));
       car.speed = next.speed;
       if (next.x !== s.x) s.x = next.x;
@@ -535,10 +550,16 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     }
   }
 
-  // Cars stop for walls, water, anyone on foot and other cars.
+  // Every car's body where it stands now, for walkers to bump into.
+  #carBodies(): { x: number; y: number; heading: number }[] {
+    return [...this.#cars.values()].map((c) => ({ x: c.state.x, y: c.state.y, heading: c.state.heading }));
+  }
+
+  // Cars stop for walls, water, anyone on foot (wherever they touch the car's body) and other cars.
   #carBlocked(carId: string, driverId: string, p: { x: number; y: number }): boolean {
     if (carBlockedByMap(p)) return true;
-    for (const [id, other] of this.state.players) if (id !== driverId && other.car === '' && near(other, p, CAR_RADIUS + 0.3)) return true;
+    const heading = this.#cars.get(carId)?.state.heading ?? 0;
+    for (const [id, other] of this.state.players) if (id !== driverId && other.car === '' && touchesCar({ x: p.x, y: p.y, heading }, other, PLAYER_RADIUS)) return true;
     for (const [id, other] of this.#cars) if (id !== carId && near(other.state, p, 1.0)) return true;
     return false;
   }
@@ -642,7 +663,8 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       t.path.shift();
       return;
     }
-    const moved = stepMovement({ x: body.x, y: body.y }, { x: (dx / dist) * speed, y: (dy / dist) * speed }, TICK_SECONDS, CITY_MAP);
+    const from = { x: body.x, y: body.y };
+    const moved = stepMovement(from, { x: (dx / dist) * speed, y: (dy / dist) * speed }, TICK_SECONDS, CITY_MAP, carsSolid(this.#carBodies(), from, PLAYER_RADIUS));
     if (!isRough(moved)) {
       t.path = [];
       return;

@@ -1,28 +1,20 @@
 // Offline and update check for the PWA: production build, vite preview, headless Brave.
 // Run: npx tsx --conditions=source e2e/offline.ts
 import { rm } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { chromium, type Browser } from 'playwright-core';
 import { build, preview, type PreviewServer } from 'vite';
+import { BRAVE, CLIENT_ROOT, check, checkNoErrors, finish } from './harness.js';
 
-const clientRoot = fileURLToPath(new URL('../apps/client', import.meta.url));
 const OUT = 'dist-offline';
 const WEB_PORT = 3940;
 const WEB = `http://127.0.0.1:${String(WEB_PORT)}`;
-const BRAVE = process.env['BRAVE_PATH'] ?? '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser';
-
-let failures = 0;
-function check(ok: boolean, label: string): void {
-  if (!ok) failures++;
-  console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`);
-}
 
 // Each build names a different (unreachable) game server, so the bundle and the worker version differ.
 async function buildAndServe(serverPort: number): Promise<PreviewServer> {
   process.env['VITE_SERVER_URL'] = `http://127.0.0.1:${String(serverPort)}`;
   delete process.env['VITE_E2E'];
-  await build({ root: clientRoot, logLevel: 'warn', build: { outDir: OUT, emptyOutDir: true } });
-  return preview({ root: clientRoot, logLevel: 'warn', build: { outDir: OUT }, preview: { host: '127.0.0.1', port: WEB_PORT, strictPort: true } });
+  await build({ root: CLIENT_ROOT, logLevel: 'warn', build: { outDir: OUT, emptyOutDir: true } });
+  return preview({ root: CLIENT_ROOT, logLevel: 'warn', build: { outDir: OUT }, preview: { host: '127.0.0.1', port: WEB_PORT, strictPort: true } });
 }
 
 async function main(): Promise<void> {
@@ -68,17 +60,13 @@ async function main(): Promise<void> {
     await page.waitForFunction((t) => performance.timeOrigin !== t, before, { timeout: 10_000 });
     check(true, 'choosing Reload switches to the new version');
 
-    check(errors.length === 0, `no console errors${errors.length > 0 ? `: ${errors.join(' | ')}` : ''}`);
+    checkNoErrors(errors);
   } finally {
     await browser?.close();
     await web?.close();
-    await rm(`${clientRoot}/${OUT}`, { recursive: true, force: true });
+    await rm(`${CLIENT_ROOT}/${OUT}`, { recursive: true, force: true });
   }
-  if (failures > 0) {
-    console.log(`${String(failures)} check(s) failed`);
-    process.exit(1);
-  }
-  console.log('offline check passed');
+  finish('offline');
 }
 
 await main();

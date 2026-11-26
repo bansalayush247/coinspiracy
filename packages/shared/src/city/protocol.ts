@@ -10,6 +10,7 @@ export const CityJoinSchema = z.strictObject({ nickname: NicknameSchema });
 
 export const CITY_MESSAGES = Object.freeze({
   EMOTE: 'emote',
+  JUMP: 'jump',
   PUNCH: 'punch',
   VAULT: 'vault',
 } as const);
@@ -36,5 +37,9 @@ export const PunchLineSchema = z.strictObject({
 export type PunchLine = z.infer<typeof PunchLineSchema>;
 
 // Where the driver points the car: the same world-space direction as walking, no sequence numbers.
-export const DrivePayloadSchema = z.strictObject({ dx: z.number().min(-1).max(1), dy: z.number().min(-1).max(1) });
+/** A driver's input: a direction to head for (the touch stick), or pedal and wheel (the keyboard). */
+export const DrivePayloadSchema = z.union([
+  z.strictObject({ dx: z.number().min(-1).max(1), dy: z.number().min(-1).max(1) }),
+  z.strictObject({ throttle: z.number().min(-1).max(1), steer: z.number().min(-1).max(1) }),
+]);
 export type DrivePayload = z.infer<typeof DrivePayloadSchema>;

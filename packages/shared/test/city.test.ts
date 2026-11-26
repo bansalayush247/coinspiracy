@@ -26,8 +26,14 @@ import {
   CAR_TOP_SPEED,
   PARKING,
   carBlockedByMap,
+  CAR_HALF_LENGTH,
+  CAR_HALF_WIDTH,
+  DrivePayloadSchema,
+  carsSolid,
   controls,
+  driveControls,
   stepCar,
+  touchesCar,
   LIGHT_CYCLE_MS,
   SHIP_ROUTES,
   SIGHT_TOUCH,
@@ -53,6 +59,7 @@ import {
 } from '../src/city/index.js';
 import { isWalkableTile, tileAt } from '../src/map.js';
 import { canStand, findPath } from '../src/pathfinding.js';
+import { PLAYER_RADIUS, stepMovement } from '../src/movement.js';
 
 const walkable = (c: number, r: number): boolean => isWalkableTile(CITY_MAP, c, r);
 
@@ -368,5 +375,47 @@ describe('cars', () => {
     if (arrival === undefined) throw new Error('spawn');
     expect(PARKING.some((p) => Math.hypot(p.x - arrival.x, p.y - arrival.y) < 8)).toBe(true);
     for (const d of CITY_DISTRICTS) expect(PARKING.some((p) => districtAt(p)?.id === d.id), d.id).toBe(true);
+  });
+
+  it('drives with pedal and wheel from the keyboard: straight on gas, turning right on positive steer, and back on reverse', () => {
+    const pedal = (throttle: number, steer: number, seconds: number, start = { x: 0, y: 0, heading: 0, speed: 0 }) => {
+      let car = start;
+      for (let t = 0; t < seconds; t += 0.05) {
+        const c = driveControls(car.heading, car.speed, { throttle, steer });
+        car = stepCar(car, c.throttle, c.steer, 0.05, open);
+      }
+      return car;
+    };
+    const straight = pedal(1, 0, 2);
+    expect(straight.x).toBeGreaterThan(5);
+    expect(Math.abs(straight.y)).toBeLessThan(1e-9);
+    expect(straight.heading).toBe(0);
+    expect(pedal(1, 1, 0.5).heading).toBeGreaterThan(0);
+    expect(pedal(1, -1, 0.5).heading).toBeLessThan(0);
+    expect(pedal(-1, 0, 2).x).toBeLessThan(-1);
+    expect(driveControls(0, 0, { throttle: 3, steer: -3 })).toStrictEqual({ throttle: 1, steer: -1 });
+    expect(driveControls(0, 0, { dx: 1, dy: 0 })).toStrictEqual(controls(0, 0, { x: 1, y: 0 }));
+  });
+
+  it('gives a car a solid body that walkers bump into, but never traps someone already against it', () => {
+    const car = { x: 10.5, y: 10.5, heading: 0 };
+    expect(touchesCar(car, { x: 10.5 + CAR_HALF_LENGTH + 0.2, y: 10.5 }, 0.3)).toBe(true);
+    expect(touchesCar(car, { x: 10.5 + CAR_HALF_LENGTH + 0.35, y: 10.5 }, 0.3)).toBe(false);
+    expect(touchesCar(car, { x: 10.5, y: 10.5 + CAR_HALF_WIDTH + 0.2 }, 0.3)).toBe(true);
+    expect(touchesCar({ ...car, heading: Math.PI / 2 }, { x: 10.5, y: 10.5 + CAR_HALF_LENGTH + 0.2 }, 0.3)).toBe(true);
+    const open = { width: 21, height: 21, rows: Array.from({ length: 21 }, () => '.'.repeat(21)) };
+    let pos = { x: 6.5, y: 10.5 };
+    for (let i = 0; i < 40; i++) pos = stepMovement(pos, { x: 1, y: 0 }, 0.05, open, carsSolid([car], pos, PLAYER_RADIUS));
+    expect(pos.x).toBeLessThan(10.5 - CAR_HALF_LENGTH);
+    expect(touchesCar(car, pos, PLAYER_RADIUS)).toBe(false);
+    const inside = { x: 10.5, y: 10.6 };
+    const out = stepMovement(inside, { x: 0, y: 1 }, 0.05, open, carsSolid([car], inside, PLAYER_RADIUS));
+    expect(out.y).toBeGreaterThan(inside.y);
+  });
+
+  it('accepts a stick direction or pedal and wheel, never a mix or out-of-range values', () => {
+    expect(DrivePayloadSchema.safeParse({ dx: 0.5, dy: -1 }).success).toBe(true);
+    expect(DrivePayloadSchema.safeParse({ throttle: 1, steer: -0.5 }).success).toBe(true);
+    for (const bad of [{ dx: 1, dy: 0, throttle: 1 }, { throttle: 2, steer: 0 }, { steer: 1 }, {}]) expect(DrivePayloadSchema.safeParse(bad).success).toBe(false);
   });
 });

@@ -1,9 +1,9 @@
 // Runs a visit to Port Concord: the city room, the HUD, the minimap and district arrivals.
 import { Callbacks } from '@colyseus/sdk';
 import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, ENTER_RANGE, PunchLineSchema, VAULT_DOOR, atVault, districtAt, isRough, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId } from '@byzantine-council/shared/city';
-import { EMOTES, EMOTE_GLYPHS, EmoteLineSchema, type Emote } from '@byzantine-council/shared/hub';
+import { EMOTES, EMOTE_GLYPHS, EmoteLineSchema, JumpLineSchema, type Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
-import type { PlayerInput } from '../game/input.js';
+import { type PlayerInput, isEditable } from '../game/input.js';
 import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { el, h } from '../ui/dom.js';
@@ -74,6 +74,13 @@ export class CityController {
     });
     window.addEventListener('keydown', (e) => {
       if (this.#room === null || this.#hud.hidden) return;
+      if (e.code === 'Space' && !e.repeat && !isEditable(e.target)) {
+        // A focused HUD button would otherwise be clicked by Space as well.
+        if (e.target instanceof HTMLButtonElement) e.target.blur();
+        e.preventDefault();
+        this.#jump();
+        return;
+      }
       if ((e.key === 'f' || e.key === 'F') && !e.repeat && !(e.target instanceof HTMLInputElement)) {
         this.#swing();
         return;
@@ -141,6 +148,10 @@ export class CityController {
     });
     callbacks.onRemove('players', (_p: CityPlayer, id: string) => {
       this.scene.removePlayer(id);
+    });
+    room.onMessage(CITY_MESSAGES.JUMP, (payload: unknown) => {
+      const line = JumpLineSchema.safeParse(payload);
+      if (line.success) this.scene.jump(line.data.from);
     });
     room.onMessage(CITY_MESSAGES.EMOTE, (payload: unknown) => {
       const line = EmoteLineSchema.safeParse(payload);
@@ -252,6 +263,11 @@ export class CityController {
     audio.play('chirp');
     this.onToast(t('city.driving'));
     this.#driveLoop = window.setInterval(() => {
+      const pedals = this.input.pedals();
+      if (pedals !== null) {
+        this.#room?.send('drive', pedals);
+        return;
+      }
       const d = this.input.direction();
       this.#room?.send('drive', { dx: Math.max(-1, Math.min(1, d.x)), dy: Math.max(-1, Math.min(1, d.y)) });
     }, 50);
@@ -298,6 +314,14 @@ export class CityController {
       return;
     }
     this.#room?.send('punch');
+  }
+
+  // Jumps at once on this screen, then tells the room so everyone who can see you sees it too.
+  #jump(): void {
+    const room = this.#room;
+    if (room === null || this.#inCar) return;
+    this.scene.jump(room.sessionId);
+    room.send('jump');
   }
 
   #emote(emote: Emote): void {

@@ -1,6 +1,6 @@
-// Cars anyone can drive in Port Concord. The driver points where they want to go (keys or the touch stick); the car
-// steers toward it, reverses when it points behind, and stops dead against walls, water and people. The server runs
-// it; these are the rules it runs.
+// Cars anyone can drive in Port Concord. On the keyboard the driver works the pedal and wheel; on the touch stick they
+// point where they want to go and the car steers toward it, reversing when it points behind. Cars stop dead against
+// walls, water and people. The server runs it; these are the rules it runs.
 import { isBlocked, type Vec2 } from '../map.js';
 import { CITY_DISTRICTS, CITY_MAP, CITY_SPAWNS } from './map.js';
 
@@ -35,6 +35,12 @@ export function controls(heading: number, speed: number, want: Vec2): { throttle
   const diff = wrap(Math.atan2(want.y, want.x) - heading);
   if (Math.abs(diff) > 2.5 && speed < 1) return { throttle: -amount, steer: clamp(-wrap(diff - Math.PI) * 2, -1, 1) };
   return { throttle: amount * (Math.abs(diff) < 1.6 ? 1 : 0.35), steer: clamp(diff * 2.5, -1, 1) };
+}
+
+/** Pedal and wheel from a driver's input: passed straight through from the keyboard, steered toward a stick direction. */
+export function driveControls(heading: number, speed: number, input: { dx: number; dy: number } | { throttle: number; steer: number }): { throttle: number; steer: number } {
+  if ('throttle' in input) return { throttle: clamp(input.throttle, -1, 1), steer: clamp(input.steer, -1, 1) };
+  return controls(heading, speed, { x: input.dx, y: input.dy });
 }
 
 // One physics step. `blocked` says whether the car's middle may stand somewhere; a blocked move slides along the
@@ -75,11 +81,51 @@ export function stepCar(car: CarBody, throttle: number, steer: number, dt: numbe
 
 export const carBlockedByMap = (p: Vec2): boolean => isBlocked(CITY_MAP, p, CAR_RADIUS);
 
+/** Half the length and half the width of a car's body, in tiles: the box the art draws. */
+export const CAR_HALF_LENGTH = 0.75;
+export const CAR_HALF_WIDTH = 0.38;
+
+/** Whether someone of `radius` standing at `p` overlaps a car's body (a box turned to the car's heading). */
+export function touchesCar(car: { readonly x: number; readonly y: number; readonly heading: number }, p: Vec2, radius: number): boolean {
+  const dx = p.x - car.x;
+  const dy = p.y - car.y;
+  const c = Math.cos(car.heading);
+  const s = Math.sin(car.heading);
+  const u = dx * c + dy * s;
+  const v = -dx * s + dy * c;
+  return Math.hypot(u - clamp(u, -CAR_HALF_LENGTH, CAR_HALF_LENGTH), v - clamp(v, -CAR_HALF_WIDTH, CAR_HALF_WIDTH)) < radius;
+}
+
+/**
+ * Cars as solid ground for someone walking from `from`: a step into a car is refused, but anyone already overlapping
+ * one (just out of the driver's door, or a car stopped against them) can always walk clear.
+ */
+export function carsSolid(cars: readonly { readonly x: number; readonly y: number; readonly heading: number }[], from: Vec2, radius: number): (p: Vec2) => boolean {
+  const solid = cars.filter((car) => !touchesCar(car, from, radius));
+  return (p) => solid.some((car) => touchesCar(car, p, radius));
+}
+
 export interface ParkingSpot {
   readonly x: number;
   readonly y: number;
   readonly heading: number;
 }
+
+// Half-tiles a car could roll from `p` along `heading` before a wall or another parked car stops it, up to six tiles.
+function clearRun(p: Vec2, heading: number, others: readonly Vec2[]): number {
+  let n = 0;
+  for (; n < 12; n++) {
+    const at = { x: p.x + Math.cos(heading) * (n + 1) * 0.5, y: p.y + Math.sin(heading) * (n + 1) * 0.5 };
+    if (carBlockedByMap(at) || others.some((o) => o !== p && Math.hypot(o.x - at.x, o.y - at.y) < CAR_RADIUS * 2)) break;
+  }
+  return n;
+}
+
+const PULL_OUT = 8;
+
+// A parked car faces along its kerb, toward the longer stretch of open road, so it can pull straight out.
+const openWay = (p: Vec2, axis: number, others: readonly Vec2[] = []): number =>
+  clearRun(p, axis, others) >= clearRun(p, axis + Math.PI, others) ? wrap(axis) : wrap(axis + Math.PI);
 
 // Kerbside spots on open pavement beside a road, a few per district and two by the arrival point, spaced apart.
 export const PARKING: readonly ParkingSpot[] = Object.freeze(
@@ -93,13 +139,14 @@ export const PARKING: readonly ParkingSpot[] = Object.freeze(
         if (CITY_MAP.rows[r]?.[c] !== '.') continue;
         const p = { x: c + 0.5, y: r + 0.5 };
         if (carBlockedByMap(p)) continue;
-        if (road(c - 1, r) || road(c + 1, r)) candidates.push({ ...p, heading: Math.PI / 2 });
-        else if (road(c, r - 1) || road(c, r + 1)) candidates.push({ ...p, heading: 0 });
+        const axis = road(c - 1, r) || road(c + 1, r) ? Math.PI / 2 : road(c, r - 1) || road(c, r + 1) ? 0 : null;
+        // Only spots a car can pull straight out of: at least PULL_OUT half-tiles of open kerb one way.
+        if (axis !== null && Math.max(clearRun(p, axis, []), clearRun(p, axis + Math.PI, [])) >= PULL_OUT) candidates.push({ ...p, heading: openWay(p, axis) });
       }
     }
     const nearest = (to: Vec2): ParkingSpot[] => [...candidates].sort((a, b) => Math.hypot(a.x - to.x, a.y - to.y) - Math.hypot(b.x - to.x, b.y - to.y));
     const arrival = CITY_SPAWNS[0];
-    if (arrival !== undefined) for (const s of nearest(arrival)) if (spots.length < 2 && far(s, 3)) spots.push(s);
+    if (arrival !== undefined) for (const s of nearest(arrival)) if (spots.length < 2 && far(s, 6)) spots.push(s);
     for (const d of CITY_DISTRICTS) {
       const mid = { x: (d.box.c0 + d.box.c1 + 1) / 2, y: (d.box.r0 + d.box.r1 + 1) / 2 };
       let added = 0;
@@ -110,6 +157,7 @@ export const PARKING: readonly ParkingSpot[] = Object.freeze(
         added++;
       }
     }
-    return spots.map((s) => Object.freeze(s));
+    // Point each car away from the cars parked ahead of it now that every spot is known.
+    return spots.map((s) => Object.freeze({ ...s, heading: openWay(s, Math.abs(Math.sin(s.heading)) > 0.5 ? Math.PI / 2 : 0, spots) }));
   })(),
 );

@@ -1,8 +1,8 @@
 import type { ColyseusTestServer } from '@colyseus/testing';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { CITY_BUILDINGS, CITY_MAP, CITY_MESSAGES, CITY_ROOM, CITY_SPAWNS, CityState, KNOCKOUT_MS, MAX_HEALTH, PUNCH_COOLDOWN_MS, PunchLineSchema, ROUGH_STREETS, districtAt, inSight, isRough, TOUGH_PURSE_MIN, type PunchLine } from '@byzantine-council/shared/city';
-import { isBlocked } from '@byzantine-council/shared';
-import { EmoteLineSchema } from '@byzantine-council/shared/hub';
+import { CAR_HALF_LENGTH, CITY_BUILDINGS, CITY_MAP, CITY_MESSAGES, CITY_ROOM, CITY_SPAWNS, CityState, KNOCKOUT_MS, MAX_HEALTH, PUNCH_COOLDOWN_MS, PunchLineSchema, ROUGH_STREETS, districtAt, inSight, isRough, TOUGH_PURSE_MIN, type PunchLine } from '@byzantine-council/shared/city';
+import { PLAYER_RADIUS, isBlocked } from '@byzantine-council/shared';
+import { EmoteLineSchema, JUMP_GAP_MS, JumpLineSchema } from '@byzantine-council/shared/hub';
 import type { CityRoom } from '../src/city/CityRoom.js';
 import { sdk, startServer, waitFor } from './helpers.js';
 
@@ -95,6 +95,23 @@ describe('Port Concord', () => {
     expect(a.state.players.get(a.sessionId)?.x).toBeGreaterThan(65.6);
   });
 
+  it('stops a walker at a parked car instead of letting them walk through it', async () => {
+    const a = await join('Bumper');
+    await waitFor(() => a.state.players.size >= 1, 'joined');
+    const room = colyseus.getRoomById<CityRoom>(a.roomId);
+    const me = room.state.players.get(a.sessionId);
+    const car = room.carList()[0];
+    if (me === undefined || car === undefined) throw new Error('setup');
+    const ahead = { x: Math.cos(car.heading), y: Math.sin(car.heading) };
+    me.x = car.x + ahead.x * 2.2;
+    me.y = car.y + ahead.y * 2.2;
+    for (let seq = 1; seq <= 30; seq++) a.send('move', { seq, dx: -ahead.x, dy: -ahead.y });
+    await waitFor(() => (a.state.players.get(a.sessionId)?.ack ?? 0) >= 30, 'moves applied', 6000);
+    const along = (me.x - car.x) * ahead.x + (me.y - car.y) * ahead.y;
+    expect(along).toBeGreaterThan(CAR_HALF_LENGTH + PLAYER_RADIUS - 0.01);
+    expect(along).toBeLessThan(2.2);
+  });
+
   it('only shows emotes to the guardians who can see you', async () => {
     const a = await join('Waver');
     const near = await join('Nearby');
@@ -114,6 +131,23 @@ describe('Port Concord', () => {
     await waitFor(() => seenNear.length === 1, 'nearby sees it');
     await new Promise((r) => setTimeout(r, 200));
     expect(seenFar).toEqual([]);
+  });
+
+  it('shows a jump to whoever can see the jumper, at most once per JUMP_GAP_MS', async () => {
+    const a = await join('Jumper');
+    const near = await join('Watcher');
+    await waitFor(() => near.state.players.size >= 2, 'together');
+    const room = colyseus.getRoomById<CityRoom>(a.roomId);
+    const seen: string[] = [];
+    near.onMessage(CITY_MESSAGES.JUMP, (m: unknown) => seen.push(JumpLineSchema.parse(m).from));
+    await waitFor(() => [...room.state.players.keys()].includes(near.sessionId), 'watcher in room');
+    a.send('jump');
+    a.send('jump');
+    await waitFor(() => seen.length === 1, 'watcher sees one jump');
+    expect(seen).toEqual([a.sessionId]);
+    await new Promise((r) => setTimeout(r, JUMP_GAP_MS + 50));
+    a.send('jump');
+    await waitFor(() => seen.length === 2, 'a second jump after the gap');
   });
 
   it('refuses a bad nickname', async () => {
@@ -152,6 +186,30 @@ describe('Port Concord', () => {
       await waitFor(() => me.car === '', 'out of the car');
       expect(room.carList()[0]?.driver).toBe('');
       expect(Math.hypot(me.x - (moved?.x ?? 0), me.y - (moved?.y ?? 0))).toBeGreaterThan(0.5);
+    });
+
+    it('drives straight on the gas from the keyboard, with no wheel input', async () => {
+      const a = await join('Pedals');
+      const room = colyseus.getRoomById<CityRoom>(a.roomId);
+      const me = room.state.players.get(a.sessionId);
+      const car = room.carList()[0];
+      if (me === undefined || car === undefined) throw new Error('setup');
+      me.x = car.x + 1;
+      me.y = car.y;
+      a.send('ride');
+      await waitFor(() => me.car === car.id, 'in the car');
+      const heading = car.heading;
+      const end = Date.now() + 600;
+      while (Date.now() < end) {
+        a.send('drive', { throttle: 1, steer: 0 });
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      const moved = room.carList()[0];
+      if (moved === undefined) throw new Error('car');
+      expect(moved.heading).toBeCloseTo(heading, 9);
+      expect(Math.hypot(moved.x - car.x, moved.y - car.y)).toBeGreaterThan(0.5);
+      a.send('ride');
+      await waitFor(() => me.car === '', 'out of the car');
     });
 
     it('lets the car go when the driver stops sending, and never drives through a wall', async () => {

@@ -14,6 +14,7 @@ import {
   type IslandProgress,
   type PreviewIslandId,
 } from './islandObjectives.js';
+import { poseOf } from '../game/facing.js';
 
 export const ISLAND_SCENE_KEY = 'island-preview';
 export type { PreviewIslandId } from './islandObjectives.js';
@@ -75,6 +76,7 @@ export class IslandScene extends Phaser.Scene {
   #body!: Phaser.GameObjects.Graphics;
   #position = { x: 10, y: 12.5 };
   #facing: 1 | -1 = 1;
+  #back = false;
   #objective: IslandObjective = ISLAND_OBJECTIVES.mint;
   #markers!: Phaser.GameObjects.Graphics;
   readonly #completed = new Set<string>();
@@ -157,10 +159,11 @@ export class IslandScene extends Phaser.Scene {
     const dx = (next.x - CENTER.x) / 7.4;
     const dy = (next.y - CENTER.y) / 5.8;
     if (dx * dx + dy * dy <= 1) this.#position = next;
-    const facing: 1 | -1 = direction.x - direction.y < 0 ? -1 : 1;
-    if (facing !== this.#facing) {
-      this.#facing = facing;
-      drawGuardian(this.#body, seatColors(1), facing, { hat: '', shades: '', outfit: '' });
+    const pose = poseOf(Math.atan2(direction.y, direction.x));
+    if (pose.facing !== this.#facing || pose.back !== this.#back) {
+      this.#facing = pose.facing;
+      this.#back = pose.back;
+      drawGuardian(this.#body, seatColors(1), pose.facing, { hat: '', shades: '', outfit: '' }, pose.back);
     }
     this.#placeAvatar();
     const nearby = this.#nearbyPoint()?.id ?? null;
