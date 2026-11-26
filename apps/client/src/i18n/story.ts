@@ -9,6 +9,10 @@ export type StoryCatalog = Readonly<Record<string, string>>;
 
 const LOADERS: Readonly<Partial<Record<Locale, () => Promise<StoryCatalog>>>> = {
   es: async () => (await import('./story.es.json', { with: { type: 'json' } })).default,
+  fr: async () => (await import('./story.fr.json', { with: { type: 'json' } })).default,
+  sw: async () => (await import('./story.sw.json', { with: { type: 'json' } })).default,
+  ha: async () => (await import('./story.ha.json', { with: { type: 'json' } })).default,
+  zu: async () => (await import('./story.zu.json', { with: { type: 'json' } })).default,
 };
 
 const loaded = new Map<Locale, StoryCatalog>();

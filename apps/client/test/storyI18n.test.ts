@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { BOOK_ALONE, DUMP_ACT, REX_NOTE, SHOPKEEPERS, STORY_TEMPLATES, workLabel } from '@byzantine-council/shared/city';
 import es from '../src/i18n/story.es.json' with { type: 'json' };
+import fr from '../src/i18n/story.fr.json' with { type: 'json' };
+import ha from '../src/i18n/story.ha.json' with { type: 'json' };
+import sw from '../src/i18n/story.sw.json' with { type: 'json' };
+import zu from '../src/i18n/story.zu.json' with { type: 'json' };
 import { translateStory, type StoryCatalog } from '../src/i18n/story.js';
 import { ANIMAL_NAMES, LOOKS } from '../src/city/looks.js';
 import { storyStrings } from './storyStrings.js';
 
-const CATALOGS: Readonly<Record<string, StoryCatalog>> = { es };
+const CATALOGS: Readonly<Record<string, StoryCatalog>> = { es, fr, ha, sw, zu };
 const placeholders = (s: string): string[] => [...s.matchAll(/\{\w*\}/g)].map((m) => m[0]).sort();
 const shown = new Set([...[...storyStrings().values()].flat(), ...Object.values(LOOKS).map((l) => l.name), ...Object.values(ANIMAL_NAMES)].filter((s) => s !== ''));
 
