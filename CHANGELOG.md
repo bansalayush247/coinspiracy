@@ -1,6 +1,23 @@
 # Changelog
 
+## 27 November 2026
+
+### Story scenes you can read, with faces
+- Story scenes now play one line at a time: each line types at a readable pace, breathing at commas and full stops,
+  and waits for Space or a tap before the next. Text speed (slow, normal, fast, instant), an Auto mode that holds each
+  line long enough to read, and a History panel of everything said so far sit under the dialogue.
+- The speaker's portrait sits beside each line, drawn from the same character art as the city, and wears the face the
+  line is said with: calm, happy, angry, worried, surprised, sad, smug, whispering or curious. It blinks, moves its
+  mouth while the line types, and the character not speaking waits dimmed across from them. Phone calls and the old
+  voicemail get the device they come out of.
+- A timed choice's clock now starts once the whole crew has read up to it, not when the scene begins, and a crew
+  waits for its slowest reader (up to a limit, so nobody can stall it). Lines the crew moved past go into History.
+
 ## 26 November 2026
+
+### Spoken noir vocals
+- Spoken noir intro vocals now introduce each scene mood once on entry (and stay silent while story dialogue is open),
+  with a separate Vocals on/off toggle in settings (saved in `bc.audio`, default on; credited in `CREDITS.md`).
 
 ### French, Swahili, Hausa, isiZulu and Hindi
 - The game and whole story (all 1,855 lines across every act, side case, end card, note and name tag) are now in

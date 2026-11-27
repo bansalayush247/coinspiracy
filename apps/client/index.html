@@ -39,6 +39,7 @@
                 <option value="off" data-i18n="music.off">Off</option>
               </select>
             </label>
+            <button id="vocals" type="button" class="corner-toggle" aria-pressed="true" aria-label="Vocals: On. Change vocals">Vocals: On</button>
             <label class="music-picker">
               <span data-i18n="settings.language">Language</span>
               <select id="language">
@@ -180,10 +181,29 @@
             <canvas id="story-dots"></canvas>
           </div>
           <button id="story-dig" class="city-deposit story-dig" type="button" aria-keyshortcuts="E" hidden>Work here<small data-i18n="story.digHint">E · hold still</small></button>
-          <section id="story-talk" class="panel story-talk" aria-live="polite" aria-label="Story" data-i18n-aria-label="story.talk" hidden>
-            <div id="story-log" class="story-log"></div>
+          <section id="story-talk" class="panel story-talk" aria-label="Story" data-i18n-aria-label="story.talk" hidden>
+            <p id="story-slug" class="story-slug-now"></p>
+            <div class="story-stage">
+              <div id="story-face-them" class="story-face story-face-them" aria-hidden="true"></div>
+              <div class="story-box">
+                <p id="story-name" class="story-name"></p>
+                <p id="story-direction" class="story-direction"></p>
+                <p id="story-now" class="story-now" aria-live="polite"></p>
+                <p id="story-notes" class="story-notes" aria-live="polite"></p>
+                <span id="story-more" class="story-more" aria-hidden="true" hidden></span>
+              </div>
+              <div id="story-face-rook" class="story-face story-face-rook" aria-hidden="true"></div>
+            </div>
             <div id="story-choices" class="story-choices" role="group" aria-label="Your answer" data-i18n-aria-label="story.yourAnswer"></div>
-            <p id="story-hint" class="story-hint"></p>
+            <div class="story-bottom">
+              <p id="story-hint" class="story-hint"></p>
+              <div class="story-tools">
+                <button id="story-auto" type="button" aria-pressed="false">Auto</button>
+                <button id="story-speed" type="button">Text: normal</button>
+                <button id="story-history" type="button" aria-expanded="false" aria-controls="story-log">History</button>
+              </div>
+            </div>
+            <div id="story-log" class="story-log" aria-label="What has been said" data-i18n-aria-label="dialogue.historyLabel" hidden></div>
           </section>
           <section id="story-end" class="panel story-end" role="dialog" aria-labelledby="story-end-title" hidden>
             <span id="story-end-eyebrow" class="eyebrow">End of the act</span>

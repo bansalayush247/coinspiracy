@@ -52,9 +52,11 @@ export interface BarPlan {
 }
 
 export const STEPS_PER_BAR = 16;
-// The melody's range, in scale degrees above its base note.
 const LEAD_LO = 0;
 const LEAD_HI = 8;
+const MIN_BASS_MIDI = 33;
+const BASS_TURNAROUND_LEVEL = 0.36;
+const BASS_GROOVE_LEVEL = 0.45;
 
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 const MIXOLYDIAN = [0, 2, 4, 5, 7, 9, 10];
@@ -62,17 +64,16 @@ const DORIAN = [0, 2, 3, 5, 7, 9, 10];
 const AEOLIAN = [0, 2, 3, 5, 7, 8, 10];
 
 export const MOODS: Readonly<Record<Exclude<Mood, 'silent'>, MoodSpec>> = Object.freeze({
-  menu: { bpm: 66, root: 62, scale: MAJOR, progression: [0, 5, 3, 4], pad: 0.55, arp: 0.35, arpVoice: 'keys', lead: 0.45, bell: 0.2, bass: 0.3, pulse: 0, density: 0.45 },
-  calm: { bpm: 74, root: 55, scale: MIXOLYDIAN, progression: [0, 3, 6, 4], pad: 0.45, arp: 0.45, arpVoice: 'keys', lead: 0.3, bell: 0.1, bass: 0.35, pulse: 0.12, density: 0.4 },
-  proposals: { bpm: 82, root: 62, scale: DORIAN, progression: [0, 3, 0, 4], pad: 0.45, arp: 0.5, arpVoice: 'keys', lead: 0.32, bell: 0.12, bass: 0.45, pulse: 0.3, density: 0.5 },
-  final: { bpm: 94, root: 57, scale: AEOLIAN, progression: [0, 5, 3, 4], pad: 0.45, arp: 0.55, arpVoice: 'keys', lead: 0.32, bell: 0.15, bass: 0.55, pulse: 0.5, density: 0.55 },
-  council: { bpm: 56, root: 50, scale: AEOLIAN, progression: [0, 0, 5, 4], pad: 0.65, arp: 0.15, arpVoice: 'keys', lead: 0.28, bell: 0.35, bass: 0.35, pulse: 0, density: 0.25 },
-  // Under the storybook: slow, chime-led and gentle.
-  story: { bpm: 54, root: 67, scale: MAJOR, progression: [0, 3, 5, 4], pad: 0.5, arp: 0.2, arpVoice: 'keys', lead: 0.3, bell: 0.55, bass: 0.2, pulse: 0, density: 0.35 },
-  beach: { bpm: 84, root: 64, scale: MAJOR, progression: [0, 3, 4, 3], pad: 0.35, arp: 0.5, arpVoice: 'pluck', lead: 0.32, bell: 0.2, bass: 0.45, pulse: 0.2, density: 0.45 },
-  academy: { bpm: 86, root: 60, scale: MAJOR, progression: [0, 4, 5, 3], pad: 0.4, arp: 0.45, arpVoice: 'keys', lead: 0.3, bell: 0.4, bass: 0.35, pulse: 0.15, density: 0.5 },
-  victory: { bpm: 94, root: 60, scale: MAJOR, progression: [0, 3, 4, 0], pad: 0.55, arp: 0.5, arpVoice: 'keys', lead: 0.45, bell: 0.45, bass: 0.45, pulse: 0.25, density: 0.55 },
-  defeat: { bpm: 60, root: 57, scale: AEOLIAN, progression: [0, 5, 3, 4], pad: 0.6, arp: 0.25, arpVoice: 'keys', lead: 0.35, bell: 0.15, bass: 0.35, pulse: 0, density: 0.3 },
+  menu: { bpm: 68, root: 62, scale: DORIAN, progression: [0, 3, 5, 4, 0, 2, 3, 4], pad: 0.58, arp: 0.38, arpVoice: 'keys', lead: 0.46, bell: 0.24, bass: 0.42, pulse: 0, density: 0.45 },
+  calm: { bpm: 74, root: 55, scale: MIXOLYDIAN, progression: [0, 3, 4, 0, 2, 5, 3, 4], pad: 0.46, arp: 0.46, arpVoice: 'keys', lead: 0.32, bell: 0.14, bass: 0.45, pulse: 0.14, density: 0.42 },
+  proposals: { bpm: 82, root: 62, scale: DORIAN, progression: [0, 3, 2, 4, 0, 5, 3, 4], pad: 0.48, arp: 0.52, arpVoice: 'keys', lead: 0.34, bell: 0.16, bass: 0.5, pulse: 0.32, density: 0.52 },
+  final: { bpm: 94, root: 57, scale: AEOLIAN, progression: [0, 5, 3, 4, 0, 6, 3, 4], pad: 0.46, arp: 0.56, arpVoice: 'keys', lead: 0.34, bell: 0.18, bass: 0.58, pulse: 0.52, density: 0.58 },
+  council: { bpm: 56, root: 50, scale: AEOLIAN, progression: [0, 0, 5, 4, 3, 5, 2, 4], pad: 0.66, arp: 0.22, arpVoice: 'keys', lead: 0.3, bell: 0.38, bass: 0.38, pulse: 0, density: 0.28 },
+  story: { bpm: 56, root: 62, scale: DORIAN, progression: [0, 5, 3, 4, 2, 5, 3, 4], pad: 0.54, arp: 0.26, arpVoice: 'keys', lead: 0.34, bell: 0.5, bass: 0.34, pulse: 0, density: 0.36 },
+  beach: { bpm: 86, root: 64, scale: MAJOR, progression: [0, 3, 5, 4, 0, 2, 3, 4], pad: 0.38, arp: 0.52, arpVoice: 'pluck', lead: 0.34, bell: 0.22, bass: 0.48, pulse: 0.24, density: 0.48 },
+  academy: { bpm: 84, root: 60, scale: DORIAN, progression: [0, 3, 1, 4, 0, 5, 3, 4], pad: 0.42, arp: 0.46, arpVoice: 'keys', lead: 0.32, bell: 0.38, bass: 0.45, pulse: 0.18, density: 0.48 },
+  victory: { bpm: 94, root: 60, scale: MAJOR, progression: [0, 3, 4, 0, 5, 3, 4, 0], pad: 0.58, arp: 0.52, arpVoice: 'keys', lead: 0.46, bell: 0.46, bass: 0.48, pulse: 0.28, density: 0.55 },
+  defeat: { bpm: 58, root: 57, scale: AEOLIAN, progression: [0, 5, 3, 4, 0, 3, 5, 4], pad: 0.62, arp: 0.28, arpVoice: 'keys', lead: 0.36, bell: 0.18, bass: 0.38, pulse: 0, density: 0.3 },
 });
 
 // Two-bar melody rhythms in sixteenths; negative values are rests. Each ends with a breath.
@@ -81,12 +82,14 @@ const SPARSE_RHYTHMS: readonly (readonly number[])[] = [
   [12, 4, 12, -4],
   [16, 8, -8],
   [8, 4, 4, 12, -4],
+  [6, 6, 4, 10, -6],
 ];
 const BUSY_RHYTHMS: readonly (readonly number[])[] = [
   [4, 4, 8, 4, 4, 4, -4],
   [4, 4, 4, 4, 12, -4],
   [6, 2, 8, 6, 2, 4, -4],
   [8, 4, 4, 8, 4, -4],
+  [6, 4, 6, 4, 8, -4],
 ];
 
 // Melody steps: mostly to a neighbour, sometimes a small leap or a repeat.
@@ -184,22 +187,28 @@ export class Composer {
   #bassLine(chord: readonly number[]): NoteEvent[] {
     if (this.#spec.bass <= 0) return [];
     let root = this.midi(chord[0] ?? 0, -2);
-    while (root < 33) root += 12;
-    if (this.#spec.bass < 0.45) return [{ midi: root, at: 0, len: STEPS_PER_BAR }];
-    // A walking fifth late in the bar for the busier moods.
+    while (root < MIN_BASS_MIDI) root += 12;
+    if (this.#spec.bass < BASS_TURNAROUND_LEVEL) return [{ midi: root, at: 0, len: STEPS_PER_BAR }];
     let fifth = this.midi(chord[2] ?? 0, -2);
     while (fifth < root) fifth += 12;
+    if (this.#spec.bass < BASS_GROOVE_LEVEL) {
+      return [
+        { midi: root, at: 0, len: 12 },
+        { midi: fifth, at: 12, len: 4 },
+      ];
+    }
     return [
-      { midi: root, at: 0, len: 10 },
+      { midi: root, at: 0, len: 6 },
+      { midi: root, at: 6, len: 4 },
       { midi: fifth, at: 10, len: 6 },
     ];
   }
 
-  // A rolling up-and-down arpeggio over the chord, continuing smoothly from bar to bar.
+  // A rolling seventh-chord arpeggio, continuing smoothly from bar to bar.
   #arpeggio(chord: readonly number[], n: number): NoteEvent[] {
     if (this.#spec.arp <= 0) return [];
-    const tones = [chord[0] ?? 0, chord[1] ?? 2, chord[2] ?? 4, (chord[0] ?? 0) + n];
-    const pattern = [0, 1, 2, 3, 2, 1];
+    const tones = [chord[0] ?? 0, chord[1] ?? 2, chord[2] ?? 4, (chord[2] ?? 4) + 2, (chord[0] ?? 0) + n];
+    const pattern = [0, 1, 2, 3, 4, 3, 2, 1];
     const step = this.#spec.arp >= 0.4 ? 2 : 4;
     const out: NoteEvent[] = [];
     for (let at = 0; at < STEPS_PER_BAR; at += step) {

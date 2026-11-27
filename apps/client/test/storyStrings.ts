@@ -3,11 +3,11 @@ import * as city from '@byzantine-council/shared/city';
 // Fields that always hold words a player reads, even a single word.
 const PROSE = new Set(['text', 'tag', 'title', 'label', 'name', 'badge', 'number', 'where', 'paren', 'slug', 'action', 'after', 'blurb', 'hint', 'lesson', 'finale', 'note', 'goalLabel', 'clockLabel', 'workVerb', 'prose']);
 // Fields that hold ids, step names or speakers, never shown.
-const IDS = new Set(['id', 'go', 'then', 'if', 'unless', 'mark', 'who', 'timeout', 'kind', 'markers', 'steps', 'workStep', 'closed', 'to', 'npc', 'by', 'jump', 'scene', 'scenes', 'watch']);
+const IDS = new Set(['id', 'go', 'then', 'if', 'unless', 'mark', 'who', 'face', 'timeout', 'kind', 'markers', 'steps', 'workStep', 'closed', 'to', 'npc', 'by', 'jump', 'scene', 'scenes', 'watch']);
 // Records whose values are all read by players, whatever their keys.
 const READ_RECORDS = new Set(['objectives', 'catchers', 'marks']);
 // Exports that are not story: the open city's names, room names and the join schema.
-const NOT_STORY = new Set(['CITY_DISTRICTS', 'TOUGH_NAMES', 'MissionJoinSchema', 'CITY_ROOM', 'MISSION_ROOM', 'SPEAKERS', 'ACT_IDS', 'CATCHER_IDS']);
+const NOT_STORY = new Set(['CITY_DISTRICTS', 'TOUGH_NAMES', 'MissionJoinSchema', 'CITY_ROOM', 'MISSION_ROOM', 'SPEAKERS', 'ACT_IDS', 'CATCHER_IDS', 'FACES', 'STORY_PACING']);
 
 /** Every line the story can show a player, by the export it comes from, each listed once. */
 export function storyStrings(): Map<string, string[]> {

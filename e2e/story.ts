@@ -72,15 +72,21 @@ async function open(
   return { page, room };
 }
 
-// Skips the typing with Space, as a player would, then picks a choice by its number key.
+// Reads a scene line by line with Space, as a player would, until its choices come up.
+async function reachChoices(page: Page, timeoutMs = 20_000): Promise<void> {
+  const choice = page.locator('.story-choice').first();
+  const end = Date.now() + timeoutMs;
+  while (!(await choice.isVisible()) && Date.now() < end) {
+    await page.keyboard.press(' ');
+    await page.waitForTimeout(200);
+  }
+  await choice.waitFor({ state: 'visible', timeout: 1_000 });
+}
+
+// Reads up to the choices, then picks one by its number key.
 async function answer(page: Page, room: MissionRoom, node: string, key: number): Promise<void> {
   await until(() => room.state.node === node, node);
-  const choice = page.locator('.story-choice').first();
-  for (let i = 0; i < 60 && !(await choice.isVisible()); i++) {
-    await page.keyboard.press(' ');
-    await page.waitForTimeout(250);
-  }
-  await choice.waitFor({ state: 'visible', timeout: 20_000 });
+  await reachChoices(page);
   await page.keyboard.press(String(key));
 }
 
@@ -113,6 +119,7 @@ async function main(): Promise<void> {
     rig = await openRig({ outDir: OUT, webPort: WEB_PORT, serverUrl: `http://127.0.0.1:${String(GAME_PORT)}` });
     const { browser } = rig;
     await mkdir(`${evidence}dust/`, { recursive: true });
+    await mkdir(`${evidence}dialogue/`, { recursive: true });
     await mkdir(`${evidence}envelope/`, { recursive: true });
     await mkdir(`${evidence}feedback/`, { recursive: true });
     await mkdir(`${evidence}clock/`, { recursive: true });
@@ -121,9 +128,28 @@ async function main(): Promise<void> {
 
     const { page, room } = await open(browser, 'Rook', { width: 1280, height: 800 }, errors);
     await until(() => room.state.node === 'pell', 'Pell calls');
-    await page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+    await page.locator('#story-face-them svg').waitFor({ state: 'visible', timeout: 10_000 });
+    await page.waitForTimeout(4_000);
+    check(((await page.textContent('#story-now')) ?? '').startsWith('A phone buzzes'), 'the scene opens on its stage direction');
+    check((await page.textContent('#story-log'))?.includes('Forty thousand by Friday') === false, 'the next line waits until Rook reads on');
+    check(!room.state.answering, 'the choice clock waits while Rook is still reading');
+    for (let i = 0; i < 6 && ((await page.textContent('#story-name')) ?? '') !== 'Mr Pell'; i++) {
+      await page.keyboard.press(' ');
+      await page.waitForTimeout(300);
+    }
+    await page.waitForTimeout(2_500);
+    check((await page.locator('#story-face-them.speaking svg').count()) === 1, 'Mr Pell’s portrait lights up while he speaks');
+    check((await page.locator('#story-face-rook:not(.speaking) svg').count()) === 1, 'Rook waits, dimmed, across from him');
+    await page.screenshot({ path: `${evidence}dialogue/pell-speaks.png` });
+    await reachChoices(page);
     check((await page.textContent('#story-log'))?.includes('Forty thousand by Friday') === true, 'Mr Pell rings with the deadline');
+    check(await until(() => room.state.answering, 'the choice clock'), 'the choice clock starts once Rook has read up to it');
     await page.screenshot({ path: `${SHOTS}story-call.png` });
+    await page.screenshot({ path: `${evidence}dialogue/pell-choices.png` });
+    await page.click('#story-history');
+    check(((await page.textContent('#story-log')) ?? '').includes('A phone buzzes') && (await page.isVisible('#story-log')), 'History shows every line said so far');
+    await page.screenshot({ path: `${evidence}dialogue/history.png` });
+    await page.click('#story-history');
     await answer(page, room, 'pell', 2);
     const remembered = await page.waitForFunction(() => document.getElementById('story-log')?.textContent.includes('Mr Pell will remember that.') === true, undefined, { timeout: 10_000 }).then(() => true).catch(() => false);
     check(remembered, 'Pell will remember the promise');
@@ -154,7 +180,7 @@ async function main(): Promise<void> {
 
     room.teleport(GATE_SPOT.x, GATE_SPOT.y + 1);
     await until(() => room.state.node === 'mags', 'Mags');
-    await page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+    await reachChoices(page, 20_000);
     await page.screenshot({ path: `${SHOTS}story-mags.png` });
     await answer(page, room, 'mags', 3);
     await read(page, room, 'magsPay');
@@ -198,7 +224,7 @@ async function main(): Promise<void> {
 
     const phone = await open(browser, 'Ivy', { width: 390, height: 844 }, errors);
     await until(() => phone.room.state.node === 'pell', 'Pell calls on the phone');
-    await phone.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+    await reachChoices(phone.page, 20_000);
     await phone.page.screenshot({ path: `${SHOTS}story-phone.png` });
     check(true, 'the story plays on a phone screen');
     await phone.page.click('#story-leave');
@@ -223,8 +249,8 @@ async function main(): Promise<void> {
     await lead.page.waitForFunction(() => document.querySelectorAll('#story-crew li').length === 2, undefined, { timeout: 10_000 }).catch(() => undefined);
     check(((await lead.page.textContent('#story-crew')) ?? '').includes('Bo'), 'the lead sees Bo in the crew');
     await until(() => lead.room.state.node === 'pell', 'Pell calls the crew');
-    await lead.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
-    await friend.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+    await reachChoices(lead.page, 20_000);
+    await reachChoices(friend, 20_000);
     await lead.page.keyboard.press('1');
     await until(() => lead.room.state.votes.size === 1, 'the lead votes');
     await friend.waitForFunction(() => document.querySelector('.story-choice.voted') === null && (document.querySelector('.story-votes')?.textContent ?? '') !== '', undefined, { timeout: 5_000 }).catch(() => undefined);
@@ -245,7 +271,7 @@ async function main(): Promise<void> {
     const two = await open(browser, 'Rook', { width: 1280, height: 800 }, errors, '#open-ransom');
     await until(() => two.room.state.node === 'ransom', 'the ransom call');
     check(two.room.state.act === 'ransom', 'the act two tile opens The Ransom Call');
-    await two.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+    await reachChoices(two.page, 20_000);
     check(((await two.page.textContent('#story-eyebrow')) ?? '').includes('Act two'), 'the story bar names act two');
     await two.page.screenshot({ path: `${SHOTS}ransom-call.png` });
     await answer(two.page, two.room, 'ransom', 1);
@@ -310,7 +336,7 @@ async function main(): Promise<void> {
     await until(() => three.room.state.step === 'toNonce', 'off to Nonce');
     three.room.teleport(NONCE_SPOT.x, NONCE_SPOT.y + 0.5);
     await until(() => three.room.state.node === 'nonce', 'Nonce');
-    await three.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+    await reachChoices(three.page, 20_000);
     await three.page.screenshot({ path: `${SHOTS}insider-nonce.png` });
     await answer(three.page, three.room, 'nonce', 3);
     await read(three.page, three.room, 'nonceTruth');
@@ -331,7 +357,7 @@ async function main(): Promise<void> {
     await three.page.keyboard.press('e');
     await until(() => three.room.state.node === 'account', 'Teo’s account');
     check(three.room.state.node === 'account', 'the right terminal shows Teo’s frozen account');
-    await three.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await reachChoices(three.page, 30_000);
     await three.page.screenshot({ path: `${SHOTS}insider-teo.png` });
     await answer(three.page, three.room, 'account', 1);
     await read(three.page, three.room, 'teoTalk');
@@ -385,7 +411,7 @@ async function main(): Promise<void> {
     await read(four.page, four.room, 'onAir');
     await read(four.page, four.room, 'nineMinutes');
     await until(() => four.room.state.node === 'theChoice', 'the choice');
-    await four.page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await reachChoices(four.page, 30_000);
     check((await four.page.locator('.story-choice').count()) === 2, 'a crew that never asked for a cut sees only the Guardian and Burn endings');
     await four.page.screenshot({ path: `${SHOTS}founder-choice.png` });
     await answer(four.page, four.room, 'theChoice', 2);
@@ -443,6 +469,14 @@ async function main(): Promise<void> {
 
     await tin.page.close();
     const pizza = await open(browser, 'Rook', { width: 390, height: 844 }, errors, '#open-cases', 'Pizza Night');
+    await until(() => pizza.room.state.node === 'notice', 'notice');
+    await pizza.page.keyboard.press(' ');
+    await pizza.page.waitForTimeout(400);
+    await pizza.page.keyboard.press(' ');
+    await pizza.page.waitForTimeout(2_000);
+    const talk = await pizza.page.locator('#story-talk').boundingBox();
+    check(talk !== null && talk.x >= 0 && talk.x + talk.width <= 390, 'the story panel fits a phone, portraits and all');
+    await pizza.page.screenshot({ path: `${evidence}dialogue/phone.png` });
     await answer(pizza.page, pizza.room, 'notice', 1);
     await read(pizza.page, pizza.room, 'noticeDeal');
     await read(pizza.page, pizza.room, 'noticeEnd');

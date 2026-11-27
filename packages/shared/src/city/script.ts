@@ -1,6 +1,7 @@
 // Story scenes as data: each node says some lines, then offers choices (sometimes on a clock) or moves on by
 // itself. Characters remember choices as marks, and later lines can depend on them. The server walks the
 // script; the client only renders it, so a scene can never be skipped past a choice.
+import type { Face } from './faces.js';
 
 export const SPEAKERS = [
   'rook',
@@ -99,6 +100,8 @@ export interface ScriptLine {
   readonly who: Speaker;
   readonly text: string;
   readonly paren?: string;
+  // The portrait's face for this line, when the stage direction alone would pick the wrong one.
+  readonly face?: Face;
   // Shown only when the mark is set (if) or not set (unless).
   readonly if?: string;
   readonly unless?: string;
@@ -137,10 +140,8 @@ export const nextOf = (node: ScriptNode, marks: ReadonlySet<string>): string | u
 
 export type Script = Readonly<Record<string, ScriptNode>>;
 
-const PER_LINE_MS = 700;
-const PER_CHAR_MS = 34;
-const PER_ACTION_MS = 900;
-const MAX_READ_MS = 30_000;
+/** How long scenes give their readers: a comfortable reading pace, and how much longer the crew waits for a slow one. */
+export const STORY_PACING = Object.freeze({ perLineMs: 700, perCharMs: 34, perActionMs: 900, maxReadMs: 30_000, patienceFactor: 3, patienceExtraMs: 5_000, maxPatienceMs: 90_000 });
 
 export const shown = (line: { readonly if?: string; readonly unless?: string }, marks: ReadonlySet<string>): boolean =>
   (line.if === undefined || marks.has(line.if)) && (line.unless === undefined || !marks.has(line.unless));
@@ -153,12 +154,19 @@ export function visibleChoices(node: ScriptNode, marks: ReadonlySet<string>): re
   return (node.choices ?? []).filter((c) => shown(c, marks));
 }
 
-// How long a node takes to read at a comfortable pace; the server waits this long before moving on by itself.
+// How long a node takes to read at a comfortable pace, the yardstick for how long the crew waits.
 export function readMs(node: ScriptNode, marks: ReadonlySet<string>): number {
   let ms = 0;
-  for (const line of visibleLines(node, marks)) ms += PER_LINE_MS + line.text.length * PER_CHAR_MS;
-  for (const text of [node.slug, node.action, node.after]) if (text !== undefined) ms += PER_ACTION_MS + text.length * (PER_CHAR_MS / 3);
-  return Math.min(MAX_READ_MS, Math.round(ms));
+  const p = STORY_PACING;
+  for (const line of visibleLines(node, marks)) ms += p.perLineMs + line.text.length * p.perCharMs;
+  for (const text of [node.slug, node.action, node.after]) if (text !== undefined) ms += p.perActionMs + text.length * (p.perCharMs / 3);
+  return Math.min(p.maxReadMs, Math.round(ms));
+}
+
+/** How long the crew waits for its slowest reader before a node moves on, or its choice clock starts, without them. */
+export function patienceMs(node: ScriptNode, marks: ReadonlySet<string>): number {
+  const p = STORY_PACING;
+  return Math.min(p.maxPatienceMs, readMs(node, marks) * p.patienceFactor + p.patienceExtraMs);
 }
 
 // Every target exists, every node is reachable from a start, and every node either waits for a choice or moves on.

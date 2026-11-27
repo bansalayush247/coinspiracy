@@ -1,6 +1,6 @@
 // Story characters' costumes, drawn over the guardian body so each one reads at a glance: a hat or hair on the hood,
 // something over the eyes, something at the collar, and a prop in the near hand. Guardians themselves wear none.
-import type Phaser from 'phaser';
+import type { Pen } from './pen.js';
 import { ART_SCALE } from './iso.js';
 import { mix } from './palette.js';
 
@@ -21,7 +21,7 @@ export interface Costume {
   readonly prop?: readonly [PropPiece, number];
 }
 
-type G = Phaser.GameObjects.Graphics;
+type G = Pen;
 type Pt = readonly [number, number];
 
 const INK = 0x1a1020;

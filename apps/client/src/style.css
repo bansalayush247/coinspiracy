@@ -1019,23 +1019,49 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .story-dig { bottom: max(120px, calc(env(safe-area-inset-bottom) + 120px)); overflow: hidden; }
 .story-dig.digging::after { content: ''; position: absolute; left: 0; bottom: 0; height: 5px; width: 100%; background: #2a1a33; transform-origin: left; animation: story-dig var(--dig-ms, 1800ms) linear forwards; }
 @keyframes story-dig { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-.story-talk { position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(720px, calc(100% - 32px)); max-height: 46vh; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; gap: 10px; padding: 14px 16px; background: rgba(18, 14, 30, 0.94); cursor: pointer; }
-.story-log { overflow-y: auto; display: grid; gap: 6px; align-content: start; overscroll-behavior: contain; }
+.story-talk { position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(780px, calc(100% - 32px)); display: grid; gap: 10px; padding: 12px 14px; background: rgba(18, 14, 30, 0.95); cursor: pointer; }
+.story-slug-now { margin: 0; font: 800 12px/1.3 var(--font); letter-spacing: 0.06em; color: var(--gold); }
+.story-slug-now:empty { display: none; }
+.story-stage { display: grid; grid-template-columns: 120px minmax(0, 1fr) 120px; gap: 14px; align-items: center; }
+.story-face { width: 120px; height: 120px; border-radius: 16px; overflow: hidden; background: radial-gradient(circle at 50% 75%, color-mix(in srgb, var(--who, #8e8ea6) 38%, transparent), rgba(10, 8, 18, 0.6) 72%); border: 2px solid color-mix(in srgb, var(--who, #8e8ea6) 45%, transparent); filter: brightness(0.5) saturate(0.55); transform: scale(0.9); transition: filter 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease; }
+.story-face:empty { visibility: hidden; }
+.story-face.speaking { filter: none; transform: scale(1); box-shadow: 0 0 0 2px var(--who, var(--gold)), 0 8px 22px rgba(0, 0, 0, 0.45); }
+.story-face svg { display: block; width: 100%; height: 100%; }
+.story-box { position: relative; display: grid; gap: 3px; align-content: start; min-height: 120px; padding-right: 18px; }
+.story-name { margin: 0; font: 800 15px/1.2 var(--font); color: var(--who, var(--gold)); }
+.story-name:empty { display: none; }
+.story-direction { margin: 0; font-size: 13px; font-style: italic; color: var(--muted); }
+.story-direction:empty { display: none; }
+.story-now { margin: 0; font-size: 19px; line-height: 1.5; min-height: 3em; text-wrap: pretty; }
+.story-now-action { font-size: 16px; font-style: italic; color: #d9d2ea; }
+.story-now.story-face-whisper { font-size: 17px; font-style: italic; opacity: 0.88; }
+.story-notes { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.story-notes:empty { display: none; }
+.story-notes span { padding: 3px 8px; border-radius: 999px; background: rgba(201, 166, 255, 0.14); }
+.story-notes .story-clue { background: rgba(207, 232, 255, 0.14); }
+.story-more { position: absolute; right: 0; bottom: 0; color: var(--gold); font-size: 16px; animation: story-more 1s ease-in-out infinite; }
+.story-more::after { content: '▾'; }
+@keyframes story-more { 50% { transform: translateY(3px); opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .story-more { animation: none; } .story-face { transition: none; } }
+.story-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.story-tools { display: flex; gap: 6px; margin-left: auto; }
+.story-tools button { padding: 5px 10px; border-radius: 8px; font: 700 12px/1.2 var(--font); background: rgba(255, 255, 255, 0.08); }
+.story-tools button[aria-pressed='true'], .story-tools button[aria-expanded='true'] { background: rgba(255, 210, 122, 0.22); border-color: var(--gold); color: var(--gold); }
+.story-log { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); max-height: 44vh; overflow-y: auto; display: grid; gap: 6px; align-content: start; padding: 12px 14px; border-radius: 14px; background: rgba(18, 14, 30, 0.97); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); overscroll-behavior: contain; cursor: auto; }
+.story-log[hidden] { display: none; }
 .story-log p { margin: 0; line-height: 1.45; }
 .story-slug { font: 800 12px/1.3 var(--font); letter-spacing: 0.06em; color: var(--gold); }
 .story-action { font-style: italic; color: var(--muted); font-size: 14px; }
-.story-line { font-size: 16px; }
-.story-who { font-weight: 800; margin-right: 6px; }
-.story-paren { color: var(--muted); font-style: italic; margin-right: 6px; font-size: 14px; }
+.story-line { font-size: 15px; }
+.story-who { font-weight: 800; margin-right: 6px; color: var(--who, var(--gold)); }
+.story-paren { color: var(--muted); font-style: italic; margin-right: 6px; font-size: 13px; }
 /* macOS system-ui italic lacks Hausa ƙ (U+0199), falling back to a broken glyph over WebGL. */
 :lang(ha) .quest.empty,
 :lang(ha) .story-action,
-:lang(ha) .story-paren { font-style: normal; }
-.story-rook .story-who { color: #ffd27a; }
-.story-dani .story-who { color: #7fd8cf; }
-.story-mags .story-who { color: #f2b072; }
-.story-pell .story-who { color: #c9a6ff; }
-.story-voice .story-who { color: #ff8f7a; }
+:lang(ha) .story-paren,
+:lang(ha) .story-direction,
+:lang(ha) .story-now-action,
+:lang(ha) .story-now.story-face-whisper { font-style: normal; }
 .story-memory, .story-clue { font-size: 13px; font-weight: 700; }
 .story-memory { color: #c9a6ff; }
 .story-clue { color: #cfe8ff; }
@@ -1060,8 +1086,20 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 @media (max-width: 640px) {
   .story-bar { right: max(12px, env(safe-area-inset-right)); width: auto; padding: 8px 10px; }
   .story-map { display: none; }
-  .story-talk { max-height: 52vh; padding: 12px; }
-  .story-line { font-size: 15px; }
+  .story-talk { padding: 10px 12px; gap: 8px; }
+  .story-stage { position: relative; grid-template-columns: 52px minmax(0, 1fr) 52px; grid-template-areas: 'them name rook' 'them direction rook' 'now now now' 'notes notes notes'; column-gap: 10px; row-gap: 4px; align-items: center; }
+  .story-box { display: contents; }
+  .story-face { width: 52px; height: 52px; border-radius: 10px; }
+  .story-face-them { grid-area: them; }
+  .story-face-rook { grid-area: rook; }
+  .story-name { grid-area: name; align-self: end; }
+  .story-direction { grid-area: direction; align-self: start; }
+  .story-now { grid-area: now; font-size: 16px; min-height: 3em; padding-right: 14px; }
+  .story-notes { grid-area: notes; }
+  .story-more { bottom: 2px; }
+  .story-bottom { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .story-tools { margin-left: 0; }
+  .story-tools button { padding: 5px 8px; }
 }
 @media (max-width: 640px) {
   .city-bar { right: max(12px, env(safe-area-inset-right)); max-width: none; gap: 8px; padding: 8px 10px; }

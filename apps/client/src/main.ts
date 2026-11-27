@@ -32,7 +32,7 @@ import { registerServiceWorker } from './pwa/register.js';
 import { resolveServerEndpoint } from './serverUrl.js';
 import { el, h } from './ui/dom.js';
 import { NATURE_NOTES, type NatureNote } from './game/atmosphere.js';
-import { audio, isMusicChoice, type MusicChoice } from './audio/engine.js';
+import { AUDIO_CONFIG, audio, isMusicChoice, type MusicChoice } from './audio/engine.js';
 import { quality, saveQuality } from './game/quality.js';
 import { MatchView } from './matchView.js';
 import { Hud, type LobbyInfo, type RosterEntry } from './ui/hud.js';
@@ -880,12 +880,18 @@ const MUSIC_LABELS: Readonly<Record<MusicChoice, PlainKey>> = {
 // scene-aware score or pin one of its themes; the button still offers a quick mute cycle.
 function setupSound(): void {
   const button = el('sound', HTMLButtonElement);
+  const vocals = el('vocals', HTMLButtonElement);
   const music = el('music', HTMLSelectElement);
+  const defaultMusic = audio.settings.music || AUDIO_CONFIG.defaultSettings.music;
   const render = (): void => {
     const s = audio.settings;
     const label = t(s.muted ? 'settings.soundOff' : s.music === 0 ? 'settings.musicOff' : 'settings.soundOn');
     button.textContent = label;
     button.setAttribute('aria-label', t('settings.soundAria', { label }));
+    const vocalsLabel = t(s.vocals ? 'settings.vocalsOn' : 'settings.vocalsOff');
+    vocals.textContent = vocalsLabel;
+    vocals.setAttribute('aria-pressed', String(s.vocals));
+    vocals.setAttribute('aria-label', t('settings.vocalsAria', { label: vocalsLabel }));
     music.value = s.music === 0 ? 'off' : s.musicChoice;
     const choice = t(s.music === 0 ? 'music.off' : MUSIC_LABELS[s.musicChoice]);
     music.setAttribute('aria-label', t('settings.musicAria', { choice }));
@@ -893,14 +899,17 @@ function setupSound(): void {
   onLocaleChange(render);
   button.addEventListener('click', () => {
     const s = audio.settings;
-    if (s.muted) audio.update({ muted: false, music: 0.55 });
+    if (s.muted) audio.update({ muted: false, music: defaultMusic });
     else if (s.music > 0) audio.update({ music: 0 });
     else audio.update({ muted: true });
+  });
+  vocals.addEventListener('click', () => {
+    audio.update({ vocals: !audio.settings.vocals });
   });
   music.addEventListener('change', () => {
     if (music.value === 'off') audio.update({ music: 0 });
     else if (isMusicChoice(music.value)) {
-      audio.update({ musicChoice: music.value, music: audio.settings.music || 0.55, muted: false });
+      audio.update({ musicChoice: music.value, music: audio.settings.music || defaultMusic, muted: false });
     }
     audio.play('click');
   });

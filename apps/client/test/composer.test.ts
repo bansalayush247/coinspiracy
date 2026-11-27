@@ -76,4 +76,8 @@ describe('the composer', () => {
       expect(bars(mood, 8).plans.every((p) => p.pulse.length === 0)).toBe(true);
     }
   });
+
+  it('gives every mood an eight-bar progression', () => {
+    for (const mood of MOOD_NAMES) expect(MOODS[mood].progression).toHaveLength(8);
+  });
 });

@@ -99,6 +99,8 @@ export const MissionState = schema(
     ready: t.uint8().default(0),
     // The choice that settled the last choice node, '' when the crew said nothing.
     said: t.string().default(''),
+    // The clock on the choice on screen is running: the whole crew has read up to it, or waited long enough.
+    answering: t.boolean().default(false),
     // Seconds left on the act's clock, such as the turning tide; 0 when nothing is ticking.
     clock: t.uint16().default(0),
   },

@@ -27,7 +27,7 @@ import {
   carriedMarks,
   honestIn,
   nextOf,
-  readMs,
+  patienceMs,
   visibleChoices,
   type ActId,
   type CatcherId,
@@ -77,6 +77,8 @@ interface Scene {
   readonly enteredAt: number;
   readonly deadline: number | null;
   readonly autoAt: number | null;
+  // When a choice's clock starts even if the crew has not all read up to it.
+  readonly readBy: number;
   readonly voteBy: number | null;
 }
 
@@ -104,7 +106,6 @@ const LIFETIME_MS = 60 * 60_000;
 const OPENING_MS = 1_200;
 // Choices stay open a little past the clock the crew sees, so a last-moment click still counts.
 const CHOICE_GRACE_MS = 1_500;
-const AUTO_PAUSE_MS = 900;
 const MIN_SKIP_MS = 300;
 // Moving further than this from where you started working a spot stops the work.
 const WORK_WOBBLE = 0.35;
@@ -410,16 +411,18 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
     const node = this.act.script[id];
     if (node === undefined) return;
     this.#mark(node.mark);
-    const read = readMs(node, this.#marks);
+    const patience = patienceMs(node, this.#marks);
     const choices = (node.choices?.length ?? 0) > 0;
     this.#scene = {
       id,
       node,
       enteredAt: now,
-      deadline: choices && node.seconds !== undefined ? now + read + node.seconds * 1000 + CHOICE_GRACE_MS : null,
-      autoAt: choices ? null : now + read + AUTO_PAUSE_MS,
+      deadline: choices && node.seconds !== undefined ? now + patience + node.seconds * 1000 + CHOICE_GRACE_MS : null,
+      autoAt: choices ? null : now + patience,
+      readBy: now + patience,
       voteBy: null,
     };
+    this.state.answering = false;
     this.#votes.clear();
     this.state.votes.clear();
     this.#ready.clear();
@@ -445,6 +448,7 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
   #sceneClock(now: number): void {
     const scene = this.#scene;
     if (scene === null) return;
+    if (scene.autoAt === null && !this.state.answering && now >= scene.readBy) this.state.answering = true;
     if (scene.voteBy !== null && now >= scene.voteBy) this.#decide(now);
     else if (scene.deadline !== null && now >= scene.deadline) {
       if (this.#votes.size > 0) this.#decide(now);
@@ -455,13 +459,22 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
     } else if (scene.autoAt !== null && now >= scene.autoAt) this.#finish(now);
   }
 
-  // Moves on as soon as the whole crew has voted, or has read the scene through.
+  // Moves on as soon as the whole crew has voted, or has read the scene through; starts a choice's clock once all have read up to it.
   #settle(now: number): void {
     const scene = this.#scene;
     if (scene === null) return;
+    const allRead = this.#ready.size > 0 && this.#ready.size >= this.#crew.size;
     if (scene.autoAt === null) {
       if (this.#votes.size > 0 && this.#votes.size >= this.#crew.size) this.#decide(now);
-    } else if (this.#ready.size > 0 && this.#ready.size >= this.#crew.size) this.#finish(now);
+      else if (allRead && !this.state.answering) this.#startClock(scene, now);
+    } else if (allRead) this.#finish(now);
+  }
+
+  #startClock(scene: Scene, now: number): void {
+    this.state.answering = true;
+    const seconds = scene.node.seconds;
+    if (seconds === undefined || scene.deadline === null) return;
+    this.#scene = { ...scene, deadline: Math.min(scene.deadline, now + seconds * 1000 + CHOICE_GRACE_MS) };
   }
 
   #decide(now: number): void {
@@ -476,7 +489,7 @@ export class MissionRoom extends Room<{ state: MissionState; client: MissionClie
 
   #advance(id: string, node: string, now: number): void {
     const scene = this.#scene;
-    if (scene === null || scene.id !== node || scene.autoAt === null || now - scene.enteredAt < MIN_SKIP_MS) return;
+    if (scene === null || scene.id !== node || (scene.autoAt !== null && now - scene.enteredAt < MIN_SKIP_MS)) return;
     this.#ready.add(id);
     this.state.ready = this.#ready.size;
     this.#settle(now);

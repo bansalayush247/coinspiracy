@@ -268,6 +268,20 @@ describe('act one with a crew', () => {
     expect(new Set([...lead.state.players.values()].map((p) => p.seat))).toEqual(new Set([0, 1]));
   }, 20_000);
 
+  it('starts a choice’s clock only once the whole crew has read up to it', async () => {
+    const { client: lead } = await begin(null);
+    const { client: friend } = await joinCrew(lead.roomId, null, 'Ana');
+    await waitFor(() => lead.state.node === 'pell', 'pell');
+    expect(lead.state.answering).toBe(false);
+    lead.send('advance', { node: 'pell' });
+    await waitFor(() => lead.state.ready === 1, 'one has read');
+    await sleep(150);
+    expect(lead.state.answering).toBe(false);
+    friend.send('advance', { node: 'pell' });
+    await waitFor(() => lead.state.answering, 'the clock starts');
+    expect(lead.state.node).toBe('pell');
+  }, 20_000);
+
   it('waits for the whole crew, settles a split vote with the lead, and moves on when everyone has read', async () => {
     const { client: lead, room } = await begin(null);
     const { client: friend } = await joinCrew(lead.roomId, null, 'Ana');

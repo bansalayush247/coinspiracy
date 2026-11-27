@@ -98,7 +98,12 @@ async function main(): Promise<void> {
       check(htmlLang === intlTag(lang), `${bcp47}: <html lang> matches ${intlTag(lang)}`);
       await until(() => room.state.node === 'pell', `${bcp47} Pell calls`);
       check(room.state.act === 'dump', `${bcp47}: clicking #open-story starts act one`);
-      await page.locator('.story-choice').first().waitFor({ state: 'visible', timeout: 20_000 });
+      const choice = page.locator('.story-choice').first();
+      for (let i = 0; i < 80 && !(await choice.isVisible()); i++) {
+        await page.keyboard.press(' ');
+        await page.waitForTimeout(200);
+      }
+      await choice.waitFor({ state: 'visible', timeout: 1_000 });
       const eyebrow = translate(lang, 'mission.eyebrowAct', {
         number: translateStory(catalog, DUMP_ACT.number),
         title: translateStory(catalog, DUMP_ACT.title),

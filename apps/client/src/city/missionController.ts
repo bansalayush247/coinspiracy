@@ -140,6 +140,7 @@ export class MissionController {
     const callbacks = Callbacks.get(room);
     callbacks.onAdd('players', (player: CityPlayer, id: string) => {
       this.scene.addPlayer(id, player);
+      if (id === room.sessionId) this.#dialogue.dressRook(player.seat, { hat: player.hat, shades: player.shades, outfit: player.outfit });
       callbacks.onChange(player, () => {
         this.scene.updatePlayer(id, player);
       });
@@ -169,6 +170,9 @@ export class MissionController {
     });
     callbacks.listen('ready', () => {
       this.#renderCrewStatus();
+    });
+    callbacks.listen('answering', (on: boolean) => {
+      this.#dialogue.answering = on;
     });
     callbacks.onAdd('npcs', (npc: MissionNpc, id: string) => {
       view?.setNpc(id, npc);

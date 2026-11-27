@@ -8,6 +8,7 @@ export * from './state.js';
 export * from './combat.js';
 export * from './vault.js';
 export * from './script.js';
+export * from './faces.js';
 export * from './story.js';
 export * from './patrol.js';
 export * from './dump.js';
