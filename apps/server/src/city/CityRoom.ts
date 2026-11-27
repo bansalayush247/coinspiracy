@@ -4,7 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import { StateView } from '@colyseus/schema';
 import { ErrorCode, Room, ServerError, validate, type AuthContext, type Client } from '@colyseus/core';
-import { CLOSE_CODES, MovePayloadSchema, NoPayloadSchema, PLAYER_RADIUS, SERVER_TICK_HZ, TICK_SECONDS, cryptoRandom, isBlocked, stepMovement, uniqueNickname, type RandomSource } from '@byzantine-council/shared';
+import { CLOSE_CODES, MovePayloadSchema, NoPayloadSchema, PLAYER_RADIUS, SERVER_TICK_HZ, TICK_SECONDS, cryptoRandom, isBlocked, stepMovement, uniqueNickname, type CitadelMap, type RandomSource } from '@byzantine-council/shared';
 import { findPath } from '@byzantine-council/shared/pathfinding';
 import { credit, isCosmeticId } from '@byzantine-council/shared/economy';
 import { dayFor } from '@byzantine-council/shared/progression';
@@ -78,6 +78,21 @@ import {
   type DepositResult,
   type Fighter,
   type PunchLine,
+  DOOR_TUNING,
+  atExit,
+  doorAt,
+  doorBySeed,
+  flatPick,
+  layoutFor,
+  roomMap,
+  roomSpawn,
+  stepIndoors,
+  toWorld,
+  walkedOut,
+  INTERIOR_TUNING,
+  type DoorReason,
+  type DoorResult,
+  type RoomLayout,
 } from '@byzantine-council/shared/city';
 import { EMOTE_GAP_MS, EmotePayloadSchema, JUMP_GAP_MS, type Emote } from '@byzantine-council/shared/hub';
 import { VIEW_TAGS } from '@byzantine-council/shared/state';
@@ -156,6 +171,12 @@ interface Sim {
   lastEmoteMs: number;
   lastJumpMs: number;
   lastLookMs: number;
+  // Where this guardian is: '' on the street, else the room they are in. Only those in the same place see each other.
+  place: string;
+  room: { readonly layout: RoomLayout; readonly map: CitadelMap } | null;
+  lastDoorMs: number;
+  // Moves sent across a doorway are acked but not applied until this time, so a late step can't land in the wrong place.
+  doorLockUntil: number;
 }
 
 const IDLE_MS = 15 * 60_000;
@@ -228,6 +249,12 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       sim.lastActiveMs = now;
       car.input = payload;
       car.wantAt = now;
+    }),
+    enter: validate(NoPayloadSchema, (client: CityClient) => {
+      this.#enter(client.sessionId, Date.now());
+    }),
+    exit: validate(NoPayloadSchema, (client: CityClient) => {
+      this.#exit(client.sessionId, Date.now(), false);
     }),
     deposit: validate(NoPayloadSchema, (client: CityClient) => {
       void this.#deposit(client.sessionId);
@@ -316,6 +343,10 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       lastEmoteMs: 0,
       lastJumpMs: 0,
       lastLookMs: 0,
+      place: '',
+      room: null,
+      lastDoorMs: 0,
+      doorLockUntil: 0,
     });
     this.state.population = this.#sims.size;
     this.#refreshInterest();
@@ -348,15 +379,19 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       this.#recover(player, sim, wall);
       const down = sim.knockedOutUntil > wall;
       const seated = player.car !== '';
+      const room = sim.room;
+      const locked = wall < sim.doorLockUntil;
       sim.inputs.drain(now, (input) => {
-        if (down || seated) return;
+        if (down || seated || locked) return;
         const from = { x: player.x, y: player.y };
-        const next = stepMovement(from, { x: input.dx, y: input.dy }, TICK_SECONDS, CITY_MAP, carsSolid(cars, from, PLAYER_RADIUS));
+        const step = { x: input.dx, y: input.dy };
+        const next = room === null ? stepMovement(from, step, TICK_SECONDS, CITY_MAP, carsSolid(cars, from, PLAYER_RADIUS)) : stepIndoors(from, step, TICK_SECONDS, room.map);
         if (next.x !== player.x) player.x = next.x;
         if (next.y !== player.y) player.y = next.y;
       });
       if (player.ack !== sim.inputs.ack) player.ack = sim.inputs.ack;
-      if (!down) this.#collect(player);
+      if (room === null && !down) this.#collect(player);
+      if (room !== null && !locked && walkedOut(player, room.layout)) this.#exit(id, wall, true);
     }
     this.#driveCars(wall);
     for (const [id, t] of this.#toughs) this.#brawl(id, t, wall);
@@ -380,10 +415,12 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     for (const [id, sim] of this.#sims) {
       const me = this.state.players.get(id);
       if (me === undefined) continue;
+      const indoors = sim.place !== '';
       for (const [otherId, other] of this.state.players) {
         if (otherId === id) continue;
         const now = sim.sees.has(otherId);
-        const next = visible(sim, me, otherId, other, now);
+        const together = (this.#sims.get(otherId)?.place ?? '') === sim.place;
+        const next = together && (indoors || visible(sim, me, otherId, other, now));
         if (next === now) continue;
         if (next) {
           sim.view.add(other);
@@ -395,7 +432,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       }
       for (const [carId, car] of this.#cars) {
         const now = sim.seesDrops.has(carId);
-        const next = car.state.driver === id || visible(sim, me, carId, car.state, now);
+        const next = car.state.driver === id || (!indoors && visible(sim, me, carId, car.state, now));
         if (next === now) continue;
         if (next) {
           sim.view.add(car.state);
@@ -407,7 +444,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       }
       for (const [dropId, drop] of this.#drops) {
         const now = sim.seesDrops.has(dropId);
-        const next = visible(sim, me, dropId, drop.state, now);
+        const next = !indoors && visible(sim, me, dropId, drop.state, now);
         if (next === now) continue;
         if (next) {
           sim.view.add(drop.state);
@@ -418,6 +455,99 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
         }
       }
     }
+  }
+
+  // In through the door the guardian stands at: not while down, driving, busy at the vault, just through a door, or
+  // just hit (a door is no escape from a fight), and not into a full room. A house is the guardian's own flat.
+  #enter(sessionId: string, now: number): void {
+    const sim = this.#sims.get(sessionId);
+    const me = this.state.players.get(sessionId);
+    if (sim === undefined || me === undefined) return;
+    sim.lastActiveMs = now;
+    const answer = (ok: boolean, reason: DoorReason): void => {
+      const result: DoorResult = { ok, inside: me.inside, reason };
+      sim.client.send(CITY_MESSAGES.DOOR, result);
+    };
+    if (sim.place !== '') {
+      answer(true, 'in');
+      return;
+    }
+    const door = doorAt(me);
+    const flat = door?.room === 'flat';
+    const place = door === null ? '' : flat ? `flat:${sessionId}` : `b:${String(door.building.seed)}`;
+    const crowd = [...this.#sims.values()].filter((s) => s.place === place).length;
+    const refused: DoorReason | null = me.down || sim.knockedOutUntil > now
+      ? 'down'
+      : me.car !== ''
+        ? 'inCar'
+        : sim.depositing || now - sim.lastDoorMs < DOOR_TUNING.gapMs
+          ? 'tooSoon'
+          : now - sim.lastHitMs < DOOR_TUNING.hitLockMs
+            ? 'fighting'
+            : door === null
+              ? 'notAtDoor'
+              : !flat && crowd >= DOOR_TUNING.maxOccupants
+                ? 'full'
+                : null;
+    if (refused !== null || door === null) {
+      answer(false, refused ?? 'notAtDoor');
+      return;
+    }
+    const pick = flat ? flatPick(sim.profileId ?? sessionId) : door.building.seed;
+    const count = INTERIOR_TUNING.layouts[door.room].length;
+    const layout = layoutFor(door.room, pick);
+    const spawn = toWorld(roomSpawn(layout));
+    sim.inputs.flush();
+    me.ack = sim.inputs.ack;
+    me.x = spawn.x + (crowd % 3) * 0.4 - 0.4;
+    me.y = spawn.y;
+    me.inside = door.building.seed;
+    me.layout = pick % count;
+    sim.place = place;
+    sim.room = { layout, map: roomMap(layout) };
+    sim.lastDoorMs = now;
+    sim.doorLockUntil = now + DOOR_TUNING.lockMs;
+    // The hospital's desk patches you up as you come in.
+    if (door.room === 'hospital') {
+      sim.health = MAX_HEALTH;
+      me.health = MAX_HEALTH;
+    }
+    this.#refreshInterest();
+    answer(true, 'in');
+  }
+
+  // Back out onto the street at the building's door: by the door button, or by walking out through the doorway.
+  #exit(sessionId: string, now: number, walked: boolean): void {
+    const sim = this.#sims.get(sessionId);
+    const me = this.state.players.get(sessionId);
+    if (sim === undefined || me === undefined || sim.room === null) return;
+    sim.lastActiveMs = now;
+    const answer = (ok: boolean, reason: DoorReason): void => {
+      const result: DoorResult = { ok, inside: me.inside, reason };
+      sim.client.send(CITY_MESSAGES.DOOR, result);
+    };
+    if (!walked && (now - sim.lastDoorMs < DOOR_TUNING.gapMs || now < sim.doorLockUntil)) {
+      answer(false, 'tooSoon');
+      return;
+    }
+    if (!walked && !atExit(me, sim.room.layout)) {
+      answer(false, 'notAtDoor');
+      return;
+    }
+    const door = doorBySeed(me.inside);
+    const out = door?.at ?? sim.home;
+    sim.inputs.flush();
+    me.ack = sim.inputs.ack;
+    me.x = out.x;
+    me.y = out.y;
+    me.inside = 0;
+    me.layout = 0;
+    sim.place = '';
+    sim.room = null;
+    sim.lastDoorMs = now;
+    sim.doorLockUntil = now + DOOR_TUNING.lockMs;
+    this.#refreshInterest();
+    answer(true, 'out');
   }
 
   #fighter(body: CityPlayer, f: FightState): Fighter {
@@ -433,7 +563,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
   #punch(sessionId: string, now: number): void {
     const sim = this.#sims.get(sessionId);
     const me = this.state.players.get(sessionId);
-    if (sim === undefined || me === undefined || me.car !== '' || now - sim.lastPunchMs < PUNCH_COOLDOWN_MS || sim.knockedOutUntil > now) return;
+    if (sim === undefined || me === undefined || sim.place !== '' || me.car !== '' || now - sim.lastPunchMs < PUNCH_COOLDOWN_MS || sim.knockedOutUntil > now) return;
     sim.lastPunchMs = now;
     sim.lastActiveMs = now;
     const attacker = this.#fighter(me, sim);
@@ -484,7 +614,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
   #ride(sessionId: string, now: number): void {
     const sim = this.#sims.get(sessionId);
     const player = this.state.players.get(sessionId);
-    if (sim === undefined || player === undefined || player.down || sim.depositing) return;
+    if (sim === undefined || player === undefined || player.down || sim.depositing || sim.place !== '') return;
     sim.lastActiveMs = now;
     const current = this.#carOf(sessionId);
     if (current !== undefined) {

@@ -13,7 +13,20 @@ export const CITY_MESSAGES = Object.freeze({
   JUMP: 'jump',
   PUNCH: 'punch',
   VAULT: 'vault',
+  DOOR: 'door',
 } as const);
+
+export const DOOR_REASONS = ['in', 'out', 'notAtDoor', 'full', 'tooSoon', 'inCar', 'down', 'fighting'] as const;
+/** Why a door did or did not open. */
+export type DoorReason = (typeof DOOR_REASONS)[number];
+
+/** The outcome of going through a door: in or out, or why not. */
+export const DoorResultSchema = z.strictObject({
+  ok: z.boolean(),
+  inside: z.number().int().min(0).max(65_535),
+  reason: z.enum(DOOR_REASONS),
+});
+export type DoorResult = z.infer<typeof DoorResultSchema>;
 
 export const DEPOSIT_REASONS = ['paid', 'empty', 'notAtVault', 'dailyLimit', 'walletFull', 'noProfile', 'busy', 'error'] as const;
 export type DepositReason = (typeof DEPOSIT_REASONS)[number];

@@ -3,6 +3,7 @@
 import Phaser from 'phaser';
 import { PLAYER_RADIUS, TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
 import { canStand } from '@byzantine-council/shared/pathfinding';
+import { INTERIOR_ORIGIN, doorBySeed, layoutFor, roomMap } from '@byzantine-council/shared/city';
 import { CHUNK, CITY_BUILDINGS, carsSolid, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityCar, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
 import type { Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
@@ -18,6 +19,7 @@ import { COLORS, cssColor, seatColors } from '../game/palette.js';
 import { PhysicsFx, makeFxTextures } from '../game/physics.js';
 import { CorrectionSmoother, Predictor, type PendingInput } from '../game/prediction.js';
 import { Townsfolk } from '../game/townsfolk.js';
+import { InteriorView } from './interiorView.js';
 import { MissionView } from './missionView.js';
 import { drawModernCar } from './carArt.js';
 import { CAR_COLORS, Traffic } from './traffic.js';
@@ -184,6 +186,9 @@ export class CityScene extends Phaser.Scene {
   #input: CityInput | null = null;
   #sink: CitySink | null = null;
   #streamAt = 0;
+  // The building this client's guardian is inside (0 on the street) and the room drawn for it.
+  #inside = 0;
+  #room: InteriorView | null = null;
   #userZoom = 1;
   readonly #tmp = { x: 0, y: 0 };
 
@@ -258,6 +263,10 @@ export class CityScene extends Phaser.Scene {
     this.#predictor = null;
     this.#input = null;
     this.#sink = null;
+    this.#room?.destroy();
+    this.#room = null;
+    this.#inside = 0;
+    this.cameras.main.setBackgroundColor('#1d4a66');
     this.cameras.main.stopFollow();
   }
 
@@ -300,6 +309,7 @@ export class CityScene extends Phaser.Scene {
       this.#acc = 0;
       this.cameras.main.startFollow(root, false, 0.12, 0.12);
       this.#following = root;
+      if (p.inside !== this.#inside) this.#goThrough(avatar, p);
     }
   }
 
@@ -381,6 +391,7 @@ export class CityScene extends Phaser.Scene {
   updatePlayer(id: string, p: CityPlayer): void {
     const a = this.#avatars.get(id);
     if (a === undefined) return;
+    if (a.isMe && p.inside !== this.#inside) this.#goThrough(a, p);
     if (a.wear.hat !== p.hat || a.wear.shades !== p.shades || a.wear.outfit !== p.outfit || a.seat !== p.seat) {
       a.wear = { hat: p.hat, shades: p.shades, outfit: p.outfit };
       a.seat = p.seat;
@@ -559,7 +570,7 @@ export class CityScene extends Phaser.Scene {
     this.#stepLocal(delta);
     this.#physics.update(delta);
     this.#townsfolk?.update(time, delta, this.#reduced);
-    if (time > this.#streamAt) {
+    if (this.#inside === 0 && time > this.#streamAt) {
       this.#streamAt = time + 200;
       this.#stream(false);
     }
@@ -801,6 +812,49 @@ export class CityScene extends Phaser.Scene {
   }
 
   readonly #carsAround = (from: Vec2): ((p: Vec2) => boolean) => carsSolid([...this.#cars.values()].map((c) => c.body), from, PLAYER_RADIUS);
+
+  /** The building this client's guardian is inside, by its seed; 0 on the street. */
+  get inside(): number {
+    return this.#inside;
+  }
+
+  // Through a door, in or out: the room is drawn (or put away), prediction moves to the new ground, and the camera
+  // cuts to the guardian behind a short fade instead of sweeping across the city.
+  #goThrough(a: Avatar, p: CityPlayer): void {
+    this.#inside = p.inside;
+    this.#room?.destroy();
+    this.#room = null;
+    const door = p.inside === 0 ? null : doorBySeed(p.inside);
+    const predictor = this.#predictor;
+    if (door !== null) {
+      const layout = layoutFor(door.room, p.layout);
+      this.#room = new InteriorView(this, this.#ground, this.#entities, layout, door.room, door.building.seed, sortDepth);
+      if (predictor !== null) {
+        predictor.map = roomMap(layout);
+        predictor.origin = INTERIOR_ORIGIN;
+        predictor.solidFrom = null;
+      }
+      this.cameras.main.setBackgroundColor('#140f1c');
+    } else {
+      if (predictor !== null) {
+        predictor.map = CITY_MAP;
+        predictor.origin = { x: 0, y: 0 };
+        predictor.solidFrom = this.#carsAround;
+      }
+      this.cameras.main.setBackgroundColor('#1d4a66');
+    }
+    predictor?.reset({ x: p.x, y: p.y });
+    this.#prev = { x: p.x, y: p.y };
+    this.#acc = 0;
+    this.#smoother.clear();
+    a.pos.x = p.x;
+    a.pos.y = p.y;
+    const s = worldToScreen(p.x, p.y);
+    a.root.setPosition(s.x, s.y);
+    this.cameras.main.centerOn(s.x, s.y);
+    if (door === null) this.#stream(true);
+    if (!this.#reduced) this.cameras.main.fadeIn(220, 20, 15, 28);
+  }
 
   /** Shows the talking dots over the guardian with this session id, or over nobody. */
   talking(id: string | null): void {

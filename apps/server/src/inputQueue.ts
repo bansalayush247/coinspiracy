@@ -82,6 +82,13 @@ export class InputQueue {
     }
   }
 
+  /** Drops queued inputs as no-ops and acks everything received, keeping the seq series: a teleport, not a reload. */
+  flush(): void {
+    this.#queue.length = 0;
+    this.#queued = 0;
+    this.#ack = this.#lastSeq;
+  }
+
   // After a drop: forget queued inputs and accept a fresh seq series from a reloaded page.
   reset(): void {
     this.#queue.length = 0;

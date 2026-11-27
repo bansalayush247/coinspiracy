@@ -1,6 +1,6 @@
 // Runs a visit to Port Concord: the city room, the HUD, the minimap and district arrivals.
 import { Callbacks } from '@colyseus/sdk';
-import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, ENTER_RANGE, PunchLineSchema, VAULT_DOOR, atVault, districtAt, isRough, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId } from '@byzantine-council/shared/city';
+import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, DoorResultSchema, ENTER_RANGE, PunchLineSchema, VAULT_DOOR, atExit, atVault, districtAt, doorAt, doorBySeed, isRough, layoutFor, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId, type DoorResult, type RoomKind } from '@byzantine-council/shared/city';
 import { EMOTES, EmoteLineSchema, JumpLineSchema, type Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import { type PlayerInput, isEditable } from '../game/input.js';
@@ -12,6 +12,17 @@ import { formatNumber, t, type PlainKey } from '../i18n/index.js';
 import type { CityScene } from './CityScene.js';
 
 type CityRoom = Awaited<ReturnType<Session['city']>>;
+
+// If the server's answer is lost, the door button comes back after this long.
+const DOOR_RETRY_MS = 1_500;
+
+const ENTER_LABELS: Readonly<Record<RoomKind, PlainKey>> = { shop: 'city.enterShop', mintHall: 'city.enterMint', hospital: 'city.enterHospital', flat: 'city.enterFlat' };
+type Zone = 'rough' | 'safe' | 'indoors';
+const ZONE_LABELS: Readonly<Record<Zone, readonly [PlainKey, PlainKey | null]>> = {
+  rough: ['city.rough', 'city.fightsAllowed'],
+  safe: ['city.safe', null],
+  indoors: ['city.indoors', 'city.indoorsMore'],
+};
 
 const MAP_COLORS: Readonly<Record<string, string>> = {
   '~': '#2b6a8a', '#': '#1d4a66', ':': '#5a5462', '=': '#b8845a', ',': '#8fb86a', d: '#9a8060', M: '#6a5a48',
@@ -30,10 +41,13 @@ export class CityController {
   readonly #down = el('city-down', HTMLParagraphElement);
   readonly #deposit = el('city-deposit', HTMLButtonElement);
   readonly #ride = el('city-ride', HTMLButtonElement);
+  readonly #door = el('city-door', HTMLButtonElement);
+  #layout = 0;
   #inCar = false;
   #driveLoop = 0;
   #atVault = false;
   #rough: boolean | null = null;
+  #zoneShown: Zone | null = null;
   #coins = 0;
   #safeToastAt = 0;
   #room: CityRoom | null = null;
@@ -62,6 +76,9 @@ export class CityController {
     this.#deposit.addEventListener('click', () => {
       this.#vault();
     });
+    this.#door.addEventListener('click', () => {
+      this.#useDoor();
+    });
     this.#ride.addEventListener('click', () => {
       this.#room?.send('ride');
     });
@@ -81,6 +98,7 @@ export class CityController {
       if ((e.key === 'e' || e.key === 'E') && !e.repeat && !(e.target instanceof HTMLInputElement)) {
         if (!this.#deposit.hidden) this.#vault();
         else if (!this.#ride.hidden) this.#room.send('ride');
+        else if (!this.#door.hidden) this.#useDoor();
         return;
       }
       const n = Number(e.key);
@@ -131,6 +149,10 @@ export class CityController {
     callbacks.onRemove('cars', (_c: CityCar, id: string) => {
       this.scene.removeCar(id);
     });
+    room.onMessage(CITY_MESSAGES.DOOR, (payload: unknown) => {
+      const result = DoorResultSchema.safeParse(payload);
+      if (result.success) this.#doorAnswered(result.data);
+    });
     room.onMessage(CITY_MESSAGES.VAULT, (payload: unknown) => {
       const result = DepositResultSchema.safeParse(payload);
       if (result.success) this.#deposited(result.data);
@@ -174,6 +196,7 @@ export class CityController {
     this.#room = null;
     window.clearInterval(this.#poll);
     this.#rough = null;
+    this.#zoneShown = null;
     this.#coins = 0;
     this.#pocket.textContent = '0';
     this.#down.hidden = true;
@@ -182,6 +205,8 @@ export class CityController {
     this.#atVault = false;
     this.#setDriving(false);
     this.#ride.hidden = true;
+    this.#door.hidden = true;
+    this.#hud.classList.remove('indoors');
     this.scene.detach();
     this.#here = null;
     this.#hud.hidden = true;
@@ -208,14 +233,17 @@ export class CityController {
         this.onToast(t('city.entering', { name: d.name }));
       }
     }
-    const rough = isRough(pos);
-    if (rough !== this.#rough) {
-      const announce = this.#rough !== null;
-      this.#rough = rough;
+    const indoors = this.scene.inside !== 0;
+    const rough = !indoors && isRough(pos);
+    const zone: Zone = indoors ? 'indoors' : rough ? 'rough' : 'safe';
+    if (zone !== this.#zoneShown) {
+      const announce = this.#zoneShown !== null && this.#zoneShown !== 'indoors' && zone !== 'indoors';
+      this.#zoneShown = zone;
       this.#zone.dataset.rough = String(rough);
-      this.#zone.replaceChildren(t(rough ? 'city.rough' : 'city.safe'), h('span', 'city-zone-more', rough ? t('city.fightsAllowed') : ''));
+      this.#zone.replaceChildren(t(ZONE_LABELS[zone][0]), h('span', 'city-zone-more', ZONE_LABELS[zone][1] === null ? '' : t(ZONE_LABELS[zone][1])));
       if (announce) this.onToast(t(rough ? 'city.roughToast' : 'city.safeToast'));
     }
+    this.#rough = rough;
     this.#punch.disabled = this.scene.meDown || this.#inCar;
     const canRide = this.#inCar || (!this.scene.meDown && this.scene.freeCarNear(pos, ENTER_RANGE));
     this.#ride.hidden = !canRide;
@@ -228,12 +256,56 @@ export class CityController {
       if (vaultHere) this.onToast(t(this.#coins > 0 ? 'city.vaultSafe' : 'city.vaultEmpty'));
     }
     this.#deposit.hidden = !vaultHere || this.#coins === 0;
+    this.#renderDoor(pos);
     drawDots(this.#dots, pos, this.scene.others());
+  }
+
+  // The door button: the way in when standing at a building's door, the way out when standing at it inside.
+  #renderDoor(pos: { x: number; y: number }): void {
+    const inside = this.scene.inside;
+    this.#hud.classList.toggle('indoors', inside !== 0);
+    let label: string | null = null;
+    if (inside !== 0) {
+      const door = doorBySeed(inside);
+      if (door !== null && atExit(pos, layoutFor(door.room, this.#layout))) label = t('city.leaveBuilding');
+    } else if (!this.scene.meDown && !this.#inCar && this.#ride.hidden) {
+      const door = doorAt(pos);
+      if (door !== null) label = t(ENTER_LABELS[door.room]);
+    }
+    this.#door.hidden = label === null;
+    if (label !== null) this.#door.firstChild?.replaceWith(document.createTextNode(label));
+  }
+
+  #useDoor(): void {
+    if (this.#door.hidden || this.#door.disabled) return;
+    this.#door.disabled = true;
+    this.#room?.send(this.scene.inside === 0 ? 'enter' : 'exit');
+    window.setTimeout(() => {
+      this.#door.disabled = false;
+    }, DOOR_RETRY_MS);
+  }
+
+  #doorAnswered(r: DoorResult): void {
+    this.#door.disabled = false;
+    if (r.ok) {
+      audio.play('click');
+      return;
+    }
+    const why: Record<Exclude<DoorResult['reason'], 'in' | 'out'>, PlainKey> = {
+      notAtDoor: 'city.doorNotHere',
+      full: 'city.doorFull',
+      tooSoon: 'city.doorTooSoon',
+      inCar: 'city.doorInCar',
+      down: 'city.doorDown',
+      fighting: 'city.doorFighting',
+    };
+    if (r.reason !== 'in' && r.reason !== 'out') this.onToast(t(why[r.reason]));
   }
 
   // Pocket, knockout and driving state for this client's own guardian.
   #mine(player: CityPlayer): void {
     this.#setDriving(player.car !== '');
+    this.#layout = player.layout;
     const coins = player.pocket ?? 0;
     if (coins !== this.#coins) {
       if (coins > this.#coins) audio.play('coin');

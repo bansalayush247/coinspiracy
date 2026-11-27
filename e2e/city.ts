@@ -3,11 +3,12 @@
 // then meet on the rough streets of Low Tide for a fight that ends in a knockout, and the winner vaults the coins.
 // Run: npx tsx --conditions=source e2e/city.ts
 import { randomBytes } from 'node:crypto';
+import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { type Browser, type Page } from 'playwright-core';
 import { createGameServer } from '../apps/server/src/app.js';
 import type { CityRoom } from '../apps/server/src/city/CityRoom.js';
-import { CITY_MAP, PUNCH_COOLDOWN_MS, ROUGH_STREETS, VAULT_DOOR, districtAt } from '@byzantine-council/shared/city';
+import { BUILDING_DOORS, CITY_MAP, DOOR_TUNING, PUNCH_COOLDOWN_MS, ROUGH_STREETS, VAULT_DOOR, districtAt, layoutFor, toWorld } from '@byzantine-council/shared/city';
 import { canStand } from '@byzantine-council/shared/pathfinding';
 import { MemoryProfileStore } from '../apps/server/src/profile/store.js';
 import { matchMaker } from '@colyseus/core';
@@ -18,6 +19,7 @@ const WEB_PORT = 3957;
 const WEB = `http://127.0.0.1:${String(WEB_PORT)}`;
 const OUT = 'dist-city';
 const EVIDENCE = fileURLToPath(new URL('../production/qa/evidence/city-art/', import.meta.url));
+const INTERIOR_SHOTS = fileURLToPath(new URL('../production/qa/evidence/interiors/', import.meta.url));
 
 
 type Pos = { x: number; y: number } | null;
@@ -95,6 +97,52 @@ async function main(): Promise<void> {
       walker.x = 61.5;
       walker.y = 96.5;
       await rook.waitForTimeout(1500);
+    }
+    const daniBody = [...(harbourRoom?.state.players.values() ?? [])].find((p) => p.name === 'Dani');
+    if (walker !== undefined && daniBody !== undefined) {
+      await mkdir(INTERIOR_SHOTS, { recursive: true });
+      const indoors = (page: Page, want: boolean): Promise<boolean> =>
+        page.waitForFunction((w) => ((window as unknown as { __bcCityPos?: () => { x: number } | null }).__bcCityPos?.()?.x ?? 0) > 4000 === w, want, { timeout: 6000 }).then(() => true).catch(() => false);
+      for (const [kind, name] of [['shop', 'shop'], ['mintHall', 'mint-hall'], ['hospital', 'hospital'], ['flat', 'flat']] as const) {
+        const door = BUILDING_DOORS.find((d) => d.room === kind);
+        if (door === undefined) continue;
+        walker.x = door.at.x;
+        walker.y = door.at.y;
+        await rook.waitForTimeout(900);
+        const offered = await rook.isVisible('#city-door');
+        await rook.keyboard.press('e');
+        check(offered && (await indoors(rook, true)), `the ${kind} door offers a way in and takes Rook inside`);
+        if (kind === 'shop') {
+          daniBody.x = door.at.x;
+          daniBody.y = door.at.y;
+          await dani.waitForTimeout(900);
+          await dani.keyboard.press('e');
+          check(await indoors(dani, true), 'Dani follows Rook into the shop');
+          await rook.waitForTimeout(800);
+          check(await rook.evaluate(() => document.querySelector('#city-pop')?.textContent.includes('1 nearby') === true), 'Rook sees Dani inside the shop');
+          await dani.screenshot({ path: `${INTERIOR_SHOTS}shop-phone.png` });
+        }
+        await rook.waitForTimeout(700);
+        await rook.screenshot({ path: `${INTERIOR_SHOTS}${name}.png` });
+        await rook.waitForTimeout(DOOR_TUNING.gapMs);
+        const layout = layoutFor(kind, walker.layout);
+        const inner = toWorld({ x: Math.floor(layout.w / 2) + 0.5, y: layout.d - 1.6 });
+        walker.x = inner.x;
+        walker.y = inner.y;
+        await rook.waitForTimeout(700);
+        await rook.keyboard.press('e');
+        check(await indoors(rook, false), `Rook leaves the ${kind} by its door`);
+        if (kind === 'shop') {
+          await dani.waitForTimeout(DOOR_TUNING.gapMs);
+          const out = toWorld({ x: Math.floor(layout.w / 2) + 0.5, y: layout.d - 0.5 });
+          daniBody.x = out.x;
+          daniBody.y = out.y;
+          check(await indoors(dani, false), 'Dani walks out through the doorway');
+        }
+      }
+      walker.x = 61.5;
+      walker.y = 96.5;
+      await rook.waitForTimeout(1000);
     }
     const parked = harbourRoom?.carList()[0];
     if (walker !== undefined && parked !== undefined) {

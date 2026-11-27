@@ -2,6 +2,17 @@
 
 ## 28 November 2026
 
+### Step inside: shops, the Mint Hall, the hospital and your own flat
+- Walk up to a shop, the Mint Hall, the hospital or any house and press E (or tap the door button) to go in.
+  Leave by pressing E at the inner door or by simply walking out through the doorway.
+- Every house door leads to your own private flat that nobody else can enter. Shops, the Mint Hall and the
+  hospital are shared: you see the other guardians inside, up to twelve at once, and nobody out on the street.
+- The hospital patches you up as you come in. Nobody can punch indoors, and you can't duck inside within ten
+  seconds of being hit, from a car, or while knocked down.
+- Each room is furnished: shelves and a till in the shops, columns, banners and a round vault door in the Mint
+  Hall, beds, drips and a front desk in the hospital, and a bed, sofa, books and pictures in your flat, lit by
+  sunlight from the windows.
+
 ### A more painterly Port Concord: water, streets and trees
 - The sea now shades smoothly from turquoise at the quays to deep blue in open water, with ripples, glints and
   foam where it laps the shore. Sloping shores are cut along diagonals instead of tile steps, and boardwalks end in

@@ -22,13 +22,18 @@ export class Predictor {
   // Obstacles off the map (the city's cars) as the server sees them, for a walker starting a step at `from`.
   solidFrom: ((from: Vec2) => (p: Vec2) => boolean) | null = null;
 
+  // Where the map's tile (0, 0) sits in the world: a room indoors lies far off the city map.
+  origin: Vec2 = { x: 0, y: 0 };
+
   constructor(start: Vec2, map: CitadelMap = CITADEL_MAP) {
     this.#position = { x: start.x, y: start.y };
     this.map = map;
   }
 
   #step(pos: Vec2, dx: number, dy: number): Vec2 {
-    return stepMovement(pos, { x: dx, y: dy }, TICK_SECONDS, this.map, this.solidFrom?.(pos));
+    const o = this.origin;
+    const next = stepMovement({ x: pos.x - o.x, y: pos.y - o.y }, { x: dx, y: dy }, TICK_SECONDS, this.map, this.solidFrom?.(pos));
+    return { x: next.x + o.x, y: next.y + o.y };
   }
 
   get position(): Vec2 {

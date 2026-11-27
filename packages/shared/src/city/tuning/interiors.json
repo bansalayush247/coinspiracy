@@ -1,0 +1,114 @@
+{
+  "door": {
+    "reach": 1.3,
+    "exitReach": 1.2,
+    "gapMs": 800,
+    "lockMs": 350,
+    "hitLockMs": 10000,
+    "maxOccupants": 12
+  },
+  "enterable": {
+    "shop": "shop",
+    "mintHall": "mintHall",
+    "hospital": "hospital",
+    "house": "flat",
+    "mansion": "flat"
+  },
+  "layouts": {
+    "shop": [
+      {
+        "w": 9, "d": 7, "floor": "planks", "wall": "plaster",
+        "furniture": [
+          { "piece": "shelf", "c": 1, "r": 1, "w": 3, "d": 1 },
+          { "piece": "shelf", "c": 5, "r": 1, "w": 3, "d": 1 },
+          { "piece": "counter", "c": 2, "r": 3, "w": 3, "d": 1 },
+          { "piece": "rug", "c": 2, "r": 4, "w": 3, "d": 1 },
+          { "piece": "plant", "c": 7, "r": 5, "w": 1, "d": 1 },
+          { "piece": "lamp", "c": 1, "r": 5, "w": 1, "d": 1 },
+          { "piece": "table", "c": 6, "r": 3, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "counter", "c": 3, "r": 4 }]
+      },
+      {
+        "w": 8, "d": 8, "floor": "tile", "wall": "brick",
+        "furniture": [
+          { "piece": "shelf", "c": 1, "r": 1, "w": 1, "d": 3 },
+          { "piece": "shelf", "c": 3, "r": 1, "w": 3, "d": 1 },
+          { "piece": "counter", "c": 4, "r": 3, "w": 2, "d": 1 },
+          { "piece": "plant", "c": 6, "r": 1, "w": 1, "d": 1 },
+          { "piece": "rug", "c": 2, "r": 5, "w": 3, "d": 1 },
+          { "piece": "chair", "c": 1, "r": 5, "w": 1, "d": 1 },
+          { "piece": "lamp", "c": 6, "r": 6, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "counter", "c": 4, "r": 4 }]
+      }
+    ],
+    "mintHall": [
+      {
+        "w": 15, "d": 11, "floor": "marble", "wall": "stone",
+        "furniture": [
+          { "piece": "vaultDoor", "c": 6, "r": 1, "w": 3, "d": 1 },
+          { "piece": "column", "c": 3, "r": 3, "w": 1, "d": 1 },
+          { "piece": "column", "c": 3, "r": 7, "w": 1, "d": 1 },
+          { "piece": "column", "c": 11, "r": 3, "w": 1, "d": 1 },
+          { "piece": "column", "c": 11, "r": 7, "w": 1, "d": 1 },
+          { "piece": "counter", "c": 5, "r": 3, "w": 5, "d": 1 },
+          { "piece": "rug", "c": 6, "r": 4, "w": 3, "d": 5 },
+          { "piece": "noticeBoard", "c": 1, "r": 4, "w": 1, "d": 2 },
+          { "piece": "bench", "c": 1, "r": 8, "w": 2, "d": 1 },
+          { "piece": "bench", "c": 12, "r": 8, "w": 2, "d": 1 },
+          { "piece": "plant", "c": 13, "r": 1, "w": 1, "d": 1 },
+          { "piece": "plant", "c": 1, "r": 1, "w": 1, "d": 1 },
+          { "piece": "lamp", "c": 13, "r": 5, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "counter", "c": 7, "r": 4 }, { "kind": "board", "c": 2, "r": 5 }]
+      }
+    ],
+    "hospital": [
+      {
+        "w": 11, "d": 8, "floor": "tile", "wall": "plaster",
+        "furniture": [
+          { "piece": "desk", "c": 4, "r": 2, "w": 3, "d": 1 },
+          { "piece": "hospitalBed", "c": 1, "r": 1, "w": 1, "d": 2 },
+          { "piece": "hospitalBed", "c": 1, "r": 4, "w": 1, "d": 2 },
+          { "piece": "hospitalBed", "c": 9, "r": 1, "w": 1, "d": 2 },
+          { "piece": "bench", "c": 7, "r": 5, "w": 2, "d": 1 },
+          { "piece": "plant", "c": 9, "r": 6, "w": 1, "d": 1 },
+          { "piece": "noticeBoard", "c": 5, "r": 1, "w": 1, "d": 1 },
+          { "piece": "lamp", "c": 3, "r": 6, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "reception", "c": 5, "r": 3 }]
+      }
+    ],
+    "flat": [
+      {
+        "w": 8, "d": 7, "floor": "planks", "wall": "panel",
+        "furniture": [
+          { "piece": "bed", "c": 1, "r": 1, "w": 2, "d": 2 },
+          { "piece": "bookcase", "c": 4, "r": 1, "w": 1, "d": 1 },
+          { "piece": "sofa", "c": 5, "r": 1, "w": 2, "d": 1 },
+          { "piece": "rug", "c": 3, "r": 3, "w": 3, "d": 2 },
+          { "piece": "table", "c": 4, "r": 3, "w": 1, "d": 1 },
+          { "piece": "chair", "c": 5, "r": 3, "w": 1, "d": 1 },
+          { "piece": "plant", "c": 6, "r": 5, "w": 1, "d": 1 },
+          { "piece": "lamp", "c": 1, "r": 5, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "bed", "c": 2, "r": 3 }]
+      },
+      {
+        "w": 9, "d": 7, "floor": "carpet", "wall": "plaster",
+        "furniture": [
+          { "piece": "bed", "c": 6, "r": 1, "w": 2, "d": 2 },
+          { "piece": "sofa", "c": 1, "r": 1, "w": 1, "d": 2 },
+          { "piece": "table", "c": 3, "r": 2, "w": 1, "d": 1 },
+          { "piece": "rug", "c": 2, "r": 2, "w": 3, "d": 2 },
+          { "piece": "bookcase", "c": 4, "r": 1, "w": 1, "d": 1 },
+          { "piece": "plant", "c": 7, "r": 5, "w": 1, "d": 1 },
+          { "piece": "lamp", "c": 1, "r": 5, "w": 1, "d": 1 },
+          { "piece": "chair", "c": 3, "r": 3, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "bed", "c": 7, "r": 3 }]
+      }
+    ]
+  }
+}

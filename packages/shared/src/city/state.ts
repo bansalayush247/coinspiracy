@@ -18,6 +18,10 @@ export const CityPlayer = schema(
     npc: t.boolean().default(false),
     // The car this guardian is driving, '' on foot.
     car: t.string().default(''),
+    // The building this guardian is inside, by its seed; 0 on the street.
+    inside: t.uint16().default(0),
+    // Which of that room kind's layouts they are standing in.
+    layout: t.uint8().default(0),
     pocket: t.uint32().view(VIEW_TAGS.OWNER).optional(),
     ack: t.uint32().view(VIEW_TAGS.OWNER).optional(),
   },
