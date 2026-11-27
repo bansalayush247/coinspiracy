@@ -1,7 +1,7 @@
 // Port Concord art: the ground painted one chunk at a time, buildings by kind and district, and street props.
 // Everything is drawn from the shared map, so the city looks the same on every screen.
 import Phaser from 'phaser';
-import { CHUNK, CITY_MAP, ROAD_COLS, ROAD_ROWS, districtAt, type CityBuilding, type DistrictId } from '@byzantine-council/shared/city';
+import { CHUNK, CITY_BUILDINGS, CITY_MAP, ROAD_COLS, ROAD_ROWS, districtAt, type CityBuilding, type DistrictId } from '@byzantine-council/shared/city';
 import { tileAt, type Box } from '@byzantine-council/shared';
 import { P, fan, prism } from '../beach/beachArt.js';
 import { hex, jitter, paintPlanks, rng, type Ctx } from '../game/groundPaint.js';
@@ -37,7 +37,10 @@ export function chunkBounds(cx: number, cy: number): { x: number; y: number; w: 
 // Paints one chunk's ground into a canvas texture and returns its key and placement.
 export function paintChunk(scene: Phaser.Scene, cx: number, cy: number): { key: string; x: number; y: number; scale: number } {
   const key = `city-chunk-${String(cx)}-${String(cy)}`;
-  const b = chunkBounds(cx, cy);
+  const inner = chunkBounds(cx, cy);
+  // A margin round the chunk's own diamond, so its corners overlap the neighbours' instead of ending on a point.
+  const pad = TILE_H;
+  const b = { x: inner.x - pad, y: inner.y - pad, w: inner.w + 2 * pad, h: inner.h + 2 * pad };
   const scale = quality.current === 'low' ? 0.3 : 0.5;
   if (scene.textures.exists(key)) return { key, x: b.x, y: b.y, scale };
   const canvas = document.createElement('canvas');
@@ -47,28 +50,107 @@ export function paintChunk(scene: Phaser.Scene, cx: number, cy: number): { key: 
   if (ctx === null) throw new Error('no 2d canvas');
   // Tile space to chunk-canvas space.
   ctx.setTransform((TILE_W / 2) * scale, (TILE_H / 2) * scale, (-TILE_W / 2) * scale, (TILE_H / 2) * scale, -b.x * scale, -b.y * scale);
-  for (let r = cy * CHUNK; r < (cy + 1) * CHUNK; r++) {
-    for (let c = cx * CHUNK; c < (cx + 1) * CHUNK; c++) paintTile(ctx, c, r);
+  const c0 = cx * CHUNK;
+  const r0 = cy * CHUNK;
+  const sea = seaLayer(c0, r0);
+  // Neighbouring chunks' textures overlap at the corners: each also paints a ring of the next one's tiles, exactly as
+  // that one paints them, so their shared edge is solid wherever the two meet.
+  seaUnderWater(ctx, sea, c0, r0);
+  for (let r = r0 - 1; r <= r0 + CHUNK; r++) {
+    for (let c = c0 - 1; c <= c0 + CHUNK; c++) paintTile(ctx, c, r);
+  }
+  for (let r = r0 - 1; r <= r0 + CHUNK; r++) {
+    for (let c = c0 - 1; c <= c0 + CHUNK; c++) smoothCoast(ctx, sea, c0, r0, c, r);
+  }
+  if (quality.current !== 'low') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(c0 - SHADOW_RING, r0 - SHADOW_RING, CHUNK + 2 * SHADOW_RING, CHUNK + 2 * SHADOW_RING);
+    ctx.clip();
+    paintShadows(ctx, c0, r0);
+    ctx.restore();
   }
   scene.textures.addCanvas(key, canvas);
   return { key, x: b.x, y: b.y, scale };
 }
 
+const isWater = (t: string): boolean => t === '~' || t === '#';
+// Shadows stop inside the ring of neighbouring tiles a chunk paints, where its ground is solid, so a shadow's cut
+// edge never lies over another chunk's ground.
+const SHADOW_RING = 0.5;
+const SEA = { shallow: 0x55a9b4, mid: 0x2f7f9c, deep: 0x1c4d72 };
+// How far from land, in tiles, the sea reaches its deepest blue.
+const SEA_DEPTH_TILES = 4;
+
+// One pixel per tile of sea colour around a chunk, deeper away from land; drawn scaled up, the browser blends it.
+function seaLayer(c0: number, r0: number): HTMLCanvasElement {
+  const n = CHUNK + 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = n;
+  canvas.height = n;
+  const ctx = canvas.getContext('2d');
+  if (ctx === null) throw new Error('no 2d canvas');
+  const reach = SEA_DEPTH_TILES;
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const c = c0 - 1 + i;
+      const r = r0 - 1 + j;
+      let near = reach;
+      for (let dr = -reach; dr <= reach; dr++) {
+        for (let dc = -reach; dc <= reach; dc++) if (!isWater(at(c + dc, r + dr))) near = Math.min(near, Math.hypot(dc, dr) - 0.5);
+      }
+      const d = Math.max(0, near) / reach;
+      ctx.fillStyle = hex(d < 0.5 ? mix(SEA.shallow, SEA.mid, d * 2) : mix(SEA.mid, SEA.deep, (d - 0.5) * 2));
+      ctx.fillRect(i, j, 1, 1);
+    }
+  }
+  return canvas;
+}
+
+// The sea under the chunk's water tiles and its ring's, and nowhere else, so it never shows past a land tile's edge.
+function seaUnderWater(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number): void {
+  ctx.save();
+  ctx.beginPath();
+  for (let r = r0 - 1; r <= r0 + CHUNK; r++) {
+    for (let c = c0 - 1; c <= c0 + CHUNK; c++) if (isWater(at(c, r))) ctx.rect(c - 0.01, r - 0.01, 1.02, 1.02);
+  }
+  ctx.clip();
+  drawSea(ctx, sea, c0, r0);
+  ctx.restore();
+}
+
+function drawSea(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number): void {
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(sea, c0 - 1, r0 - 1, CHUNK + 2, CHUNK + 2);
+}
+
 function paintTile(ctx: Ctx, c: number, r: number): void {
-  const t = at(c, r);
+  paintSurface(ctx, at(c, r), c, r);
+}
+
+// Paints one kind of ground over a tile; the coast pass also uses it to fill half a tile with its neighbour's ground.
+function paintSurface(ctx: Ctx, t: string, c: number, r: number): void {
   const rand = rng(c * 7919 + r * 104729);
   const district = districtAt({ x: c + 0.5, y: r + 0.5 })?.id ?? 'saltmarket';
   const tile = (color: number): void => {
     ctx.fillStyle = hex(color);
     ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
   };
-  if (t === '#' || t === '~') {
-    paintSea(ctx, c, r, rand);
+  if (isWater(t)) {
+    paintWaves(ctx, c, r, rand);
     return;
   }
   if (t === '=') {
     const water = [at(c - 1, r), at(c + 1, r), at(c, r - 1), at(c, r + 1)].includes('~');
+    tile(0x5a3c30);
     paintPlanks(ctx, c, r, rand, water);
+    // A dark edge beam wherever the deck ends over water.
+    ctx.fillStyle = hex(0x4a3026);
+    if (isWater(at(c + 1, r))) ctx.fillRect(c + 0.94, r, 0.06, 1);
+    if (isWater(at(c - 1, r))) ctx.fillRect(c, r, 0.06, 1);
+    if (isWater(at(c, r + 1))) ctx.fillRect(c, r + 0.94, 1, 0.06);
+    if (isWater(at(c, r - 1))) ctx.fillRect(c, r, 1, 0.06);
     return;
   }
   if (t === ':') {
@@ -76,15 +158,7 @@ function paintTile(ctx: Ctx, c: number, r: number): void {
     return;
   }
   if (t === ',' || (t === 'T' && [at(c - 1, r), at(c + 1, r), at(c, r - 1), at(c, r + 1)].includes(','))) {
-    tile(jitter(0x8fb86a, rand, 0.06));
-    for (let i = 0; i < 26; i++) {
-      ctx.fillStyle = rand() > 0.5 ? 'rgba(60,100,50,0.35)' : 'rgba(230,240,200,0.3)';
-      ctx.fillRect(c + rand(), r + rand(), 0.02, 0.05);
-    }
-    if (rand() < 0.15) {
-      ctx.fillStyle = ['#ffd27a', '#ff8a9a', '#ffffff'][Math.floor(rand() * 3)] ?? '#fff';
-      for (let i = 0; i < 4; i++) ctx.fillRect(c + rand(), r + rand(), 0.04, 0.04);
-    }
+    paintGrass(ctx, c, r, rand);
     return;
   }
   if (t === 'd' || t === 'M') {
@@ -101,69 +175,257 @@ function paintTile(ctx: Ctx, c: number, r: number): void {
     }
     return;
   }
-  // Pavement: slabs in a half-tile grid, a kerb where it meets the road.
-  const base = PAVEMENT[district];
-  tile(jitter(base, rand, 0.03));
-  ctx.strokeStyle = hex(shade(base, 0.18), 0.55);
-  ctx.lineWidth = 0.02;
+  paintPavement(ctx, c, r, rand, PAVEMENT[district]);
+}
+
+// Pavement: slabs in a half-tile grid with worn joints, and a raised kerb where it meets the road.
+function paintPavement(ctx: Ctx, c: number, r: number, rand: () => number, base: number): void {
+  ctx.fillStyle = hex(base);
+  ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
+  for (let j = 0; j < 2; j++) {
+    for (let i = 0; i < 2; i++) {
+      ctx.fillStyle = hex(jitter(base, rand, 0.05));
+      ctx.fillRect(c + i * 0.5 - 0.005, r + j * 0.5 - 0.005, 0.51, 0.51);
+    }
+  }
+  ctx.strokeStyle = hex(shade(base, 0.22), 0.6);
+  ctx.lineWidth = 0.018;
   ctx.beginPath();
   ctx.moveTo(c + 0.5, r);
   ctx.lineTo(c + 0.5, r + 1);
   ctx.moveTo(c, r + 0.5);
   ctx.lineTo(c + 1, r + 0.5);
   ctx.stroke();
-  if (rand() < 0.2) {
-    ctx.fillStyle = hex(shade(base, 0.1), 0.5);
-    ctx.fillRect(c + (rand() < 0.5 ? 0 : 0.5) + 0.03, r + (rand() < 0.5 ? 0 : 0.5) + 0.03, 0.44, 0.44);
+  for (let i = 0; i < 14; i++) {
+    ctx.fillStyle = rand() > 0.5 ? 'rgba(255,255,255,0.12)' : 'rgba(40,30,40,0.08)';
+    ctx.fillRect(c + rand(), r + rand(), 0.02, 0.02);
   }
-  ctx.fillStyle = hex(0x8e8790);
-  if (at(c + 1, r) === ':') ctx.fillRect(c + 0.9, r, 0.1, 1);
-  if (at(c - 1, r) === ':') ctx.fillRect(c, r, 0.1, 1);
-  if (at(c, r + 1) === ':') ctx.fillRect(c, r + 0.9, 1, 0.1);
-  if (at(c, r - 1) === ':') ctx.fillRect(c, r, 1, 0.1);
+  if (rand() < 0.06) {
+    ctx.fillStyle = 'rgba(60,50,60,0.08)';
+    ctx.beginPath();
+    ctx.ellipse(c + 0.3 + rand() * 0.4, r + 0.3 + rand() * 0.4, 0.14, 0.09, rand() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const road = (dc: number, dr: number): boolean => at(c + dc, r + dr) === ':';
+  const kerb = (x: number, y: number, w: number, h: number, lip: [number, number, number, number]): void => {
+    ctx.fillStyle = hex(0xcfc8bc);
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = hex(0x6c6470);
+    ctx.fillRect(...lip);
+  };
+  if (road(1, 0)) kerb(c + 0.88, r, 0.12, 1, [c + 0.97, r, 0.03, 1]);
+  if (road(-1, 0)) kerb(c, r, 0.12, 1, [c, r, 0.03, 1]);
+  if (road(0, 1)) kerb(c, r + 0.88, 1, 0.12, [c, r + 0.97, 1, 0.03]);
+  if (road(0, -1)) kerb(c, r, 1, 0.12, [c, r, 1, 0.03]);
   // The water's edge: a stone quay with a dark lip.
   const water = (dc: number, dr: number): boolean => at(c + dc, r + dr) === '~';
-  ctx.fillStyle = hex(0x6e6470);
+  ctx.fillStyle = hex(0x7a7080);
   if (water(1, 0)) ctx.fillRect(c + 0.88, r, 0.12, 1);
   if (water(0, 1)) ctx.fillRect(c, r + 0.88, 1, 0.12);
   if (water(-1, 0)) ctx.fillRect(c, r, 0.12, 1);
   if (water(0, -1)) ctx.fillRect(c, r, 1, 0.12);
 }
 
-function paintSea(ctx: Ctx, c: number, r: number, rand: () => number): void {
-  // Lighter near the quays, deep blue in open water.
-  let near = 3;
-  for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) if (!['~', '#'].includes(at(c + dc, r + dr))) near = Math.min(near, Math.max(Math.abs(dc), Math.abs(dr)));
-  const deep = 0x235d7e;
-  const shallow = 0x3f93a8;
-  ctx.fillStyle = hex(jitter(mix(shallow, deep, near / 3), rand, 0.025));
+// A lawn mown in stripes, with clumps, blades and the odd flower.
+function paintGrass(ctx: Ctx, c: number, r: number, rand: () => number): void {
+  const base = (c + r) % 2 === 0 ? 0x8cb868 : 0x86b062;
+  ctx.fillStyle = hex(jitter(base, rand, 0.04));
   ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
-  if (rand() < 0.35) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-    ctx.lineWidth = 0.025;
-    const y = r + 0.2 + rand() * 0.6;
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = rand() > 0.5 ? 'rgba(70,110,50,0.18)' : 'rgba(200,225,150,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(c + rand(), r + rand(), 0.06 + rand() * 0.1, 0.04 + rand() * 0.06, rand() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (let i = 0; i < 30; i++) {
+    ctx.fillStyle = rand() > 0.5 ? 'rgba(50,90,40,0.35)' : 'rgba(225,240,190,0.3)';
+    ctx.fillRect(c + rand(), r + rand(), 0.015, 0.045);
+  }
+  if (rand() < 0.15) {
+    ctx.fillStyle = ['#ffd27a', '#ff8a9a', '#ffffff'][Math.floor(rand() * 3)] ?? '#fff';
+    for (let i = 0; i < 4; i++) ctx.fillRect(c + rand(), r + rand(), 0.04, 0.04);
+  }
+}
+
+// Ripples, glints and foam on top of the smooth sea; the sea's colour is already down.
+function paintWaves(ctx: Ctx, c: number, r: number, rand: () => number): void {
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 2; i++) {
+    if (rand() > 0.55) continue;
+    const light = rand() > 0.35;
+    ctx.strokeStyle = light ? `rgba(220,245,255,${String(0.12 + rand() * 0.14)})` : 'rgba(10,40,70,0.16)';
+    ctx.lineWidth = 0.02 + rand() * 0.015;
+    const y = r + 0.15 + rand() * 0.7;
     const x = c + rand() * 0.5;
+    const len = 0.25 + rand() * 0.4;
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(x + 0.15, y - 0.06, x + 0.35, y);
+    ctx.quadraticCurveTo(x + len / 2, y - 0.07, x + len, y);
+    ctx.stroke();
+  }
+  if (rand() < 0.18) {
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillRect(c + rand(), r + rand(), 0.03, 0.015);
+  }
+  const shore = (dc: number, dr: number): boolean => !isWater(at(c + dc, r + dr));
+  for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    if (!shore(dc, dr)) continue;
+    if (at(c + dc, r + dr) === '=') deckShadow(ctx, c, r, dc, dr);
+    else foamAlong(ctx, c, r, dc, dr, rand, 1);
+  }
+}
+
+// The shade a deck throws on the water beside it, fading out from under its edge.
+function deckShadow(ctx: Ctx, c: number, r: number, dc: number, dr: number): void {
+  const w = 0.3;
+  const x0 = dc > 0 ? c + 1 : c;
+  const y0 = dr > 0 ? r + 1 : r;
+  const g = dc !== 0 ? ctx.createLinearGradient(x0, r, x0 - dc * w, r) : ctx.createLinearGradient(c, y0, c, y0 - dr * w);
+  g.addColorStop(0, 'rgba(8,28,48,0.42)');
+  g.addColorStop(1, 'rgba(8,28,48,0)');
+  ctx.fillStyle = g;
+  if (dc !== 0) ctx.fillRect(dc > 0 ? x0 - w : x0, r, w, 1);
+  else ctx.fillRect(c, dr > 0 ? y0 - w : y0, 1, w);
+}
+
+// Two soft lines of foam just off one edge of a water tile, where it laps against the land.
+function foamAlong(ctx: Ctx, c: number, r: number, dc: number, dr: number, rand: () => number, strength: number): void {
+  for (const [off, alpha, width] of [[0.07, 0.55, 0.05], [0.2, 0.22, 0.03]] as const) {
+    ctx.strokeStyle = `rgba(240,252,255,${String(alpha * strength)})`;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    const wob = (): number => (rand() - 0.5) * 0.06;
+    if (dc !== 0) {
+      const x = dc > 0 ? c + 1 - off : c + off;
+      ctx.moveTo(x + wob(), r);
+      ctx.bezierCurveTo(x + wob(), r + 0.33, x + wob(), r + 0.66, x + wob(), r + 1);
+    } else {
+      const y = dr > 0 ? r + 1 - off : r + off;
+      ctx.moveTo(c, y + wob());
+      ctx.bezierCurveTo(c + 0.33, y + wob(), c + 0.66, y + wob(), c + 1, y + wob());
+    }
     ctx.stroke();
   }
 }
 
+// The four corners of a tile a coast can be cut across: the two sides it faces, and the triangle on that side.
+const CORNERS = [
+  { sides: [[1, 0], [0, 1]], tri: [[1, 0], [1, 1], [0, 1]] },
+  { sides: [[-1, 0], [0, 1]], tri: [[0, 0], [0, 1], [1, 1]] },
+  { sides: [[1, 0], [0, -1]], tri: [[0, 0], [1, 0], [1, 1]] },
+  { sides: [[-1, 0], [0, -1]], tri: [[1, 0], [0, 0], [0, 1]] },
+] as const;
+
+// Cuts the coastline's tile steps into diagonals: a land corner sticking into the sea is cut back to water, and a
+// water corner tucked into the land is filled with the land beside it, so the shore runs smooth.
+function smoothCoast(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number, c: number, r: number): void {
+  const t = at(c, r);
+  const wet = isWater(t);
+  if (!wet && !COAST_LAND.has(t)) return;
+  const other = (dc: number, dr: number): boolean => isWater(at(c + dc, r + dr)) !== wet;
+  for (const corner of CORNERS) {
+    const [a, b] = corner.sides;
+    if (!other(a[0], a[1]) || !other(b[0], b[1])) continue;
+    if (other(-a[0], -a[1]) || other(-b[0], -b[1])) continue;
+    // Only a step in a sloping shore, not the square end of a pier or a lone rock.
+    if (other(a[0] - b[0], a[1] - b[1]) && other(b[0] - a[0], b[1] - a[1])) continue;
+    if (wet && !other(a[0] + b[0], a[1] + b[1])) continue;
+    // A boardwalk is built square: its steps stay, so a deck is never cut or grown.
+    if (wet && [at(c + a[0], r + a[1]), at(c + b[0], r + b[1])].includes('=')) continue;
+    const pts = corner.tri.map(([x, y]) => [c + x, r + y] as const);
+    ctx.save();
+    ctx.beginPath();
+    for (const [i, [x, y]] of pts.entries()) {
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.clip();
+    if (wet) {
+      const land = at(c + a[0], r + a[1]);
+      paintSurface(ctx, isWater(land) ? at(c + b[0], r + b[1]) : land, c, r);
+    } else {
+      drawSea(ctx, sea, c0, r0);
+      paintWaves(ctx, c, r, rng(c * 31 + r * 17));
+    }
+    ctx.restore();
+    const [p, , q] = pts;
+    if (p === undefined || q === undefined) continue;
+    const pier = (wet ? at(c + a[0], r + a[1]) : t) === '=';
+    ctx.strokeStyle = pier ? 'rgba(70,45,40,0.9)' : hex(0x7a7080);
+    ctx.lineWidth = pier ? 0.05 : 0.12;
+    ctx.beginPath();
+    ctx.moveTo(p[0], p[1]);
+    ctx.lineTo(q[0], q[1]);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(240,252,255,0.45)';
+    ctx.lineWidth = 0.05;
+    const nx = (a[0] + b[0]) * (wet ? -0.09 : 0.09);
+    const ny = (a[1] + b[1]) * (wet ? -0.09 : 0.09);
+    ctx.beginPath();
+    ctx.moveTo(p[0] + nx, p[1] + ny);
+    ctx.lineTo(q[0] + nx, q[1] + ny);
+    ctx.stroke();
+  }
+}
+
+// Open ground a coast corner may be cut out of: pavement, lawns, roads, boardwalks and the tip.
+const COAST_LAND: ReadonlySet<string> = new Set(['.', 'T', 'L', ',', ':', 'd']);
+
+// Asphalt with grain, darker tyre lanes, white edge lines, the odd crack, drain and manhole, and zebra crossings.
 function paintRoad(ctx: Ctx, c: number, r: number, rand: () => number): void {
-  ctx.fillStyle = hex(jitter(0x55505c, rand, 0.03));
+  ctx.fillStyle = hex(jitter(0x524d5a, rand, 0.025));
   ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
-  for (let i = 0; i < 10; i++) {
-    ctx.fillStyle = rand() > 0.5 ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.06)';
-    ctx.fillRect(c + rand(), r + rand(), 0.05, 0.05);
+  for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = rand() > 0.5 ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.07)';
+    ctx.fillRect(c + rand(), r + rand(), 0.018, 0.018);
   }
   const rowRoad = isRoadRow(r);
   const colRoad = isRoadCol(c);
-  // Crossings: zebra stripes on the tiles just outside each junction.
-  if (rowRoad && colRoad) return;
-  ctx.fillStyle = 'rgba(255,248,230,0.85)';
+  if (rowRoad && colRoad) {
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.beginPath();
+    ctx.ellipse(c + 0.5, r + 0.5, 0.45, 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  // Tyres wear two darker strips down each lane.
+  ctx.fillStyle = 'rgba(20,15,25,0.1)';
+  for (const k of [0.28, 0.72]) {
+    if (rowRoad) ctx.fillRect(c, r + k - 0.06, 1, 0.12);
+    else ctx.fillRect(c + k - 0.06, r, 0.12, 1);
+  }
+  if (rand() < 0.08) {
+    ctx.strokeStyle = 'rgba(20,15,25,0.35)';
+    ctx.lineWidth = 0.012;
+    let x = c + 0.2 + rand() * 0.6;
+    let y = r + 0.2 + rand() * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let i = 0; i < 4; i++) {
+      x += (rand() - 0.5) * 0.18;
+      y += (rand() - 0.5) * 0.18;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  if (rand() < 0.035) {
+    const mx = c + 0.5;
+    const my = r + 0.5;
+    ctx.fillStyle = hex(0x3a3640);
+    ctx.beginPath();
+    ctx.arc(mx, my, 0.13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(160,150,160,0.5)';
+    ctx.lineWidth = 0.015;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(mx, my, 0.08, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   const nearJunctionCol = ROAD_COLS.some((c0) => c === c0 - 1 || c === c0 + 2);
   const nearJunctionRow = ROAD_ROWS.some((r0) => r === r0 - 1 || r === r0 + 2);
+  ctx.fillStyle = 'rgba(255,248,230,0.88)';
   if (rowRoad && nearJunctionCol) {
     for (let i = 0; i < 4; i++) ctx.fillRect(c + 0.1, r + 0.08 + i * 0.25, 0.8, 0.12);
     return;
@@ -172,10 +434,49 @@ function paintRoad(ctx: Ctx, c: number, r: number, rand: () => number): void {
     for (let i = 0; i < 4; i++) ctx.fillRect(c + 0.08 + i * 0.25, r + 0.1, 0.12, 0.8);
     return;
   }
+  // A solid white line along each kerb, with a drain grate now and then.
+  ctx.fillStyle = 'rgba(245,240,230,0.55)';
+  const outer = rowRoad ? (ROAD_ROWS.includes(r) ? r + 0.08 : r + 0.9) : ROAD_COLS.includes(c) ? c + 0.08 : c + 0.9;
+  if (rowRoad) ctx.fillRect(c, outer, 1, 0.025);
+  else ctx.fillRect(outer, r, 0.025, 1);
+  if (rand() < 0.06) {
+    ctx.fillStyle = hex(0x2e2a33);
+    const g0 = rowRoad ? [c + 0.35, ROAD_ROWS.includes(r) ? r + 0.01 : r + 0.93, 0.3, 0.06] : [ROAD_COLS.includes(c) ? c + 0.01 : c + 0.93, r + 0.35, 0.06, 0.3];
+    ctx.fillRect(g0[0] ?? c, g0[1] ?? r, g0[2] ?? 0, g0[3] ?? 0);
+  }
   // Dashed centre lines between the two lanes.
-  ctx.fillStyle = 'rgba(255,214,120,0.8)';
+  ctx.fillStyle = 'rgba(255,214,120,0.85)';
   if (rowRoad && ROAD_ROWS.includes(r) && c % 2 === 0) ctx.fillRect(c + 0.1, r + 0.95, 0.6, 0.1);
   if (colRoad && ROAD_COLS.includes(c) && r % 2 === 0) ctx.fillRect(c + 0.95, r + 0.1, 0.1, 0.6);
+}
+
+// Sun from the west, as on the citadel, so buildings throw their shadows east across the ground.
+const SHADOW = { dirX: 1, dirY: 0.18, perHeight: 1 / 110, maxTiles: 5, color: 'rgba(36,24,64,0.26)', occlusion: 'rgba(36,24,64,0.2)' };
+
+// Each building's shadow on the ground, and a dark seam where its walls meet it.
+function paintShadows(ctx: Ctx, c0: number, r0: number): void {
+  const reach = SHADOW.maxTiles + 1;
+  for (const bld of CITY_BUILDINGS) {
+    const { box } = bld;
+    if (box.c1 < c0 - reach || box.c0 > c0 + CHUNK || box.r1 < r0 - reach || box.r0 > r0 + CHUNK) continue;
+    const len = Math.min(SHADOW.maxTiles, bld.height * SHADOW.perHeight);
+    const dx = SHADOW.dirX * len;
+    const dy = SHADOW.dirY * len;
+    const [x0, y0, x1, y1] = [box.c0 + 0.05, box.r0 + 0.05, box.c1 + 0.95, box.r1 + 0.95];
+    ctx.fillStyle = SHADOW.color;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y0);
+    ctx.lineTo(x1 + dx, y0 + dy);
+    ctx.lineTo(x1 + dx, y1 + dy);
+    ctx.lineTo(x0 + dx, y1 + dy);
+    ctx.lineTo(x0, y1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = SHADOW.occlusion;
+    ctx.lineWidth = 0.18;
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+  }
 }
 
 // ---------- Buildings ----------
@@ -456,18 +757,73 @@ export function drawBuilding(g: G, b: CityBuilding): void {
 
 // ---------- Props ----------
 
+const LEAVES = [
+  { dark: 0x2f6a3e, mid: 0x4b8a4e, light: 0x79b866, glint: 0xb8dc8a },
+  { dark: 0x3a6a32, mid: 0x5a9442, light: 0x8cc05a, glint: 0xc8e290 },
+  { dark: 0x2a5e48, mid: 0x3f8060, light: 0x6aaa7a, glint: 0xa8d4a0 },
+] as const;
+
+// A street tree lit from the west: its shadow on the ground, a shaded trunk, and a canopy built up from clusters,
+// darkest underneath and on the east side, with leaf flecks on top. Each seed picks a broadleaf, a poplar or a pine.
 export function drawStreetTree(g: G, seed: number): void {
   const s = ART_SCALE;
   const rand = rng(seed);
-  g.fillStyle(0x6e4636, 1);
-  g.fillRect(-3 * s, -26 * s, 6 * s, 26 * s);
-  const greens = [0x5aa05a, 0x4b8a4e, 0x6eb060];
-  for (let i = 0; i < 5; i++) {
-    g.fillStyle(greens[i % greens.length] ?? 0x5aa05a, 1);
-    g.fillCircle((rand() - 0.5) * 22 * s, -40 * s - rand() * 22 * s, (14 + rand() * 8) * s);
+  const leaf = LEAVES[seed % LEAVES.length] ?? LEAVES[0];
+  const kind = seed % 7 === 0 ? 'pine' : seed % 5 === 0 ? 'poplar' : 'broad';
+  g.fillStyle(0x24183c, 0.22);
+  g.fillEllipse(14 * s, 2 * s, (kind === 'poplar' ? 30 : 46) * s, 14 * s);
+  const trunkTop = kind === 'pine' ? -18 : -30;
+  g.fillStyle(0x5a3a2c, 1);
+  g.fillTriangle(-4 * s, 0, 4 * s, 0, 0, trunkTop * s);
+  g.fillRect(-2.6 * s, trunkTop * s, 5.2 * s, -trunkTop * s);
+  g.fillStyle(0x86594a, 1);
+  g.fillRect(-2.6 * s, trunkTop * s, 1.8 * s, -trunkTop * s);
+  if (kind === 'pine') {
+    for (let i = 0; i < 4; i++) {
+      const y = -18 - i * 15;
+      const w = 26 - i * 5;
+      g.fillStyle(leaf.dark, 1);
+      g.fillTriangle(-w * s, y * s, w * s, y * s, 0, (y - 26) * s);
+      g.fillStyle(leaf.mid, 1);
+      g.fillTriangle(-w * s, y * s, 0, (y + 2) * s, 0, (y - 26) * s);
+      g.fillStyle(leaf.light, 0.8);
+      g.fillTriangle(-w * 0.8 * s, (y - 3) * s, -w * 0.15 * s, (y - 2) * s, 0, (y - 24) * s);
+    }
+    return;
   }
-  g.fillStyle(0xffffff, 0.12);
-  g.fillCircle(-8 * s, -52 * s, 9 * s);
+  if (kind === 'broad') {
+    g.lineStyle(2 * s, 0x5a3a2c, 1);
+    g.lineBetween(0, -24 * s, -8 * s, -38 * s);
+    g.lineBetween(0, -26 * s, 9 * s, -40 * s);
+  }
+  const tall = kind === 'poplar';
+  const blobs: { x: number; y: number; r: number }[] = [];
+  const count = tall ? 7 : 9;
+  for (let i = 0; i < count; i++) {
+    const t = i / (count - 1);
+    blobs.push(tall
+      ? { x: (rand() - 0.5) * 12, y: -36 - t * 46 - rand() * 4, r: 9 + rand() * 4 - t * 2 }
+      : { x: (rand() - 0.5) * 30, y: -44 - rand() * 22, r: 11 + rand() * 7 });
+  }
+  for (const b of blobs) {
+    g.fillStyle(leaf.dark, 1);
+    g.fillCircle((b.x + 2) * s, (b.y + 3) * s, b.r * s);
+  }
+  for (const b of blobs) {
+    g.fillStyle(leaf.mid, 1);
+    g.fillCircle(b.x * s, b.y * s, b.r * 0.88 * s);
+  }
+  for (const b of blobs) {
+    g.fillStyle(leaf.light, 0.9);
+    g.fillCircle((b.x - b.r * 0.3) * s, (b.y - b.r * 0.32) * s, b.r * 0.5 * s);
+  }
+  for (let i = 0; i < 18; i++) {
+    const b = blobs[Math.floor(rand() * blobs.length)] ?? { x: 0, y: -50, r: 10 };
+    const a = rand() * Math.PI * 2;
+    const d = rand() * b.r * 0.8;
+    g.fillStyle(rand() > 0.4 ? leaf.glint : leaf.dark, rand() > 0.4 ? 0.7 : 0.45);
+    g.fillCircle((b.x + Math.cos(a) * d) * s, (b.y + Math.sin(a) * d) * s, (1 + rand() * 1.4) * s);
+  }
 }
 
 // A modern street light: a slim two-tone pole on a small base plate, a thin arm out over the road and a flat LED

@@ -3,6 +3,7 @@
 // then meet on the rough streets of Low Tide for a fight that ends in a knockout, and the winner vaults the coins.
 // Run: npx tsx --conditions=source e2e/city.ts
 import { randomBytes } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { type Browser, type Page } from 'playwright-core';
 import { createGameServer } from '../apps/server/src/app.js';
 import type { CityRoom } from '../apps/server/src/city/CityRoom.js';
@@ -16,6 +17,7 @@ const GAME_PORT = 3956;
 const WEB_PORT = 3957;
 const WEB = `http://127.0.0.1:${String(WEB_PORT)}`;
 const OUT = 'dist-city';
+const EVIDENCE = fileURLToPath(new URL('../production/qa/evidence/city-art/', import.meta.url));
 
 
 type Pos = { x: number; y: number } | null;
@@ -67,6 +69,13 @@ async function main(): Promise<void> {
     const moved = before !== null && after !== null ? Math.hypot(after.x - before.x, after.y - before.y) : 0;
     check(moved > 4, `walking moves the guardian through the streets (${moved.toFixed(1)} tiles)`);
     await rook.screenshot({ path: `${SHOTS}city-walk.png` });
+    await rook.click('#city-emotes .emote-toggle');
+    check(await rook.isVisible('#city-emotes .emote-tray'), 'the smiley button opens the six emotes');
+    await rook.screenshot({ path: `${EVIDENCE}emote-picker.png` });
+    await rook.click('#city-emotes .emote-pick >> nth=0');
+    check(await rook.isHidden('#city-emotes .emote-tray'), 'picking an emote closes the picker');
+    await rook.waitForTimeout(600);
+    await rook.screenshot({ path: `${EVIDENCE}emote-action.png` });
     const harbourRoom = matchMaker.getLocalRoomById((await matchMaker.query({ name: 'city' }))[0]?.roomId ?? '') as CityRoom | undefined;
     const walker = [...(harbourRoom?.state.players.values() ?? [])].find((p) => p.name === 'Rook');
     type Snap = { ships: { kind: string; x: number; y: number; shown: boolean }[]; carsShown: number; carsMoving: number } | null;

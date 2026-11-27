@@ -2,8 +2,10 @@
 import Phaser from 'phaser';
 import { TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
 import { colorNumber, getShop, type ShopId } from '@byzantine-council/shared/economy';
+import type { Emote } from '@byzantine-council/shared/hub';
 import { BEACH_MAP, HOME_RANGE, SHOP_RANGE, homeDoor, shopCounter, type HubPlayer } from '@byzantine-council/shared/hub';
 import { Atmosphere, type NatureNote } from '../game/atmosphere.js';
+import { CONFETTI, EmoteAction, spawnFlourishes } from '../game/emoteActions.js';
 import { Effects } from '../game/effects.js';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
 import { turnToward } from '../game/facing.js';
@@ -56,6 +58,8 @@ interface Avatar {
   lastScreenX: number;
   lastScreenY: number;
   stride: number;
+  // The emote they are acting out, if any.
+  action: EmoteAction | null;
 }
 
 export class BeachScene extends Phaser.Scene {
@@ -182,7 +186,7 @@ export class BeachScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: isMe ? cssColor(COLORS.gold) : '#fff1de', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this)),
     }).setOrigin(0.5, 1);
     this.#names.add(label);
-    const avatar: Avatar = { root, soft, body, parcel, label, buffer: new InterpBuffer(), isMe, pos: { x: p.x, y: p.y }, last: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, back: false, lastScreenX: 0, lastScreenY: 0, stride: 0, hop: 0, hopV: 0 };
+    const avatar: Avatar = { root, soft, body, parcel, label, buffer: new InterpBuffer(), isMe, pos: { x: p.x, y: p.y }, last: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, back: false, lastScreenX: 0, lastScreenY: 0, stride: 0, hop: 0, hopV: 0, action: null };
     avatar.buffer.push(performance.now(), p.x, p.y);
     this.#avatars.set(id, avatar);
     if (isMe) {
@@ -285,31 +289,23 @@ export class BeachScene extends Phaser.Scene {
     startJump(a);
   }
 
-  // An emote: a bubble over the guardian, a hop with real gravity, and confetti for a cheer.
-  emote(id: string, glyph: string, kind: string): void {
+  /** A guardian acts out an emote: a wave, a jump for joy with confetti, a dance, hearts, a laugh or a shaka. */
+  emote(id: string, kind: Emote): void {
     const a = this.#avatars.get(id);
     if (a === undefined) return;
+    a.action?.end(a.body, true);
+    a.action = new EmoteAction(this, a.root, kind, seatColors(a.seat).lit, this.game.loop.time);
     const s = worldToScreen(a.pos.x, a.pos.y);
-    const bubble = this.add
-      .text(s.x, s.y - GUARDIAN_HEIGHT - 34 * ART_SCALE, glyph, { fontFamily: 'system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif', fontSize: '44px', backgroundColor: '#fff6e6', padding: { x: 10, y: 6 } })
-      .setOrigin(0.5, 1)
-      .setDepth(30)
-      .setScale(0.2);
-    this.tweens.add({ targets: bubble, scale: 1 / (this.cameras.main.zoom / sceneDpr(this)), duration: this.#reduced ? 1 : 260, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: bubble, alpha: 0, y: bubble.y - 20, delay: 2200, duration: 500, onComplete: () => {
-      bubble.destroy();
-    } });
-    if (this.#reduced) return;
-    a.hopV = kind === 'dance' ? 260 : 200;
-    if (kind === 'cheer') {
-      for (let i = 0; i < 40; i++) {
-        const ang = Math.random() * Math.PI * 2;
-        this.#physics.spawn({
-          x: a.pos.x, y: a.pos.y, z: 60 * ART_SCALE, vx: Math.cos(ang) * (0.5 + Math.random()), vy: Math.sin(ang) * (0.5 + Math.random()), vz: 200 + Math.random() * 260,
-          life: 1.6 + Math.random(), texture: 'fx-leaf', color: [0xff7f6a, 0xffd27a, 0x5fd3b0, 0xa983ff, 0x7fc8ff][i % 5] ?? 0xffffff,
-          size: 0.5 * ART_SCALE, gravity: 0.35, drag: 1.2, wind: 0.6, spin: (Math.random() - 0.5) * 14, bounce: 0.1,
-        });
-      }
+    spawnFlourishes(this, this.#names, kind, s.x, s.y - GUARDIAN_HEIGHT * 1.05, this.#reduced);
+    if (this.#reduced || kind !== 'cheer') return;
+    a.hopV = 260;
+    for (let i = 0; i < 40; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      this.#physics.spawn({
+        x: a.pos.x, y: a.pos.y, z: 60 * ART_SCALE, vx: Math.cos(ang) * (0.5 + Math.random()), vy: Math.sin(ang) * (0.5 + Math.random()), vz: 200 + Math.random() * 260,
+        life: 1.6 + Math.random(), texture: 'fx-leaf', color: CONFETTI[i % CONFETTI.length] ?? 0xffffff,
+        size: 0.5 * ART_SCALE, gravity: 0.35, drag: 1.2, wind: 0.6, spin: (Math.random() - 0.5) * 14, bounce: 0.1,
+      });
     }
   }
 
@@ -422,6 +418,10 @@ export class BeachScene extends Phaser.Scene {
     const shadow = shadowScale(a.hop);
     a.soft.setScale(0.2 * shadow).setAlpha(0.45 * shadow);
     a.body.y = (moving && !this.#reduced ? Math.sin(time / 90) * 1.6 * ART_SCALE : 0) - a.hop * 0.5;
+    if (a.action !== null && !a.action.update(time, a.body, a.body.y, a.facing, this.#reduced)) {
+      a.action.end(a.body, true);
+      a.action = null;
+    }
     a.parcel.y = a.body.y;
     a.root.setDepth(isoDepth(a.pos.x, a.pos.y));
     const step = Math.hypot(a.pos.x - a.last.x, a.pos.y - a.last.y);

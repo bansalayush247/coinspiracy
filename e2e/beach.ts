@@ -2,6 +2,8 @@
 // opened the island visits town, walks to a stall, buys a hat with chosen notes and takes a parcel.
 // Run: npx tsx --conditions=source e2e/beach.ts
 import { randomBytes } from 'node:crypto';
+import { mkdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { createGameServer } from '../apps/server/src/app.js';
 import { MemoryProfileStore, type ProfileData } from '../apps/server/src/profile/store.js';
 import { findPath } from '../packages/shared/src/pathfinding.js';
@@ -15,6 +17,7 @@ const GAME_PORT = PHONE ? 3948 : 3946;
 const WEB_PORT = PHONE ? 3949 : 3947;
 const WEB = `http://127.0.0.1:${String(WEB_PORT)}`;
 const OUT = PHONE ? 'dist-beach-phone' : 'dist-beach';
+const EMOTE_SHOTS = fileURLToPath(new URL('../production/qa/evidence/emotes/', import.meta.url));
 const SHOT = (name: string): string => `${SHOTS}${PHONE ? 'phone-' : ''}${name}`;
 
 // Every guest arrives with four Academy stars, which opens Beach Town.
@@ -106,10 +109,15 @@ async function main(): Promise<void> {
     await page.waitForTimeout(800);
     await page.screenshot({ path: SHOT('beach-parcel.png') });
 
-    await page.keyboard.press('2');
-    await page.waitForTimeout(500);
+    await mkdir(EMOTE_SHOTS, { recursive: true });
+    for (const [key, name] of PHONE ? ([['2', 'cheer']] as const) : ([['1', 'wave'], ['2', 'cheer'], ['3', 'dance'], ['4', 'heart'], ['5', 'laugh'], ['6', 'shaka']] as const)) {
+      await page.keyboard.press(key);
+      await page.waitForTimeout(name === 'cheer' ? 350 : 600);
+      if (!PHONE) await page.screenshot({ path: `${EMOTE_SHOTS}${name}.png`, clip: { x: 440, y: 160, width: 400, height: 300 } });
+      await page.waitForTimeout(2_000);
+    }
     await page.screenshot({ path: SHOT('beach-cheer.png') });
-    check(true, 'a cheer emote plays');
+    check(true, 'each emote is acted out');
 
     // Walk down the shore to the guardian's own hut; its porch offers the wardrobe and the Chronicle.
     const homePrompt = async (): Promise<boolean> => (await page.locator('#beach-prompt').isVisible()) && ((await page.textContent('#beach-prompt-text')) ?? '').startsWith('Your hut');

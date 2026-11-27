@@ -10,11 +10,13 @@ import { onLocaleChange, t } from '../i18n/index.js';
 import { storyT } from '../i18n/story.js';
 import { portrait, rookSitter, showFrame, sitterColor, sitterFor, type Sitter } from './portraits.js';
 import { DELIVERY, speaksOn, syllable, type PortraitMove, type TextMove } from './delivery.js';
-import { READING, charDelayMs, graphemes, holdMs, isTextSpeed, nextSpeed, type TextSpeed } from './readingPace.js';
+import { READING, charDelayMs, graphemes, holdMs } from './readingPace.js';
+import { storyPrefs } from './storyPrefs.js';
 
 const MAX_ENTRIES = 80;
-const STORAGE_KEY = 'bc.story';
 const TALK_EVERY = 3;
+// Lines a visit shows the 'Space or tap to continue' hint under; after that the arrow alone says it.
+const HINT_LINES = 3;
 
 type Beat =
   | { readonly kind: 'line'; readonly who: Speaker; readonly text: string; readonly paren: string | undefined; readonly face: Face; readonly notes: readonly string[] }
@@ -27,7 +29,6 @@ interface Slot {
   art: SVGSVGElement | null;
 }
 
-const SPEED_KEYS = { slow: 'dialogue.speedSlow', normal: 'dialogue.speedNormal', fast: 'dialogue.speedFast', instant: 'dialogue.speedInstant' } as const;
 
 const TEXT_MOVES: Readonly<Record<Exclude<TextMove, 'none'>, { readonly frames: Keyframe[]; readonly ms: number }>> = {
   shake: { frames: [{ translate: '0 0' }, { translate: '-5px 0' }, { translate: '5px 0' }, { translate: '-3px 0' }, { translate: '3px 0' }, { translate: '0 0' }], ms: 340 },
@@ -52,22 +53,6 @@ function portraitFrames(move: Exclude<PortraitMove, 'none'>, facing: 1 | -1): { 
   }
 }
 
-interface StoryPrefs {
-  speed: TextSpeed;
-  auto: boolean;
-  voice: boolean;
-}
-
-function loadPrefs(): StoryPrefs {
-  try {
-    const raw: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
-    const v = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-    return { speed: isTextSpeed(v['speed']) ? v['speed'] : 'normal', auto: v['auto'] === true, voice: v['voice'] !== false };
-  } catch {
-    return { speed: 'normal', auto: false, voice: true };
-  }
-}
-
 export class Dialogue {
   readonly #root = el('story-talk', HTMLElement);
   readonly #slug = el('story-slug', HTMLElement);
@@ -80,15 +65,11 @@ export class Dialogue {
   readonly #choices = el('story-choices', HTMLElement);
   readonly #hint = el('story-hint', HTMLElement);
   readonly #autoButton = el('story-auto', HTMLButtonElement);
-  readonly #speedButton = el('story-speed', HTMLButtonElement);
   readonly #historyButton = el('story-history', HTMLButtonElement);
-  readonly #voiceButton = el('story-voice', HTMLButtonElement);
   readonly #them: Slot = { root: el('story-face-them', HTMLElement), who: null, face: 'calm', art: null };
   readonly #rook: Slot = { root: el('story-face-rook', HTMLElement), who: null, face: 'calm', art: null };
   readonly #reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  #speed: TextSpeed;
-  #auto: boolean;
-  #voice: boolean;
+  #hintsShown = 0;
   #rookSitter: Sitter = rookSitter(0, NO_WEAR);
   #seq = -1;
   #node = '';
@@ -119,28 +100,15 @@ export class Dialogue {
   onSpeaker: (who: Speaker | null) => void = () => undefined;
 
   constructor() {
-    const prefs = loadPrefs();
-    this.#speed = prefs.speed;
-    this.#auto = prefs.auto;
-    this.#voice = prefs.voice;
     this.#root.addEventListener('click', (e) => {
       if (e.target instanceof Element && (e.target.closest('button') !== null || e.target.closest('#story-log') !== null)) return;
       this.next();
     });
     this.#autoButton.addEventListener('click', () => {
-      this.#auto = !this.#auto;
-      this.#savePrefs();
-      this.#renderTools();
-      if (this.#auto) this.#tap?.();
+      storyPrefs.update({ auto: !storyPrefs.value.auto });
+      if (storyPrefs.value.auto) this.#tap?.();
     });
-    this.#speedButton.addEventListener('click', () => {
-      this.#speed = nextSpeed(this.#speed);
-      this.#savePrefs();
-      this.#renderTools();
-    });
-    this.#voiceButton.addEventListener('click', () => {
-      this.#voice = !this.#voice;
-      this.#savePrefs();
+    storyPrefs.onChange(() => {
       this.#renderTools();
     });
     this.#historyButton.addEventListener('click', () => {
@@ -353,7 +321,9 @@ export class Dialogue {
   // Waits for Space or a tap before the next beat, or for long enough to read it when auto is on.
   #awaitTap(beat: Beat): Promise<void> {
     this.#more.hidden = false;
-    this.#hint.textContent = this.#auto ? '' : t('dialogue.continue');
+    const hint = !storyPrefs.value.auto && this.#hintsShown < HINT_LINES;
+    if (hint) this.#hintsShown++;
+    this.#hint.textContent = hint ? t('dialogue.continue') : '';
     return new Promise((resolve) => {
       let timer = 0;
       const done = (): void => {
@@ -363,20 +333,21 @@ export class Dialogue {
         resolve();
       };
       this.#tap = done;
-      if (this.#auto) {
+      if (storyPrefs.value.auto) {
         timer = window.setTimeout(() => {
           if (this.#tap === done) {
             this.#tap = null;
             done();
           }
-        }, holdMs(beat.text, this.#speed));
+        }, holdMs(beat.text, storyPrefs.value.speed));
       }
     });
   }
 
   async #typeLine(beat: Beat, token: number): Promise<void> {
     this.#typing = true;
-    this.#skipTyping = this.#reduced || this.#speed === 'instant';
+    const speed = storyPrefs.value.speed;
+    this.#skipTyping = this.#reduced || speed === 'instant';
     const chars = graphemes(beat.text);
     const slot = beat.kind === 'line' ? (beat.who === 'rook' ? this.#rook : this.#them) : null;
     const tempo = beat.kind === 'line' ? DELIVERY[beat.face].tempo : 1;
@@ -391,7 +362,7 @@ export class Dialogue {
       this.#now.textContent = shown;
       if (slot?.art != null) showFrame(slot.art, /\p{L}/u.test(ch) && Math.floor(i / TALK_EVERY) % 2 === 0 ? 'talk' : 'rest');
       if (beat.kind === 'line' && speaksOn(ch, i)) this.#say(beat, ch, i / chars.length, question);
-      const wait = charDelayMs(ch, chars[i + 1], this.#speed) * tempo;
+      const wait = charDelayMs(ch, chars[i + 1], speed) * tempo;
       if (wait > 0) await this.#sleep(wait);
     }
     if (token !== this.#token) return;
@@ -401,7 +372,7 @@ export class Dialogue {
   }
 
   #say(beat: Extract<Beat, { kind: 'line' }>, ch: string, progress: number, question: boolean): void {
-    if (this.#voice) audio.talk(syllable(beat.who, beat.face, ch, progress, question));
+    if (storyPrefs.value.voice) audio.talk(syllable(beat.who, beat.face, ch, progress, question));
   }
 
   // Moves the line and the speaker's portrait the way their face says it: a shake in anger, a hop in surprise.
@@ -574,19 +545,8 @@ export class Dialogue {
 
   #renderTools(): void {
     this.#autoButton.textContent = t('dialogue.auto');
-    this.#autoButton.setAttribute('aria-pressed', String(this.#auto));
-    this.#speedButton.textContent = t('dialogue.speed', { speed: t(SPEED_KEYS[this.#speed]) });
-    this.#voiceButton.textContent = t(this.#voice ? 'dialogue.voiceOn' : 'dialogue.voiceOff');
-    this.#voiceButton.setAttribute('aria-pressed', String(this.#voice));
+    this.#autoButton.setAttribute('aria-pressed', String(storyPrefs.value.auto));
     this.#historyButton.textContent = t('dialogue.history');
     this.#historyButton.setAttribute('aria-expanded', String(!this.#log.hidden));
-  }
-
-  #savePrefs(): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ speed: this.#speed, auto: this.#auto, voice: this.#voice }));
-    } catch {
-      // Storage blocked: the setting lasts for this visit only.
-    }
   }
 }

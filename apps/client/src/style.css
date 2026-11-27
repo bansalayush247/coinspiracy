@@ -861,8 +861,14 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 @keyframes ach-in { from { transform: translateX(120%); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes ach-out { to { transform: translateX(120%); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .achievement, .achievement.leaving, .achievement-icon { animation: none; } }
-.beach-emotes { position: absolute; left: max(12px, env(safe-area-inset-left)); bottom: max(12px, env(safe-area-inset-bottom)); display: flex; gap: 4px; padding: 6px; }
-.beach-emotes button { width: 42px; height: 42px; padding: 0; font-size: 20px; border-radius: 12px; }
+.beach-emotes { position: absolute; left: max(12px, env(safe-area-inset-left)); bottom: max(12px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: auto; }
+.emote-toggle { width: 44px; height: 44px; padding: 0; border-radius: 50%; font-size: 22px; line-height: 1; background: rgba(34, 22, 48, 0.78); border: 1px solid var(--edge); }
+.emote-toggle[aria-expanded='true'] { background: rgba(255, 210, 122, 0.18); border-color: var(--gold); }
+.emote-tray { display: grid; grid-template-columns: repeat(3, 48px); gap: 6px; padding: 8px; border: 1px solid var(--edge); border-radius: 16px; background: rgba(34, 22, 48, 0.94); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35); }
+.emote-tray[hidden] { display: none; }
+.emote-pick { position: relative; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 12px; font-size: 24px; line-height: 1; background: rgba(255, 255, 255, 0.06); }
+.emote-pick:hover, .emote-pick:focus-visible { background: rgba(255, 255, 255, 0.16); }
+.emote-pick kbd { position: absolute; right: 4px; bottom: 3px; font: 700 9px/1 var(--font); color: var(--muted); }
 .share-result { justify-self: center; }
 
 /* First-time tips. */
@@ -904,7 +910,7 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
   .music-picker select { min-width: 98px; max-width: 126px; font-size: 11px; }
   #menu { padding-bottom: 64px; }
   .beach-emotes { bottom: max(52px, calc(env(safe-area-inset-bottom) + 52px)); }
-  .beach-emotes button { width: 36px; height: 36px; font-size: 17px; }
+  .emote-toggle { width: 40px; height: 40px; font-size: 20px; }
   .beach-prompt { bottom: max(104px, calc(env(safe-area-inset-bottom) + 104px)); }
 }
 .wardrobe-preview { justify-self: center; width: 140px; height: 175px; border-radius: 16px; background: radial-gradient(circle at 50% 35%, rgba(255, 214, 150, 0.35), rgba(255, 214, 150, 0) 70%), rgba(255, 241, 222, 0.05); border: 1px solid var(--edge); display: grid; place-items: center; }
@@ -1045,8 +1051,11 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 @media (prefers-reduced-motion: reduce) { .story-more { animation: none; } .story-face { transition: none; } }
 .story-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .story-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
-.story-tools button { padding: 5px 10px; border-radius: 8px; font: 700 12px/1.2 var(--font); background: rgba(255, 255, 255, 0.08); }
-.story-tools button[aria-pressed='true'], .story-tools button[aria-expanded='true'] { background: rgba(255, 210, 122, 0.22); border-color: var(--gold); color: var(--gold); }
+.story-tools button { padding: 4px 8px; border: 0; border-radius: 6px; font: 700 12px/1.2 var(--font); background: none; color: var(--muted); }
+.story-tools button:hover, .story-tools button:focus-visible { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.story-tools button[aria-pressed='true'], .story-tools button[aria-expanded='true'] { color: var(--gold); }
+/* While a scene plays, the bar keeps only where you are and the way out; the map and crew details wait. */
+.story-hud:has(#story-talk:not([hidden])) :is(.story-map, .story-crew, .story-crew-list, .story-clues) { display: none; }
 .story-log { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); max-height: 44vh; overflow-y: auto; display: grid; gap: 6px; align-content: start; padding: 12px 14px; border-radius: 14px; background: rgba(18, 14, 30, 0.97); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); overscroll-behavior: contain; cursor: auto; }
 .story-log[hidden] { display: none; }
 .story-log p { margin: 0; line-height: 1.45; }

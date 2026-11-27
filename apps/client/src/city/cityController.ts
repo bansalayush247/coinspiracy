@@ -1,11 +1,12 @@
 // Runs a visit to Port Concord: the city room, the HUD, the minimap and district arrivals.
 import { Callbacks } from '@colyseus/sdk';
 import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, ENTER_RANGE, PunchLineSchema, VAULT_DOOR, atVault, districtAt, isRough, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId } from '@byzantine-council/shared/city';
-import { EMOTES, EMOTE_GLYPHS, EmoteLineSchema, JumpLineSchema, type Emote } from '@byzantine-council/shared/hub';
+import { EMOTES, EmoteLineSchema, JumpLineSchema, type Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import { type PlayerInput, isEditable } from '../game/input.js';
 import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
+import { mountEmoteBar } from '../ui/emoteBar.js';
 import { el, h } from '../ui/dom.js';
 import { formatNumber, t, type PlainKey } from '../i18n/index.js';
 import type { CityScene } from './CityScene.js';
@@ -52,17 +53,9 @@ export class CityController {
     el('city-leave', HTMLButtonElement).addEventListener('click', () => {
       void this.leave();
     });
-    el('city-emotes', HTMLDivElement).replaceChildren(
-      ...EMOTES.map((emote, i) => {
-        const b = h('button', '', EMOTE_GLYPHS[emote]);
-        b.type = 'button';
-        b.setAttribute('aria-label', `${emote} (key ${String(i + 1)})`);
-        b.addEventListener('click', () => {
-          this.#emote(emote);
-        });
-        return b;
-      }),
-    );
+    mountEmoteBar(el('city-emotes', HTMLDivElement), (emote) => {
+      this.#emote(emote);
+    });
     this.#punch.addEventListener('click', () => {
       this.#swing();
     });
@@ -155,7 +148,7 @@ export class CityController {
     });
     room.onMessage(CITY_MESSAGES.EMOTE, (payload: unknown) => {
       const line = EmoteLineSchema.safeParse(payload);
-      if (line.success) this.scene.emote(line.data.from, EMOTE_GLYPHS[line.data.emote], line.data.emote);
+      if (line.success) this.scene.emote(line.data.from, line.data.emote);
     });
     room.onLeave(() => {
       this.#exit();

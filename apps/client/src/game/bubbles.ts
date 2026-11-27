@@ -1,22 +1,17 @@
-// Bubbles over a guardian's head: an emote that stays up long enough to be seen and follows its guardian, and the
-// three dots of someone talking while their line is on the story panel.
+// The three dots over a guardian's head while their line is on the story panel.
 import Phaser from 'phaser';
 
-/** Bubble tuning: how long an emote stays up, and how the talking dots step. */
+/** Talking-dot tuning: how fast the dots step, and their gap above a name. */
 export const BUBBLES = Object.freeze({
-  emoteHoldMs: 4_000,
-  emoteFadeMs: 500,
-  emoteRisePx: 20,
-  popMs: 260,
   dotsEveryMs: 220,
   gapPx: 4,
 });
 
+const INK = 0x2a1a33;
+const PAPER = 0xfff6e6;
 const W = 40;
 const H = 22;
 const TAIL = 7;
-const INK = 0x2a1a33;
-const PAPER = 0xfff6e6;
 
 /** The three dots of a talking guardian, drawn at screen size above the name over their head. */
 export class TalkBubble {

@@ -24,6 +24,8 @@ import { BeachController } from './beach/beachController.js';
 import { CITY_SCENE_KEY, CityScene } from './city/CityScene.js';
 import { CityController } from './city/cityController.js';
 import { MissionController } from './city/missionController.js';
+import { nextSpeed } from './city/readingPace.js';
+import { storyPrefs } from './city/storyPrefs.js';
 import type { ActId } from '@byzantine-council/shared/city';
 import { ISLAND_SCENE_KEY, IslandScene, type PreviewIslandId } from './explore/IslandScene.js';
 import { Wardrobe } from './profile/wardrobe.js';
@@ -928,6 +930,29 @@ function setupSound(): void {
 }
 
 // Graphics quality applies on reload, since the painted world is drawn once at start.
+const SPEED_LABELS = { slow: 'dialogue.speedSlow', normal: 'dialogue.speedNormal', fast: 'dialogue.speedFast', instant: 'dialogue.speedInstant' } as const;
+
+// How story scenes read, set once here rather than in every scene: text speed and the characters' talking beeps.
+function setupStoryPrefs(): void {
+  const speed = el('text-speed', HTMLButtonElement);
+  const beeps = el('beeps', HTMLButtonElement);
+  const render = (): void => {
+    const p = storyPrefs.value;
+    speed.textContent = t('dialogue.speed', { speed: t(SPEED_LABELS[p.speed]) });
+    beeps.textContent = t(p.voice ? 'dialogue.voiceOn' : 'dialogue.voiceOff');
+    beeps.setAttribute('aria-pressed', String(p.voice));
+  };
+  speed.addEventListener('click', () => {
+    storyPrefs.update({ speed: nextSpeed(storyPrefs.value.speed) });
+  });
+  beeps.addEventListener('click', () => {
+    storyPrefs.update({ voice: !storyPrefs.value.voice });
+  });
+  storyPrefs.onChange(render);
+  onLocaleChange(render);
+  render();
+}
+
 function setupQuality(): void {
   const button = el('quality', HTMLButtonElement);
   const render = (): void => {
@@ -947,6 +972,7 @@ function boot(): void {
   preloadStory();
   bindLanguagePicker(el('language', HTMLSelectElement));
   setupSound();
+  setupStoryPrefs();
   setupQuality();
   let session: Session;
   let profiles: ProfileApi;

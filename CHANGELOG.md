@@ -1,5 +1,33 @@
 # Changelog
 
+## 28 November 2026
+
+### A more painterly Port Concord: water, streets and trees
+- The sea now shades smoothly from turquoise at the quays to deep blue in open water, with ripples, glints and
+  foam where it laps the shore. Sloping shores are cut along diagonals instead of tile steps, and boardwalks end in
+  a dark edge beam that throws shade on the water.
+- Roads have worn tyre lanes, white edge lines, drains, manholes and the odd crack; pavements have slab joints and
+  raised kerbs; lawns are mown in stripes.
+- Buildings cast soft shadows east across the ground, with a dark seam where their walls meet it.
+- Street trees come in three kinds, a round broadleaf, a tall poplar and a pine, shaded from the west with leaf
+  flecks and a shadow on the ground.
+
+### Ships and cars of every kind
+- Ships have real hulls now: a curved bow, a squared stern, a banded waterline, a lit deck with railings, a shadow
+  and reflection on the water, a foaming wake and a bow wave. Ferries have one or two passenger decks, lifeboats and
+  a striped funnel; cargo ships carry stacked, ribbed containers under yellow cranes; sailboats fly one or two
+  curved sails; fishing boats are trawlers with outriggers and nets or crabbers stacked with pots. Every ship has
+  its own colours and layout.
+- Cars come in seven body styles (sedan, hatchback, SUV, van, pickup, taxi and bus) and sixteen paints, with tinted
+  glass, rims, lamps and a shadow; traffic keeps its gaps by each car's own length.
+
+### Emotes you act out
+- The six emote buttons fold into one smiley button that opens a picker, each emote named on hover and still on
+  keys 1 to 6.
+- Emotes are now things your guardian does instead of an icon over their head: a hand that waves, a jump for joy
+  with both hands up and confetti, a little dance with music notes, hearts floating up, a laugh that shakes them,
+  and a shaka. Everyone nearby sees it, in the city and on the beach.
+
 ## 27 November 2026
 
 ### Story scenes you can read, with faces
@@ -21,6 +49,11 @@
   A Beeps button in the story panel turns them off.
 - In the city, three talking dots float over whoever is speaking, and emotes stay up for four seconds, following the
   guardian who sent them.
+
+### A cleaner story screen
+- The story panel keeps just Auto and History, as quiet text buttons; text speed and talk beeps moved to Settings.
+- "Space or tap to continue" shows on your first few lines only; the arrow says it after that.
+- While a scene plays, the map, crew code and clue list step aside so the scene has the screen.
 
 ## 26 November 2026
 

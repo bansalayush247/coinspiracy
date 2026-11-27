@@ -2,7 +2,7 @@
 import { Callbacks } from '@colyseus/sdk';
 import { toDenominations } from '@byzantine-council/shared';
 import { SHOPS, getShop, itemsInShop, ownsItem, payWithNotes, type CatalogItem, type ShopId } from '@byzantine-council/shared/economy';
-import { BEACH_MESSAGES, CourierDoneSchema, CourierJobSchema, CourierRefusedSchema, EMOTES, EMOTE_GLYPHS, EmoteLineSchema, JumpLineSchema, atHome, shopAt, type CourierJob, type Emote, type HubPlayer } from '@byzantine-council/shared/hub';
+import { BEACH_MESSAGES, CourierDoneSchema, CourierJobSchema, CourierRefusedSchema, EMOTES, EmoteLineSchema, JumpLineSchema, atHome, shopAt, type CourierJob, type Emote, type HubPlayer } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import { Achievements } from '../profile/achievements.js';
 import { Coach } from '../ui/coach.js';
@@ -10,6 +10,7 @@ import { sealName } from '../profile/names.js';
 import { type PlayerInput, isEditable } from '../game/input.js';
 import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
+import { mountEmoteBar } from '../ui/emoteBar.js';
 import { el, h } from '../ui/dom.js';
 import { t, type PlainKey } from '../i18n/index.js';
 import type { BeachScene } from './BeachScene.js';
@@ -101,17 +102,9 @@ export class BeachController {
       void this.#confirmPay();
     });
     // Emote buttons, also on keys 1 to 6.
-    el('beach-emotes', HTMLDivElement).replaceChildren(
-      ...EMOTES.map((emote, i) => {
-        const b = h('button', '', EMOTE_GLYPHS[emote]);
-        b.type = 'button';
-        b.setAttribute('aria-label', `${emote} (key ${String(i + 1)})`);
-        b.addEventListener('click', () => {
-          this.#emote(emote);
-        });
-        return b;
-      }),
-    );
+    mountEmoteBar(el('beach-emotes', HTMLDivElement), (emote) => {
+      this.#emote(emote);
+    });
     window.addEventListener('keydown', (e) => {
       if (this.#room === null || this.#hud.hidden || !el('wardrobe', HTMLElement).hidden || !el('story', HTMLElement).hidden) return;
       if (e.code === 'Space' && !e.repeat && !isEditable(e.target) && this.#shopRoot.hidden) {
@@ -212,7 +205,7 @@ export class BeachController {
     });
     room.onMessage(BEACH_MESSAGES.EMOTE, (payload: unknown) => {
       const line = EmoteLineSchema.safeParse(payload);
-      if (line.success) this.scene.emote(line.data.from, EMOTE_GLYPHS[line.data.emote], line.data.emote);
+      if (line.success) this.scene.emote(line.data.from, line.data.emote);
     });
     room.onLeave(() => {
       this.#exit();

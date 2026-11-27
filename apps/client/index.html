@@ -40,6 +40,8 @@
               </select>
             </label>
             <button id="vocals" type="button" class="corner-toggle" aria-pressed="true" aria-label="Vocals: On. Change vocals">Vocals: On</button>
+            <button id="text-speed" type="button" class="corner-toggle">Text speed: Normal</button>
+            <button id="beeps" type="button" class="corner-toggle" aria-pressed="true">Talk beeps: On</button>
             <label class="music-picker">
               <span data-i18n="settings.language">Language</span>
               <select id="language">
@@ -159,7 +161,7 @@
             <canvas id="city-minimap"></canvas>
             <canvas id="city-dots"></canvas>
           </div>
-          <div id="city-emotes" class="panel beach-emotes city-emotes" role="group" aria-label="Emotes" data-i18n-aria-label="common.emotes"></div>
+          <div id="city-emotes" class="beach-emotes city-emotes" role="group" aria-label="Emotes" data-i18n-aria-label="common.emotes"></div>
         </section>
         <section id="story-hud" class="city-hud story-hud" aria-label="The Cold Key" hidden>
           <div class="panel story-bar">
@@ -199,8 +201,6 @@
               <p id="story-hint" class="story-hint"></p>
               <div class="story-tools">
                 <button id="story-auto" type="button" aria-pressed="false">Auto</button>
-                <button id="story-speed" type="button">Text: normal</button>
-                <button id="story-voice" type="button" aria-pressed="true">Beeps: On</button>
                 <button id="story-history" type="button" aria-expanded="false" aria-controls="story-log">History</button>
               </div>
             </div>
@@ -226,7 +226,7 @@
             <button id="beach-wardrobe" type="button" data-i18n="tile.wardrobe">Wardrobe</button>
             <button id="beach-leave" type="button" data-i18n="common.backToMap">Back to the map</button>
           </div>
-          <div id="beach-emotes" class="panel beach-emotes" role="group" aria-label="Emotes" data-i18n-aria-label="common.emotes"></div>
+          <div id="beach-emotes" class="beach-emotes" role="group" aria-label="Emotes" data-i18n-aria-label="common.emotes"></div>
           <div id="beach-prompt" class="panel beach-prompt" hidden>
             <span id="beach-prompt-text"></span>
             <div class="beach-prompt-actions">

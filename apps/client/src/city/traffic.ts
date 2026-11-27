@@ -2,11 +2,10 @@
 // ships that sail the harbour and the open sea. Drawn on each screen alone; nothing here touches the game state.
 import Phaser from 'phaser';
 import type { Vec2 } from '@byzantine-council/shared';
-import { CAR_LANES, SHIP_ROUTES, greenFor, lanePoint, type Lane, type ShipKind, type ShipRoute } from '@byzantine-council/shared/city';
-import { prism, fan, P } from '../beach/beachArt.js';
+import { CAR_LANES, SHIP_ROUTES, greenFor, lanePoint, type Lane, type ShipRoute } from '@byzantine-council/shared/city';
 import { ART_SCALE, worldToScreen } from '../game/iso.js';
-import { shade } from '../game/palette.js';
-import { drawModernCar } from './carArt.js';
+import { CAR_PAINTS, carHalfLength, drawModernCar, type CarStyle } from './carArt.js';
+import { drawShip, type ShipHeading } from './shipArt.js';
 
 const CAR_SPEED = 2.8;
 const CAR_ACCEL = 5;
@@ -17,13 +16,17 @@ const SPAWN_CLEAR = 4;
 // Cars fade in and out over this many tiles at the ends of their lane, where roads meet the sea.
 const FADE = 1.5;
 export const CAR_COLORS = [0xd9534f, 0x4f8fd9, 0xf0c05a, 0x5fb87a, 0xe9e2d6, 0x8a5fd9, 0x3b3f4a, 0xf08a4b];
+// Ambient traffic cycles through these bodies, so a street shows a mix and now and then a bus.
+const TRAFFIC_STYLES: readonly CarStyle[] = ['sedan', 'hatch', 'suv', 'sedan', 'van', 'taxi', 'pickup', 'hatch', 'bus', 'suv', 'sedan', 'van'];
 
 interface Car {
   readonly g: Phaser.GameObjects.Graphics;
   lane: Lane;
   s: number;
   v: number;
-  color: number;
+  readonly color: number;
+  readonly style: CarStyle;
+  readonly len: number;
 }
 
 interface Ship {
@@ -31,7 +34,8 @@ interface Ship {
   readonly route: ShipRoute;
   leg: number;
   pos: Vec2;
-  heading: string;
+  heading: ShipHeading | null;
+  readonly seed: number;
   phase: number;
 }
 
@@ -62,14 +66,16 @@ export class Traffic {
       if (lane === undefined) continue;
       const span = lane.to - lane.from;
       const s = lane.from + span * this.#rand();
-      if ((this.#byLane.get(lane) ?? []).some((c) => Math.abs(c.s - s) < CAR_LENGTH + GAP + 1)) continue;
-      this.#addCar(lane, s, CAR_COLORS[i % CAR_COLORS.length] ?? 0xd9534f);
+      const style = TRAFFIC_STYLES[i % TRAFFIC_STYLES.length] ?? 'sedan';
+      const len = carHalfLength(style) * 2;
+      if ((this.#byLane.get(lane) ?? []).some((c) => Math.abs(c.s - s) < (c.len + len) / 2 + GAP + 1)) continue;
+      this.#addCar(lane, s, CAR_PAINTS[(i * 5) % CAR_PAINTS.length] ?? 0xd9534f, style, len);
     }
     SHIP_ROUTES.forEach((route, i) => {
       const g = new Phaser.GameObjects.Graphics(scene);
       layer.add(g);
       const start = route.points[0] ?? { x: 0, y: 0 };
-      this.#ships.push({ g, route, leg: 0, pos: { ...start }, heading: '', phase: i * 1.3 });
+      this.#ships.push({ g, route, leg: 0, pos: { ...start }, heading: null, seed: i, phase: i * 1.3 });
     });
   }
 
@@ -120,11 +126,11 @@ export class Traffic {
     this.#byLane.clear();
   }
 
-  #addCar(lane: Lane, s: number, color: number): void {
+  #addCar(lane: Lane, s: number, color: number, style: CarStyle, len: number): void {
     const g = new Phaser.GameObjects.Graphics(this.scene);
     this.layer.add(g);
-    drawModernCar(g, laneHeading(lane), color);
-    const car: Car = { g, lane, s, v: CAR_SPEED, color };
+    drawModernCar(g, laneHeading(lane), color, false, style);
+    const car: Car = { g, lane, s, v: CAR_SPEED, color, style, len };
     this.#cars.push(car);
     const list = this.#byLane.get(lane) ?? [];
     list.push(car);
@@ -138,19 +144,19 @@ export class Traffic {
     for (const other of this.#byLane.get(lane) ?? []) {
       if (other === car) continue;
       const d = (other.s - car.s) * lane.dir;
-      if (d > 0) room = Math.min(room, d - CAR_LENGTH - GAP);
+      if (d > 0) room = Math.min(room, d - (car.len + other.len) / 2 - GAP);
     }
     for (const p of people) {
       const across = lane.axis === 'col' ? Math.abs(p.x - lane.at) : Math.abs(p.y - lane.at);
       if (across > 0.75) continue;
       const d = ((lane.axis === 'col' ? p.y : p.x) - car.s) * lane.dir;
-      if (d > 0) room = Math.min(room, d - CAR_LENGTH / 2 - PEOPLE_GAP);
+      if (d > 0) room = Math.min(room, d - car.len / 2 - PEOPLE_GAP);
     }
     if (!greenFor(lane.axis, now)) {
       for (const [a, b] of lane.crossings) {
         const entry = lane.dir === 1 ? a : b;
         const d = (entry - car.s) * lane.dir;
-        if (d > CAR_LENGTH / 2 - 0.05) room = Math.min(room, d - CAR_LENGTH / 2 - 0.1);
+        if (d > car.len / 2 - 0.05) room = Math.min(room, d - car.len / 2 - 0.1);
       }
     }
     const want = room <= 0 ? 0 : Math.min(CAR_SPEED, Math.sqrt(2 * CAR_ACCEL * room));
@@ -165,7 +171,7 @@ export class Traffic {
     for (let tries = 0; tries < 8; tries++) {
       const lane = CAR_LANES[Math.floor(this.#rand() * CAR_LANES.length)];
       if (lane === undefined) continue;
-      if ((this.#byLane.get(lane) ?? []).some((c) => Math.abs(c.s - lane.from) < SPAWN_CLEAR)) continue;
+      if ((this.#byLane.get(lane) ?? []).some((c) => Math.abs(c.s - lane.from) < SPAWN_CLEAR + (c.len + car.len) / 2 - CAR_LENGTH)) continue;
       car.lane = lane;
       car.s = lane.from;
       car.v = CAR_SPEED;
@@ -174,7 +180,7 @@ export class Traffic {
     const list = this.#byLane.get(car.lane) ?? [];
     list.push(car);
     this.#byLane.set(car.lane, list);
-    drawModernCar(car.g, laneHeading(car.lane), car.color);
+    drawModernCar(car.g, laneHeading(car.lane), car.color, false, car.style);
   }
 
   #sail(ship: Ship, dt: number): void {
@@ -185,10 +191,10 @@ export class Traffic {
       const dx = target.x - ship.pos.x;
       const dy = target.y - ship.pos.y;
       const dist = Math.hypot(dx, dy);
-      const heading = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'e' : 'w') : dy >= 0 ? 's' : 'n';
+      const heading: ShipHeading = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'e' : 'w') : dy >= 0 ? 's' : 'n';
       if (heading !== ship.heading) {
         ship.heading = heading;
-        drawShip(ship.g, ship.route.kind, heading === 'e' || heading === 'w');
+        drawShip(ship.g, ship.route.kind, heading, ship.seed);
       }
       if (dist <= budget) {
         ship.pos = { ...target };
@@ -205,38 +211,3 @@ export class Traffic {
 
 // A car along its lane: east or west on a row, south or north on a column.
 const laneHeading = (lane: Lane): number => (lane.axis === 'row' ? (lane.dir === 1 ? 0 : Math.PI) : lane.dir === 1 ? Math.PI / 2 : -Math.PI / 2);
-
-// Ships by kind, long along the way they sail.
-function drawShip(g: Phaser.GameObjects.Graphics, kind: ShipKind, eastWest: boolean): void {
-  const [length, beam] = ({ ferry: [2.6, 0.9], sailboat: [1.4, 0.5], fishing: [1.6, 0.6], cargo: [4.2, 1.2] } as const)[kind];
-  const [l, w] = [length / 2, beam / 2];
-  const box = (a: number, b: number, c: number, d: number): [number, number, number, number] => (eastWest ? [a, b, c, d] : [b, a, d, c]);
-  g.clear();
-  g.fillStyle(0xffffff, 0.25);
-  const wake = P(0, 0, 0);
-  g.fillEllipse(wake.x, wake.y + 2 * ART_SCALE, (length + 0.6) * 40 * ART_SCALE, (beam + 0.4) * 26 * ART_SCALE);
-  const hull = { ferry: 0xe9e2d6, sailboat: 0xf6efe2, fishing: 0x3f7fa8, cargo: 0x9e3b32 }[kind];
-  prism(g, ...box(-l, -w, l, w), 0, kind === 'cargo' ? 14 : 8, hull, shade(hull, 0.15));
-  if (kind === 'ferry') {
-    prism(g, ...box(-l + 0.3, -w + 0.12, l - 0.5, w - 0.12), 8, 14, 0xf6efe2);
-    prism(g, ...box(-l + 0.4, -w + 0.2, l - 0.7, w - 0.2), 22, 8, 0x4f8fd9);
-    prism(g, ...box(-0.15, -0.12, 0.15, 0.12), 30, 14, 0xe8a03a);
-  } else if (kind === 'cargo') {
-    const colors = [0xd9534f, 0x4f8fd9, 0xf0c05a, 0x5fb87a, 0x8a5fd9];
-    for (let i = 0; i < 5; i++) prism(g, ...box(-l + 0.5 + i * 0.6, -w + 0.15, -l + 1.0 + i * 0.6, w - 0.15), 14, 10, colors[i] ?? 0xd9534f);
-    prism(g, ...box(l - 0.8, -w + 0.15, l - 0.2, w - 0.15), 14, 22, 0xf6efe2);
-  } else if (kind === 'fishing') {
-    prism(g, ...box(-l + 0.2, -w + 0.1, 0, w - 0.1), 8, 12, 0xf6efe2);
-    const top = P(0.3, 0, 40);
-    const base = P(0.3, 0, 8);
-    g.lineStyle(2 * ART_SCALE, 0x4a3a2a, 1);
-    g.lineBetween(base.x, base.y, top.x, top.y);
-  } else {
-    const base = P(0, 0, 8);
-    const top = P(0, 0, 70);
-    g.lineStyle(2 * ART_SCALE, 0x6b5a48, 1);
-    g.lineBetween(base.x, base.y, top.x, top.y);
-    const tip = eastWest ? P(l - 0.1, 0, 12) : P(0, l - 0.1, 12);
-    fan(g, 0xfff8ee, [top, base, tip]);
-  }
-}
