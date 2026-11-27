@@ -690,6 +690,8 @@ export const sw: Messages = {
   'dialogue.speedNormal': 'kawaida',
   'dialogue.speedFast': 'haraka',
   'dialogue.speedInstant': 'papo hapo',
+  'dialogue.voiceOn': 'Milio: Imewashwa',
+  'dialogue.voiceOff': 'Milio: Imezimwa',
   'dialogue.history': 'Historia',
   'dialogue.historyLabel': 'Yaliyosemwa',
 

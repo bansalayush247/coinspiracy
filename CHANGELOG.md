@@ -13,6 +13,15 @@
 - A timed choice's clock now starts once the whole crew has read up to it, not when the scene begins, and a crew
   waits for its slowest reader (up to a limit, so nobody can stall it). Lines the crew moved past go into History.
 
+### Lines said the way they are meant
+- Each face has its own delivery: an angry line shakes and is said faster, a surprised one pops and its speaker
+  jumps, a sad one is said slowly as its speaker sinks, a whisper is quiet and on the breath.
+- Every character has a talking voice, a short beep per few letters at their own pitch, lower when angry, higher when
+  surprised, rising at the end of a question; the phone call sounds like a phone and the voicemail like an old tape.
+  A Beeps button in the story panel turns them off.
+- In the city, three talking dots float over whoever is speaking, and emotes stay up for four seconds, following the
+  guardian who sent them.
+
 ## 26 November 2026
 
 ### Spoken noir vocals

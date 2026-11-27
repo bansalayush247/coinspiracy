@@ -690,6 +690,8 @@ export const es: Messages = {
   'dialogue.speedNormal': 'normal',
   'dialogue.speedFast': 'rápido',
   'dialogue.speedInstant': 'al instante',
+  'dialogue.voiceOn': 'Pitidos: Sí',
+  'dialogue.voiceOff': 'Pitidos: No',
   'dialogue.history': 'Historial',
   'dialogue.historyLabel': 'Lo que se ha dicho',
 

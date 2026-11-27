@@ -141,6 +141,10 @@ async function main(): Promise<void> {
     check((await page.locator('#story-face-them.speaking svg').count()) === 1, 'Mr Pell’s portrait lights up while he speaks');
     check((await page.locator('#story-face-rook:not(.speaking) svg').count()) === 1, 'Rook waits, dimmed, across from him');
     await page.screenshot({ path: `${evidence}dialogue/pell-speaks.png` });
+    await page.click('#story-voice');
+    const beepsOff = (await page.getAttribute('#story-voice', 'aria-pressed')) === 'false' && (await page.evaluate(() => localStorage.getItem('bc.story') ?? '')).includes('"voice":false');
+    await page.click('#story-voice');
+    check(beepsOff && (await page.getAttribute('#story-voice', 'aria-pressed')) === 'true', 'the talking beeps turn off and back on, and are remembered');
     await reachChoices(page);
     check((await page.textContent('#story-log'))?.includes('Forty thousand by Friday') === true, 'Mr Pell rings with the deadline');
     check(await until(() => room.state.answering, 'the choice clock'), 'the choice clock starts once Rook has read up to it');
@@ -173,6 +177,7 @@ async function main(): Promise<void> {
     await until(() => room.state.node === 'daniCalm', 'calm');
     await page.waitForTimeout(2500);
     await page.screenshot({ path: `${SHOTS}story-dani.png` });
+    await page.screenshot({ path: `${evidence}dialogue/dani-talking.png` });
     check(((await page.textContent('#story-clues')) ?? '').includes('winter 2013'), 'the winter clue is written down');
     await read(page, room, 'daniCalm');
     await read(page, room, 'hook');

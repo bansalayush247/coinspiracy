@@ -98,6 +98,10 @@ export class MissionController {
     this.#dialogue.onAdvance = (node) => {
       this.#room?.send('advance', { node });
     };
+    this.#dialogue.onSpeaker = (who) => {
+      this.scene.mission?.speaking(who === 'rook' ? null : who);
+      this.scene.talking(who === 'rook' ? this.scene.myId : null);
+    };
     window.addEventListener('keydown', (e) => {
       if (this.#room === null || this.#hud.hidden || e.target instanceof HTMLInputElement) return;
       if (this.#dialogue.open) {

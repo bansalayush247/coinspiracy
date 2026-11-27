@@ -690,6 +690,8 @@ export const hi: Messages = {
   'dialogue.speedNormal': 'सामान्य',
   'dialogue.speedFast': 'तेज़',
   'dialogue.speedInstant': 'तुरंत',
+  'dialogue.voiceOn': 'बीप: चालू',
+  'dialogue.voiceOff': 'बीप: बंद',
   'dialogue.history': 'इतिहास',
   'dialogue.historyLabel': 'जो कहा गया',
 

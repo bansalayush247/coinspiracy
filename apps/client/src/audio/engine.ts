@@ -92,7 +92,22 @@ export const AUDIO_CONFIG = Object.freeze({
   vinylBandpassHz: 1800,
   vinylQ: 0.9,
   vinylGain: 0.0055,
+  talkGain: 0.075,
+  talkLengthS: 0.065,
+  talkMinGapS: 0.045,
+  talkLowpassRatio: 7,
+  phoneBandHz: 1400,
+  tapeWobbleRatio: 0.04,
 });
+
+/** One syllable of a story character's talking voice. */
+export interface TalkSyllable {
+  readonly hz: number;
+  readonly wave: OscillatorType;
+  readonly level: number;
+  readonly breathy: boolean;
+  readonly through: 'phone' | 'tape' | undefined;
+}
 
 const VOCAL_LOADERS: Readonly<Record<TrackMood, () => Promise<{ readonly default: string }>>> = {
   menu: () => import('./vocals/menu.mp3'),
@@ -205,6 +220,7 @@ export class AudioEngine {
   #vocalEpoch = 0;
   #vocalCueTimer = 0;
   #vocalPlaying: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  #lastTalk = 0;
 
   /** Current saved audio preferences. */
   get settings(): Readonly<AudioSettings> {
@@ -742,6 +758,37 @@ export class AudioEngine {
     o.connect(env).connect(this.#sfxBus);
     o.start(t);
     o.stop(t + length + 0.05);
+  }
+
+  /** Says one syllable of a character's talking voice, at most one per short gap so fast text does not buzz. */
+  talk(s: TalkSyllable): void {
+    const ctx = this.#ctx;
+    const out = this.#sfxBus;
+    if (ctx === null || out === null || this.#settings.muted) return;
+    const c = AUDIO_CONFIG;
+    const t = ctx.currentTime + 0.005;
+    if (t - this.#lastTalk < c.talkMinGapS) return;
+    this.#lastTalk = t;
+    const level = c.talkGain * s.level;
+    if (s.breathy) {
+      this.#noiseHit(t, level * 0.9, out, 'bandpass', s.hz * 9, c.talkLengthS, 3);
+      return;
+    }
+    const o = ctx.createOscillator();
+    o.type = s.wave;
+    o.frequency.setValueAtTime(s.hz, t);
+    o.frequency.exponentialRampToValueAtTime(s.hz * (s.through === 'tape' ? 1 - c.tapeWobbleRatio : 0.94), t + c.talkLengthS);
+    const f = ctx.createBiquadFilter();
+    f.type = s.through === 'phone' ? 'bandpass' : 'lowpass';
+    f.frequency.value = s.through === 'phone' ? c.phoneBandHz : s.hz * c.talkLowpassRatio;
+    f.Q.value = s.through === 'phone' ? 2.2 : 0.7;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(level, t + 0.006);
+    env.gain.exponentialRampToValueAtTime(0.001, t + c.talkLengthS);
+    o.connect(f).connect(env).connect(out);
+    o.start(t);
+    o.stop(t + c.talkLengthS + 0.03);
   }
 
   /** Synthesizes and plays a named sound effect. */

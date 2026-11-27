@@ -5,6 +5,7 @@ import Phaser from 'phaser';
 import type { Vec2 } from '@byzantine-council/shared';
 import { CAMERA_HALF_ANGLE, CAMERA_RANGE, CITY_MAP, GLANCE_HALF_ANGLE, GLANCE_RANGE, HEAPS, TORCH_HALF_ANGLE, TORCH_KINDS, TORCH_RANGE, inSight, type NpcKind, type StoryAct } from '@byzantine-council/shared/city';
 import { clearReaches } from '@byzantine-council/shared/pathfinding';
+import { TalkBubble } from '../game/bubbles.js';
 import { drawCostume } from '../game/costumes.js';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow } from '../game/guardianArt.js';
 import { ANIMAL_NAMES, LOOKS, shopperLook, type Look } from './looks.js';
@@ -32,6 +33,7 @@ interface Figure {
   readonly root: Phaser.GameObjects.Container;
   readonly body: Phaser.GameObjects.Graphics;
   readonly label: Phaser.GameObjects.Text;
+  readonly talk: TalkBubble;
   readonly buffer: InterpBuffer;
   readonly pos: { x: number; y: number };
   facing: number;
@@ -87,6 +89,7 @@ export class MissionView {
   #digging: ReadonlySet<number> = new Set();
   #act: StoryAct | null = null;
   #ringShape: { readonly at: Vec2; readonly range: number; readonly points: Phaser.Math.Vector2[] } | null = null;
+  #speaker: string | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -148,7 +151,9 @@ export class MissionView {
         fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffe3a8', stroke: '#2a1a33', strokeThickness: 4, resolution: Math.ceil(sceneDpr(this.scene)),
       }).setOrigin(0.5, 1);
       this.names.add(label);
-      f = { kind, root, body, label, buffer: new InterpBuffer(), pos: { x: npc.x, y: npc.y }, facing: npc.facing, side: 1, back: false, chasing: false, shown: npc.shown, ...(kind === 'shopper' ? { look: shopperLook(Number(id.replace(/\D/g, ''))) } : {}) };
+      const talk = new TalkBubble(this.scene, this.names, this.reduced);
+      talk.show(kind === this.#speaker);
+      f = { kind, root, body, label, talk, buffer: new InterpBuffer(), pos: { x: npc.x, y: npc.y }, facing: npc.facing, side: 1, back: false, chasing: false, shown: npc.shown, ...(kind === 'shopper' ? { look: shopperLook(Number(id.replace(/\D/g, ''))) } : {}) };
       this.#draw(f);
       this.#figures.set(id, f);
     }
@@ -208,6 +213,7 @@ export class MissionView {
       f.body.y = -trot;
       if (f.kind === 'letter') f.body.setAlpha(f.chasing && !this.reduced ? 0.55 + 0.45 * Math.abs(Math.sin(time / 160)) : 1);
       f.label.setScale(1 / zoom).setPosition(s.x, s.y - (f.kind === 'duncan' ? 24 : f.kind === 'gull' ? 86 : GUARDIAN_HEIGHT / ART_SCALE + 8) * ART_SCALE);
+      f.talk.place(s.x, f.label.y - f.label.height / zoom, zoom, time, seen);
     }
     for (const sign of this.#signs) sign.setScale(1 / zoom);
     this.#drawTorch();
@@ -218,10 +224,17 @@ export class MissionView {
     });
   }
 
+  /** Shows the talking dots over the story character whose line is on the panel, or over nobody. */
+  speaking(who: string | null): void {
+    this.#speaker = who;
+    for (const f of this.#figures.values()) f.talk.show(f.kind === who);
+  }
+
   destroy(): void {
     for (const f of this.#figures.values()) {
       f.root.destroy();
       f.label.destroy();
+      f.talk.destroy();
     }
     this.#figures.clear();
     for (const s of this.#signs) s.destroy();

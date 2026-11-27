@@ -9,6 +9,7 @@ import { el, h } from '../ui/dom.js';
 import { onLocaleChange, t } from '../i18n/index.js';
 import { storyT } from '../i18n/story.js';
 import { portrait, rookSitter, showFrame, sitterColor, sitterFor, type Sitter } from './portraits.js';
+import { DELIVERY, speaksOn, syllable, type PortraitMove, type TextMove } from './delivery.js';
 import { READING, charDelayMs, graphemes, holdMs, isTextSpeed, nextSpeed, type TextSpeed } from './readingPace.js';
 
 const MAX_ENTRIES = 80;
@@ -28,13 +29,42 @@ interface Slot {
 
 const SPEED_KEYS = { slow: 'dialogue.speedSlow', normal: 'dialogue.speedNormal', fast: 'dialogue.speedFast', instant: 'dialogue.speedInstant' } as const;
 
-function loadPrefs(): { speed: TextSpeed; auto: boolean } {
+const TEXT_MOVES: Readonly<Record<Exclude<TextMove, 'none'>, { readonly frames: Keyframe[]; readonly ms: number }>> = {
+  shake: { frames: [{ translate: '0 0' }, { translate: '-5px 0' }, { translate: '5px 0' }, { translate: '-3px 0' }, { translate: '3px 0' }, { translate: '0 0' }], ms: 340 },
+  pop: { frames: [{ scale: '0.94' }, { scale: '1.05' }, { scale: '1' }], ms: 260 },
+  tremble: { frames: [{ translate: '0 0' }, { translate: '-1.5px 0' }, { translate: '1.5px 0' }, { translate: '-1px 0' }, { translate: '1px 0' }, { translate: '0 0' }], ms: 620 },
+};
+
+function portraitFrames(move: Exclude<PortraitMove, 'none'>, facing: 1 | -1): { frames: Keyframe[]; ms: number } {
+  switch (move) {
+    case 'shake':
+      return { frames: [{ translate: '0 0' }, { translate: '-6px 0' }, { translate: '6px 0' }, { translate: '-4px 0' }, { translate: '4px 0' }, { translate: '0 0' }], ms: 380 };
+    case 'hop':
+      return { frames: [{ translate: '0 0' }, { translate: '0 -12px' }, { translate: '0 0' }], ms: 320 };
+    case 'bob':
+      return { frames: [{ translate: '0 0' }, { translate: '0 -5px' }, { translate: '0 0' }, { translate: '0 -3px' }, { translate: '0 0' }], ms: 640 };
+    case 'sink':
+      return { frames: [{ translate: '0 0' }, { translate: '0 6px', offset: 0.3 }, { translate: '0 6px', offset: 0.85 }, { translate: '0 0' }], ms: 1_600 };
+    case 'tilt':
+      return { frames: [{ rotate: '0deg' }, { rotate: `${String(-6 * facing)}deg`, offset: 0.35 }, { rotate: `${String(-6 * facing)}deg`, offset: 0.75 }, { rotate: '0deg' }], ms: 1_100 };
+    case 'tremble':
+      return { frames: [{ translate: '0 0' }, { translate: '-2px 0' }, { translate: '2px 0' }, { translate: '-1.5px 0' }, { translate: '1.5px 0' }, { translate: '0 0' }], ms: 700 };
+  }
+}
+
+interface StoryPrefs {
+  speed: TextSpeed;
+  auto: boolean;
+  voice: boolean;
+}
+
+function loadPrefs(): StoryPrefs {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
     const v = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-    return { speed: isTextSpeed(v['speed']) ? v['speed'] : 'normal', auto: v['auto'] === true };
+    return { speed: isTextSpeed(v['speed']) ? v['speed'] : 'normal', auto: v['auto'] === true, voice: v['voice'] !== false };
   } catch {
-    return { speed: 'normal', auto: false };
+    return { speed: 'normal', auto: false, voice: true };
   }
 }
 
@@ -52,11 +82,13 @@ export class Dialogue {
   readonly #autoButton = el('story-auto', HTMLButtonElement);
   readonly #speedButton = el('story-speed', HTMLButtonElement);
   readonly #historyButton = el('story-history', HTMLButtonElement);
+  readonly #voiceButton = el('story-voice', HTMLButtonElement);
   readonly #them: Slot = { root: el('story-face-them', HTMLElement), who: null, face: 'calm', art: null };
   readonly #rook: Slot = { root: el('story-face-rook', HTMLElement), who: null, face: 'calm', art: null };
   readonly #reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   #speed: TextSpeed;
   #auto: boolean;
+  #voice: boolean;
   #rookSitter: Sitter = rookSitter(0, NO_WEAR);
   #seq = -1;
   #node = '';
@@ -83,11 +115,14 @@ export class Dialogue {
   onChoose: (node: string, choice: string) => void = () => undefined;
   // Sent when the player has read a node through: to move on, or, on a choice, to start its clock.
   onAdvance: (node: string) => void = () => undefined;
+  // Who is speaking the line on screen, null between lines and when the panel closes, for a bubble over their head.
+  onSpeaker: (who: Speaker | null) => void = () => undefined;
 
   constructor() {
     const prefs = loadPrefs();
     this.#speed = prefs.speed;
     this.#auto = prefs.auto;
+    this.#voice = prefs.voice;
     this.#root.addEventListener('click', (e) => {
       if (e.target instanceof Element && (e.target.closest('button') !== null || e.target.closest('#story-log') !== null)) return;
       this.next();
@@ -100,6 +135,11 @@ export class Dialogue {
     });
     this.#speedButton.addEventListener('click', () => {
       this.#speed = nextSpeed(this.#speed);
+      this.#savePrefs();
+      this.#renderTools();
+    });
+    this.#voiceButton.addEventListener('click', () => {
+      this.#voice = !this.#voice;
       this.#savePrefs();
       this.#renderTools();
     });
@@ -187,6 +227,7 @@ export class Dialogue {
     this.#pending = [];
     this.#root.hidden = true;
     audio.setDialogueOpen(false);
+    this.onSpeaker(null);
     this.#log.replaceChildren();
     this.#choices.replaceChildren();
     this.#slug.textContent = '';
@@ -286,6 +327,7 @@ export class Dialogue {
     this.#more.hidden = true;
     if (beat.kind === 'action') {
       this.#speaking(null);
+      this.onSpeaker(null);
       this.#name.textContent = '';
       this.#name.style.removeProperty('--who');
       this.#direction.textContent = '';
@@ -295,6 +337,8 @@ export class Dialogue {
       const slot = beat.who === 'rook' ? this.#rook : this.#them;
       this.#paint(slot, beat.who, beat.face, beat.who === 'rook' ? -1 : 1);
       this.#speaking(slot);
+      this.onSpeaker(beat.who);
+      this.#deliver(slot, beat.face, beat.who === 'rook' ? -1 : 1);
       const sitter = sitterFor(beat.who, this.#rookSitter);
       this.#name.textContent = storyT(SPEAKER_NAMES[beat.who]);
       this.#name.style.setProperty('--who', sitterColor(sitter));
@@ -335,6 +379,9 @@ export class Dialogue {
     this.#skipTyping = this.#reduced || this.#speed === 'instant';
     const chars = graphemes(beat.text);
     const slot = beat.kind === 'line' ? (beat.who === 'rook' ? this.#rook : this.#them) : null;
+    const tempo = beat.kind === 'line' ? DELIVERY[beat.face].tempo : 1;
+    const question = /[?？]\s*$/u.test(beat.text);
+    if (this.#skipTyping && beat.kind === 'line') this.#say(beat, chars[0] ?? '', 0, question);
     let shown = '';
     for (let i = 0; i < chars.length; i++) {
       if (token !== this.#token) return;
@@ -343,13 +390,32 @@ export class Dialogue {
       shown += ch;
       this.#now.textContent = shown;
       if (slot?.art != null) showFrame(slot.art, /\p{L}/u.test(ch) && Math.floor(i / TALK_EVERY) % 2 === 0 ? 'talk' : 'rest');
-      const wait = charDelayMs(ch, chars[i + 1], this.#speed);
+      if (beat.kind === 'line' && speaksOn(ch, i)) this.#say(beat, ch, i / chars.length, question);
+      const wait = charDelayMs(ch, chars[i + 1], this.#speed) * tempo;
       if (wait > 0) await this.#sleep(wait);
     }
     if (token !== this.#token) return;
     this.#now.textContent = beat.text;
     if (slot?.art != null) showFrame(slot.art, 'rest');
     this.#typing = false;
+  }
+
+  #say(beat: Extract<Beat, { kind: 'line' }>, ch: string, progress: number, question: boolean): void {
+    if (this.#voice) audio.talk(syllable(beat.who, beat.face, ch, progress, question));
+  }
+
+  // Moves the line and the speaker's portrait the way their face says it: a shake in anger, a hop in surprise.
+  #deliver(slot: Slot, face: Face, facing: 1 | -1): void {
+    if (this.#reduced) return;
+    const d = DELIVERY[face];
+    if (d.text !== 'none') {
+      const m = TEXT_MOVES[d.text];
+      this.#now.animate(m.frames, { duration: m.ms, easing: 'ease-out' });
+    }
+    if (d.portrait !== 'none' && slot.art !== null) {
+      const m = portraitFrames(d.portrait, facing);
+      slot.art.animate(m.frames, { duration: m.ms, easing: 'ease-in-out' });
+    }
   }
 
   #sleep(ms: number): Promise<void> {
@@ -510,13 +576,15 @@ export class Dialogue {
     this.#autoButton.textContent = t('dialogue.auto');
     this.#autoButton.setAttribute('aria-pressed', String(this.#auto));
     this.#speedButton.textContent = t('dialogue.speed', { speed: t(SPEED_KEYS[this.#speed]) });
+    this.#voiceButton.textContent = t(this.#voice ? 'dialogue.voiceOn' : 'dialogue.voiceOff');
+    this.#voiceButton.setAttribute('aria-pressed', String(this.#voice));
     this.#historyButton.textContent = t('dialogue.history');
     this.#historyButton.setAttribute('aria-expanded', String(!this.#log.hidden));
   }
 
   #savePrefs(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ speed: this.#speed, auto: this.#auto }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ speed: this.#speed, auto: this.#auto, voice: this.#voice }));
     } catch {
       // Storage blocked: the setting lasts for this visit only.
     }

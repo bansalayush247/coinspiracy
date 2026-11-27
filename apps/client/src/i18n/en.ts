@@ -690,6 +690,8 @@ export const en = {
   'dialogue.speedNormal': 'normal',
   'dialogue.speedFast': 'fast',
   'dialogue.speedInstant': 'instant',
+  'dialogue.voiceOn': 'Beeps: On',
+  'dialogue.voiceOff': 'Beeps: Off',
   'dialogue.history': 'History',
   'dialogue.historyLabel': 'What has been said',
 

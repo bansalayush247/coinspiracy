@@ -690,6 +690,8 @@ export const ha: Messages = {
   'dialogue.speedNormal': 'matsakaici',
   'dialogue.speedFast': 'da sauri',
   'dialogue.speedInstant': 'nan take',
+  'dialogue.voiceOn': 'Ƙara: A kunne',
+  'dialogue.voiceOff': 'Ƙara: A kashe',
   'dialogue.history': 'Tarihi',
   'dialogue.historyLabel': 'Abin da aka faɗa',
 

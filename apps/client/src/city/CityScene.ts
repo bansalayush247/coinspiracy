@@ -5,6 +5,7 @@ import { PLAYER_RADIUS, TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-counc
 import { canStand } from '@byzantine-council/shared/pathfinding';
 import { CHUNK, CITY_BUILDINGS, carsSolid, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityCar, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
 import { audio } from '../audio/engine.js';
+import { BUBBLES, TalkBubble } from '../game/bubbles.js';
 import { Effects } from '../game/effects.js';
 import { GUARDIAN_HEIGHT, NO_WEAR, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
 import { turnToward } from '../game/facing.js';
@@ -47,6 +48,9 @@ interface Avatar {
   readonly bubble: Phaser.GameObjects.Graphics;
   readonly bar: Phaser.GameObjects.Graphics;
   readonly label: Phaser.GameObjects.Text;
+  readonly talk: TalkBubble;
+  // The emote over their head and when it went up, so it follows them while it shows.
+  emote: { readonly text: Phaser.GameObjects.Text; readonly at: number } | null;
   // An outline drawn over everything, shown while a building or prop hides this guardian from the camera.
   readonly ghost: Phaser.GameObjects.Graphics;
   // The pose the x-ray outline was last drawn in (facing, doubled when seen from behind), 0 to redraw.
@@ -280,7 +284,7 @@ export class CityScene extends Phaser.Scene {
     const ghost = new Phaser.GameObjects.Graphics(this).setVisible(false).setBlendMode(Phaser.BlendModes.ADD).setDepth(-2);
     this.#names.add(ghost);
     const avatar: Avatar = {
-      root, soft, body, bubble, bar, label, ghost, ghostPose: 0, stars: null, health: MAX_HEALTH, down: false, shielded: false, lunge: 0,
+      root, soft, body, bubble, bar, label, talk: new TalkBubble(this, this.#names, this.#reduced), emote: null, ghost, ghostPose: 0, stars: null, health: MAX_HEALTH, down: false, shielded: false, lunge: 0,
       buffer: new InterpBuffer(), isMe, npc: p.npc, inCar: false, pos: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, back: false, lastScreenX: 0, lastScreenY: 0, hop: 0, hopV: 0,
     };
     this.#setFight(avatar, p);
@@ -400,6 +404,8 @@ export class CityScene extends Phaser.Scene {
     if (a.isMe) this.cameras.main.stopFollow();
     a.root.destroy();
     a.label.destroy();
+    a.talk.destroy();
+    a.emote?.text.destroy();
     a.bar.destroy();
     a.ghost.destroy();
     a.stars?.destroy();
@@ -515,16 +521,13 @@ export class CityScene extends Phaser.Scene {
   emote(id: string, glyph: string, kind: string): void {
     const a = this.#avatars.get(id);
     if (a === undefined) return;
-    const s = worldToScreen(a.pos.x, a.pos.y);
-    const bubble = this.add
-      .text(s.x, s.y - GUARDIAN_HEIGHT - 34 * ART_SCALE, glyph, { fontFamily: 'system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif', fontSize: '44px', backgroundColor: '#fff6e6', padding: { x: 10, y: 6 } })
+    a.emote?.text.destroy();
+    const text = this.add
+      .text(0, 0, glyph, { fontFamily: 'system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif', fontSize: '44px', backgroundColor: '#fff6e6', padding: { x: 10, y: 6 } })
       .setOrigin(0.5, 1)
       .setDepth(30)
-      .setScale(0.2);
-    this.tweens.add({ targets: bubble, scale: 1 / (this.cameras.main.zoom / sceneDpr(this)), duration: this.#reduced ? 1 : 260, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: bubble, alpha: 0, y: bubble.y - 20, delay: 2200, duration: 500, onComplete: () => {
-      bubble.destroy();
-    } });
+      .setScale(0);
+    a.emote = { text, at: this.game.loop.time };
     if (!this.#reduced) a.hopV = kind === 'dance' ? 260 : 200;
   }
 
@@ -775,9 +778,37 @@ export class CityScene extends Phaser.Scene {
     const zoom = this.cameras.main.zoom / sceneDpr(this);
     a.label.setScale(1 / zoom);
     a.label.setPosition(s.x, s.y - GUARDIAN_HEIGHT - 8 * ART_SCALE);
+    a.talk.place(s.x, a.label.y - a.label.height / zoom, zoom, time, a.label.visible);
+    if (a.emote !== null) this.#placeEmote(a, s.x, s.y, zoom, time);
     a.bar.setScale(1 / zoom).setPosition(s.x, s.y - GUARDIAN_HEIGHT - 2 * ART_SCALE);
     a.stars?.setScale(1 / zoom).setPosition(s.x, s.y - GUARDIAN_HEIGHT * 0.55);
     a.bubble.setAlpha(this.#reduced ? 0.5 : 0.35 + Math.sin(time / 260) * 0.15);
+  }
+
+  // An emote pops up over its guardian, follows them, then drifts up and fades.
+  #placeEmote(a: Avatar, x: number, y: number, zoom: number, time: number): void {
+    const e = a.emote;
+    if (e === null) return;
+    const age = time - e.at;
+    const { emoteHoldMs, emoteFadeMs, emoteRisePx, popMs } = BUBBLES;
+    if (age >= emoteHoldMs + emoteFadeMs) {
+      e.text.destroy();
+      a.emote = null;
+      return;
+    }
+    const pop = this.#reduced || age >= popMs ? 1 : Phaser.Math.Easing.Back.Out(age / popMs);
+    const fade = age <= emoteHoldMs ? 0 : (age - emoteHoldMs) / emoteFadeMs;
+    e.text.setScale(pop / zoom).setAlpha(1 - fade).setPosition(x, y - GUARDIAN_HEIGHT - 34 * ART_SCALE - fade * emoteRisePx);
+  }
+
+  /** Shows the talking dots over the guardian with this session id, or over nobody. */
+  talking(id: string | null): void {
+    for (const [key, a] of this.#avatars) a.talk.show(key === id);
+  }
+
+  /** This client's own session id in the city, once connected. */
+  get myId(): string | null {
+    return this.#myId;
   }
 
   #applyZoom(): void {

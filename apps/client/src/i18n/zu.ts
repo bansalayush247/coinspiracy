@@ -690,6 +690,8 @@ export const zu: Messages = {
   'dialogue.speedNormal': 'okujwayelekile',
   'dialogue.speedFast': 'ngokushesha',
   'dialogue.speedInstant': 'ngokushesha okukhulu',
+  'dialogue.voiceOn': 'Imisindo: Ivuliwe',
+  'dialogue.voiceOff': 'Imisindo: Ivaliwe',
   'dialogue.history': 'Umlando',
   'dialogue.historyLabel': 'Okushiwo',
 
