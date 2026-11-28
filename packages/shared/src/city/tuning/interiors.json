@@ -5,7 +5,8 @@
     "gapMs": 800,
     "lockMs": 350,
     "hitLockMs": 10000,
-    "maxOccupants": 12
+    "maxOccupants": 12,
+    "counterReach": 1.4
   },
   "enterable": {
     "shop": "shop",
@@ -110,5 +111,56 @@
         "spots": [{ "kind": "bed", "c": 7, "r": 3 }]
       }
     ]
+  },
+  "recipes": {
+    "shop": {
+      "w": [7, 10], "d": [6, 9],
+      "trades": {
+        "tailor": {
+          "floors": ["planks", "carpet"], "walls": ["plaster", "panel"],
+          "pieces": [
+            { "piece": "rack", "min": 2, "max": 3 }, { "piece": "mirror", "min": 1, "max": 1 }, { "piece": "displayCase", "min": 1, "max": 1 },
+            { "piece": "shelf", "min": 0, "max": 1 }, { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 0, "max": 1 }
+          ]
+        },
+        "barber": {
+          "floors": ["tile", "planks"], "walls": ["brick", "plaster"],
+          "pieces": [
+            { "piece": "barberChair", "min": 2, "max": 3 }, { "piece": "bench", "min": 1, "max": 1 }, { "piece": "shelf", "min": 0, "max": 1 },
+            { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 0, "max": 1 }
+          ]
+        },
+        "hats": {
+          "floors": ["planks", "carpet"], "walls": ["panel", "plaster"],
+          "pieces": [
+            { "piece": "hatStand", "min": 2, "max": 3 }, { "piece": "mirror", "min": 1, "max": 1 }, { "piece": "displayCase", "min": 1, "max": 1 },
+            { "piece": "shelf", "min": 0, "max": 1 }, { "piece": "plant", "min": 1, "max": 1 }, { "piece": "lamp", "min": 0, "max": 1 }
+          ]
+        },
+        "surf": {
+          "floors": ["planks", "tile"], "walls": ["plaster", "brick"],
+          "pieces": [
+            { "piece": "boardRack", "min": 2, "max": 2 }, { "piece": "rack", "min": 1, "max": 1 }, { "piece": "displayCase", "min": 0, "max": 1 },
+            { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 0, "max": 1 }
+          ]
+        },
+        "cafe": {
+          "floors": ["tile", "planks"], "walls": ["brick", "plaster"],
+          "pieces": [
+            { "piece": "displayCase", "min": 1, "max": 1 }, { "piece": "table", "min": 2, "max": 3 }, { "piece": "shelf", "min": 0, "max": 1 },
+            { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 0, "max": 1 }
+          ]
+        }
+      }
+    },
+    "flat": {
+      "w": [7, 11], "d": [6, 9],
+      "floors": ["planks", "carpet", "tile"], "walls": ["panel", "plaster", "brick"],
+      "pieces": [
+        { "piece": "bed", "min": 1, "max": 1 }, { "piece": "wardrobe", "min": 1, "max": 1 }, { "piece": "kitchen", "min": 1, "max": 1 },
+        { "piece": "tv", "min": 1, "max": 1 }, { "piece": "table", "min": 1, "max": 1 }, { "piece": "bookcase", "min": 0, "max": 2 },
+        { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 1, "max": 1 }
+      ]
+    }
   }
 }

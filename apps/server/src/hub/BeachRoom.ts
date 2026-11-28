@@ -27,7 +27,8 @@ import {
   type CourierJob,
   type CourierRefused,
 } from '@byzantine-council/shared/hub';
-import { applyCourierDelivery, dayFor } from '@byzantine-council/shared/progression';
+import { applyCourierDelivery, dayFor, islandOpenFor } from '@byzantine-council/shared/progression';
+import { ferryArrival } from '@byzantine-council/shared/city';
 import { VIEW_TAGS } from '@byzantine-council/shared/state';
 import { ipKey } from '../clientIp.js';
 import { InputQueue, type MoveInput } from '../inputQueue.js';
@@ -41,6 +42,7 @@ import { holdSeat } from '../scaling/index.js';
 interface Auth {
   readonly nickname: string;
   readonly profileId: string | null;
+  readonly byFerry: boolean;
 }
 type BeachClient = Client<{ auth: Auth }>;
 
@@ -143,12 +145,14 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
   override async onAuth(client: BeachClient, options: unknown, context: AuthContext): Promise<Auth> {
     const parsed = BeachJoinSchema.safeParse(options);
     if (!parsed.success) throw new ServerError(ErrorCode.AUTH_FAILED, 'Invalid nickname.');
+    const profiles = roomPolicy().profiles;
+    const profileId = profiles === null ? null : profileIdFromCookieHeader(profiles.keys, context.headers.get('cookie'), Date.now());
+    const byFerry = parsed.data.arrive === 'ferry';
+    if (byFerry && !(await this.#openedBeach(profileId))) throw new ServerError(CLOSE_CODES.ISLAND_LOCKED, 'Beach Town is not open for this guardian yet.');
     if (!(await holdSeat(roomPolicy().ipSlots, ipKey(context.ip), client.ref))) {
       throw new ServerError(CLOSE_CODES.TOO_MANY_CONNECTIONS, 'Too many players from your network.');
     }
-    const profiles = roomPolicy().profiles;
-    const profileId = profiles === null ? null : profileIdFromCookieHeader(profiles.keys, context.headers.get('cookie'), Date.now());
-    return { nickname: parsed.data.nickname, profileId };
+    return { nickname: parsed.data.nickname, profileId, byFerry };
   }
 
   override onJoin(client: BeachClient): void {
@@ -156,7 +160,7 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
     if (auth === undefined) throw new ServerError(ErrorCode.APPLICATION_ERROR, 'Not authorised.');
     const taken = new Set(Array.from(this.state.players.values(), (p) => p.seat));
     const seat = Array.from({ length: BEACH_MAX_PLAYERS }, (_, i) => i).find((i) => !taken.has(i)) ?? 0;
-    const spawn = BEACH_SPAWNS[seat] ?? { x: 15, y: 9.5 };
+    const spawn = auth.byFerry ? ferryArrival('beach') : (BEACH_SPAWNS[seat] ?? { x: 15, y: 9.5 });
     const names = Array.from(this.state.players.values(), (p) => p.name);
     const player = new HubPlayer({ name: uniqueNickname(auth.nickname, names), seat, x: spawn.x, y: spawn.y });
     player.ack = 0;
@@ -187,6 +191,19 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
       if (player.ack !== sim.inputs.ack) player.ack = sim.inputs.ack;
     }
     this.broadcastPatch();
+  }
+
+  // Whether this guardian's own profile has opened Beach Town; anything unknown stays shut.
+  async #openedBeach(profileId: string | null): Promise<boolean> {
+    const profiles = roomPolicy().profiles;
+    if (profiles === null || profileId === null) return false;
+    try {
+      const progress = (await loadProfile(profiles.store, profileId, Date.now())).progress;
+      return islandOpenFor('beach', progress.xp, progress.academy);
+    } catch (error) {
+      log.warn('beach unlock not checked', { roomId: this.roomId, error: error instanceof Error ? error.name : 'unknown' });
+      return false;
+    }
   }
 
   async #wearLook(sessionId: string, profileId: string): Promise<void> {

@@ -1,0 +1,13 @@
+{
+  "crowd": {
+    "minDistance": 0.6,
+    "maxPush": 0.15
+  },
+  "traffic": {
+    "lookAhead": 5,
+    "probeStep": 0.2,
+    "gap": 0.5,
+    "yieldMargin": 0.15,
+    "yieldFadeMs": 180
+  }
+}

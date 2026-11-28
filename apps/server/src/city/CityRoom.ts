@@ -16,6 +16,7 @@ import {
   CityDrop,
   CityJoinSchema,
   CityPlayer,
+  ferryArrival,
   CityState,
   CityCar,
   BULLY_POCKET,
@@ -26,8 +27,13 @@ import {
   ENTER_RANGE,
   PARKING,
   carBlockedByMap,
+  carsBlockCar,
   carsSolid,
   driveControls,
+  resolveCrowd,
+  toLocal,
+  type CrowdBody,
+  type PushBlocked,
   touchesCar,
   stepCar,
   type DrivePayload,
@@ -82,14 +88,12 @@ import {
   atExit,
   doorAt,
   doorBySeed,
-  flatPick,
   layoutFor,
   roomMap,
   roomSpawn,
   stepIndoors,
   toWorld,
   walkedOut,
-  INTERIOR_TUNING,
   type DoorReason,
   type DoorResult,
   type RoomLayout,
@@ -107,6 +111,7 @@ import { holdSeat } from '../scaling/index.js';
 interface Auth {
   readonly nickname: string;
   readonly profileId: string | null;
+  readonly byFerry: boolean;
 }
 type CityClient = Client<{ auth: Auth }>;
 
@@ -304,7 +309,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     }
     const profiles = roomPolicy().profiles;
     const profileId = profiles === null ? null : profileIdFromCookieHeader(profiles.keys, context.headers.get('cookie'), Date.now());
-    return { nickname: parsed.data.nickname, profileId };
+    return { nickname: parsed.data.nickname, profileId, byFerry: parsed.data.arrive === 'ferry' };
   }
 
   override onJoin(client: CityClient): void {
@@ -315,7 +320,8 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     const spawn = CITY_SPAWNS[seat % CITY_SPAWNS.length] ?? { x: 73, y: 63 };
     const names = Array.from(this.state.players.values(), (p) => p.name);
     // Colours cycle through the ten guardian palettes.
-    const player = new CityPlayer({ name: uniqueNickname(auth.nickname, names), seat: seat % 10, x: spawn.x, y: spawn.y, health: MAX_HEALTH, shielded: true });
+    const at = auth.byFerry ? ferryArrival('city') : spawn;
+    const player = new CityPlayer({ name: uniqueNickname(auth.nickname, names), seat: seat % 10, x: at.x, y: at.y, health: MAX_HEALTH, shielded: true });
     player.ack = 0;
     player.pocket = 0;
     const now = Date.now();
@@ -393,12 +399,42 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       if (room === null && !down) this.#collect(player);
       if (room !== null && !locked && walkedOut(player, room.layout)) this.#exit(id, wall, true);
     }
+    this.#separate();
     this.#driveCars(wall);
     for (const [id, t] of this.#toughs) this.#brawl(id, t, wall);
     this.#tidyDrops(wall);
     this.#tick = (this.#tick + 1) % INTEREST_EVERY_TICKS;
     if (this.#tick === 0) this.#refreshInterest();
     this.broadcastPatch();
+  }
+
+  // Pushes apart guardians on foot standing too close, place by place; nobody is pushed into a wall, a car or out a door.
+  #separate(): void {
+    const places = new Map<string, { bodies: CrowdBody[]; room: Sim['room'] }>();
+    for (const [id, sim] of this.#sims) {
+      const p = this.state.players.get(id);
+      if (p === undefined || p.car !== '') continue;
+      const group = places.get(sim.place) ?? { bodies: [], room: sim.room };
+      group.bodies.push({ id, x: p.x, y: p.y });
+      places.set(sim.place, group);
+    }
+    let cars: { x: number; y: number; heading: number }[] | null = null;
+    for (const { bodies, room } of places.values()) {
+      if (bodies.length < 2) continue;
+      let blocked: PushBlocked;
+      if (room === null) {
+        const solids = (cars ??= this.#carBodies());
+        blocked = (from, to) => isBlocked(CITY_MAP, to, PLAYER_RADIUS) || carsSolid(solids, from, PLAYER_RADIUS)(to);
+      } else {
+        blocked = (_from, to) => isBlocked(room.map, toLocal(to), PLAYER_RADIUS) || walkedOut(to, room.layout);
+      }
+      for (const [id, at] of resolveCrowd(bodies, blocked)) {
+        const p = this.state.players.get(id);
+        if (p === undefined) continue;
+        if (p.x !== at.x) p.x = at.x;
+        if (p.y !== at.y) p.y = at.y;
+      }
+    }
   }
 
   // Adds what each guardian can see to their view: near enough, and not behind a building. The rest is never sent.
@@ -474,7 +510,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     }
     const door = doorAt(me);
     const flat = door?.room === 'flat';
-    const place = door === null ? '' : flat ? `flat:${sessionId}` : `b:${String(door.building.seed)}`;
+    const place = door === null ? '' : flat ? `flat:${sessionId}:${String(door.building.seed)}` : `b:${String(door.building.seed)}`;
     const crowd = [...this.#sims.values()].filter((s) => s.place === place).length;
     const refused: DoorReason | null = me.down || sim.knockedOutUntil > now
       ? 'down'
@@ -493,16 +529,13 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       answer(false, refused ?? 'notAtDoor');
       return;
     }
-    const pick = flat ? flatPick(sim.profileId ?? sessionId) : door.building.seed;
-    const count = INTERIOR_TUNING.layouts[door.room].length;
-    const layout = layoutFor(door.room, pick);
+    const layout = layoutFor(door.room, door.building.seed);
     const spawn = toWorld(roomSpawn(layout));
     sim.inputs.flush();
     me.ack = sim.inputs.ack;
     me.x = spawn.x + (crowd % 3) * 0.4 - 0.4;
     me.y = spawn.y;
     me.inside = door.building.seed;
-    me.layout = pick % count;
     sim.place = place;
     sim.room = { layout, map: roomMap(layout) };
     sim.lastDoorMs = now;
@@ -541,7 +574,6 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     me.x = out.x;
     me.y = out.y;
     me.inside = 0;
-    me.layout = 0;
     sim.place = '';
     sim.room = null;
     sim.lastDoorMs = now;
@@ -670,7 +702,9 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
         continue;
       }
       const c = driveControls(s.heading, car.speed, now - car.wantAt > DRIVE_INPUT_TTL_MS ? LET_GO : car.input);
-      const next = stepCar({ x: s.x, y: s.y, heading: s.heading, speed: car.speed }, c.throttle, c.steer, TICK_SECONDS, (p) => this.#carBlocked(carId, s.driver, p));
+      const others = [...this.#cars].flatMap(([id, o]) => (id === carId ? [] : [{ x: o.state.x, y: o.state.y, heading: o.state.heading }]));
+      const hitsCar = carsBlockCar(others, s);
+      const next = stepCar({ x: s.x, y: s.y, heading: s.heading, speed: car.speed }, c.throttle, c.steer, TICK_SECONDS, (p, heading) => this.#carBlocked(s.driver, p, heading) || hitsCar(p, heading));
       car.speed = next.speed;
       if (next.x !== s.x) s.x = next.x;
       if (next.y !== s.y) s.y = next.y;
@@ -685,12 +719,10 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     return [...this.#cars.values()].map((c) => ({ x: c.state.x, y: c.state.y, heading: c.state.heading }));
   }
 
-  // Cars stop for walls, water, anyone on foot (wherever they touch the car's body) and other cars.
-  #carBlocked(carId: string, driverId: string, p: { x: number; y: number }): boolean {
+  // Cars stop for walls, water and anyone on foot, wherever they touch the car's body; other cars are checked apart.
+  #carBlocked(driverId: string, p: { x: number; y: number }, heading: number): boolean {
     if (carBlockedByMap(p)) return true;
-    const heading = this.#cars.get(carId)?.state.heading ?? 0;
     for (const [id, other] of this.state.players) if (id !== driverId && other.car === '' && touchesCar({ x: p.x, y: p.y, heading }, other, PLAYER_RADIUS)) return true;
-    for (const [id, other] of this.#cars) if (id !== carId && near(other.state, p, 1.0)) return true;
     return false;
   }
 
@@ -944,6 +976,15 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
   // For tests: the parked and driven cars.
   carList(): { id: string; x: number; y: number; heading: number; driver: string }[] {
     return [...this.#cars].map(([id, c]) => ({ id, x: c.state.x, y: c.state.y, heading: c.state.heading, driver: c.state.driver }));
+  }
+
+  // For tests: move a parked car somewhere, as a tow truck would.
+  placeCar(id: string, x: number, y: number, heading: number): void {
+    const car = this.#cars.get(id);
+    if (car === undefined || car.state.driver !== '') return;
+    car.state.x = x;
+    car.state.y = y;
+    car.state.heading = heading;
   }
 
   // For tests: the street toughs and where they stand.

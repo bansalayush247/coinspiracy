@@ -1,6 +1,6 @@
 // Client-side prediction for the local player: apply inputs immediately, then rebase on every
 // server update by replaying the inputs the server has not acknowledged yet.
-import { CITADEL_MAP, TICK_SECONDS, stepMovement, type CitadelMap, type Vec2 } from '@byzantine-council/shared';
+import { CITADEL_MAP, PLAYER_RADIUS, TICK_SECONDS, isBlocked, stepMovement, type CitadelMap, type Vec2 } from '@byzantine-council/shared';
 
 export interface PendingInput {
   readonly seq: number;
@@ -25,6 +25,9 @@ export class Predictor {
   // Where the map's tile (0, 0) sits in the world: a room indoors lies far off the city map.
   origin: Vec2 = { x: 0, y: 0 };
 
+  // Nudges a predicted step out of other guardians (the city's soft crowd push); `blocked` says where it may not go.
+  crowd: ((at: Vec2, blocked: (from: Vec2, to: Vec2) => boolean) => Vec2) | null = null;
+
   constructor(start: Vec2, map: CitadelMap = CITADEL_MAP) {
     this.#position = { x: start.x, y: start.y };
     this.map = map;
@@ -33,8 +36,12 @@ export class Predictor {
   #step(pos: Vec2, dx: number, dy: number): Vec2 {
     const o = this.origin;
     const next = stepMovement({ x: pos.x - o.x, y: pos.y - o.y }, { x: dx, y: dy }, TICK_SECONDS, this.map, this.solidFrom?.(pos));
-    return { x: next.x + o.x, y: next.y + o.y };
+    const moved = { x: next.x + o.x, y: next.y + o.y };
+    return this.crowd === null ? moved : this.crowd(moved, this.#blocked);
   }
+
+  readonly #blocked = (from: Vec2, to: Vec2): boolean =>
+    isBlocked(this.map, { x: to.x - this.origin.x, y: to.y - this.origin.y }, PLAYER_RADIUS) || (this.solidFrom?.(from)(to) ?? false);
 
   get position(): Vec2 {
     return this.#position;

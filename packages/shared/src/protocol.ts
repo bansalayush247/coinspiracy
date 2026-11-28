@@ -11,6 +11,8 @@ export const CLOSE_CODES = Object.freeze({
   ROOM_FAILED: 4106,
   // Refused at connect: the room is mid-match.
   MATCH_IN_PROGRESS: 4107,
+  // Refused at connect: the guardian's profile has not opened that island.
+  ISLAND_LOCKED: 4108,
 } as const);
 export type CloseCode = (typeof CLOSE_CODES)[keyof typeof CLOSE_CODES];
 

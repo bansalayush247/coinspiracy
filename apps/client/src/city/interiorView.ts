@@ -24,12 +24,12 @@ export class InteriorView {
     entities.add(front.setDepth(depthOf(corner.x, corner.y) + 1));
     for (const f of layout.furniture) {
       const g = make();
-      drawPiece(g, f, room, seed);
+      drawPiece(g, f, layout, room, seed);
       if (f.piece === 'rug') {
         ground.add(g);
         continue;
       }
-      const p = toWorld(pieceFront(f));
+      const p = toWorld(pieceFront(f, layout));
       entities.add(g.setDepth(depthOf(p.x, p.y)));
     }
   }

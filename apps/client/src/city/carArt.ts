@@ -95,6 +95,11 @@ export function carHalfLength(style: CarStyle): number {
   return shapeOf(style).hl;
 }
 
+/** Half the width of a car of `style`, for keeping ambient traffic out of player cars. */
+export function carHalfWidth(style: CarStyle): number {
+  return shapeOf(style).hw;
+}
+
 // A filled outline that may be concave, such as a curved sail or a hull's plan.
 function fillPoly(g: G, pts: readonly { readonly x: number; readonly y: number }[]): void {
   const [first, ...rest] = pts;

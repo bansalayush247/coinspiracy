@@ -9,7 +9,10 @@ import {
   doorAt,
   doorBySeed,
   doorColumn,
-  flatPick,
+  generateLayout,
+  layoutProblems,
+  SHOP_TRADES,
+  shopTradeOf,
   interiorTuningProblems,
   isIndoors,
   layoutFor,
@@ -45,9 +48,30 @@ describe('walk-in buildings', () => {
     expect(interiorTuningProblems(blocked).some((p) => p.includes('way in is blocked'))).toBe(true);
   });
 
-  it('picks the same layout for the same building and the same flat owner', () => {
+  it('makes the same room for the same building, and a different one for every building in the city', () => {
     expect(layoutFor('shop', 7)).toBe(layoutFor('shop', 7));
-    expect(flatPick('profile-abc')).toBe(flatPick('profile-abc'));
+    expect(generateLayout('flat', 99)).toEqual(generateLayout('flat', 99));
+    const made = BUILDING_DOORS.filter((d) => d.room === 'shop' || d.room === 'flat');
+    expect(new Set(made.map((d) => JSON.stringify(layoutFor(d.room, d.building.seed)))).size).toBe(made.length);
+  });
+
+  it('makes shops and flats that pass every layout check, with a counter or a bed to use', () => {
+    const handMade = new Set([...INTERIOR_TUNING.layouts.shop, ...INTERIOR_TUNING.layouts.flat]);
+    for (let seed = 1; seed < 400; seed++) {
+      for (const room of ['shop', 'flat'] as const) {
+        const layout = generateLayout(room, seed * 37);
+        expect(handMade.has(layout)).toBe(false);
+        expect(layoutProblems(room, layout)).toEqual([]);
+        expect(layout.spots.some((s) => s.kind === (room === 'shop' ? 'counter' : 'bed'))).toBe(true);
+      }
+    }
+  });
+
+  it('gives every shop a trade from the Beach Town shops, the same each time', () => {
+    for (const d of BUILDING_DOORS.filter((door) => door.room === 'shop')) {
+      expect(SHOP_TRADES).toContain(shopTradeOf(d.building.seed));
+      expect(shopTradeOf(d.building.seed)).toBe(shopTradeOf(d.building.seed));
+    }
   });
 
   it('keeps a walker inside the room, out through the doorway only', () => {

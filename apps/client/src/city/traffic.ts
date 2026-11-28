@@ -1,10 +1,10 @@
-// Ambient life for Port Concord: cars that keep their lane, stop at red lights and for anyone in the road, and
-// ships that sail the harbour and the open sea. Drawn on each screen alone; nothing here touches the game state.
+// Ambient life for Port Concord: cars that keep their lane, stop at red lights, for anyone in the road and for player
+// cars, and ships that sail the harbour and the open sea. Drawn on each screen alone; nothing here touches the game state.
 import Phaser from 'phaser';
 import type { Vec2 } from '@byzantine-council/shared';
-import { CAR_LANES, SHIP_ROUTES, greenFor, lanePoint, type Lane, type ShipRoute } from '@byzantine-council/shared/city';
+import { CAR_HALF_LENGTH, CAR_HALF_WIDTH, CAR_LANES, COLLISION_TUNING, SHIP_ROUTES, boxesOverlap, greenFor, lanePoint, type CarPose, type GroundBox, type Lane, type ShipRoute } from '@byzantine-council/shared/city';
 import { ART_SCALE, worldToScreen } from '../game/iso.js';
-import { CAR_PAINTS, carHalfLength, drawModernCar, type CarStyle } from './carArt.js';
+import { CAR_PAINTS, carHalfLength, carHalfWidth, drawModernCar, type CarStyle } from './carArt.js';
 import { drawShip, type ShipHeading } from './shipArt.js';
 
 const CAR_SPEED = 2.8;
@@ -15,6 +15,7 @@ const PEOPLE_GAP = 1.4;
 const SPAWN_CLEAR = 4;
 // Cars fade in and out over this many tiles at the ends of their lane, where roads meet the sea.
 const FADE = 1.5;
+const YIELD = COLLISION_TUNING.traffic;
 export const CAR_COLORS = [0xd9534f, 0x4f8fd9, 0xf0c05a, 0x5fb87a, 0xe9e2d6, 0x8a5fd9, 0x3b3f4a, 0xf08a4b];
 // Ambient traffic cycles through these bodies, so a street shows a mix and now and then a bus.
 const TRAFFIC_STYLES: readonly CarStyle[] = ['sedan', 'hatch', 'suv', 'sedan', 'van', 'taxi', 'pickup', 'hatch', 'bus', 'suv', 'sedan', 'van'];
@@ -27,6 +28,9 @@ interface Car {
   readonly color: number;
   readonly style: CarStyle;
   readonly len: number;
+  readonly hw: number;
+  // 1 normally; falls to 0 while a player car crowds this car, which then gives way by leaving the road.
+  shown: number;
 }
 
 interface Ship {
@@ -69,7 +73,7 @@ export class Traffic {
       const style = TRAFFIC_STYLES[i % TRAFFIC_STYLES.length] ?? 'sedan';
       const len = carHalfLength(style) * 2;
       if ((this.#byLane.get(lane) ?? []).some((c) => Math.abs(c.s - s) < (c.len + len) / 2 + GAP + 1)) continue;
-      this.#addCar(lane, s, CAR_PAINTS[(i * 5) % CAR_PAINTS.length] ?? 0xd9534f, style, len);
+      this.#addCar(lane, s, CAR_PAINTS[(i * 5) % CAR_PAINTS.length] ?? 0xd9534f, style, len, carHalfWidth(style));
     }
     SHIP_ROUTES.forEach((route, i) => {
       const g = new Phaser.GameObjects.Graphics(scene);
@@ -79,15 +83,16 @@ export class Traffic {
     });
   }
 
-  update(time: number, delta: number, people: readonly Vec2[], sees: (p: Vec2) => boolean): void {
+  /** One frame: `people` on foot and the player `cars` (parked or driven, where they are drawn) are kept clear of. */
+  update(time: number, delta: number, people: readonly Vec2[], sees: (p: Vec2) => boolean, cars: readonly CarPose[] = []): void {
     const dt = Math.min(delta, 50) / 1000;
     const now = Date.now();
     const view = this.scene.cameras.main.worldView;
     const onScreen = (p: { x: number; y: number }): boolean => p.x > view.x - 300 && p.x < view.right + 300 && p.y > view.y - 300 && p.y < view.bottom + 300;
-    for (const car of this.#cars) this.#drive(car, dt, now, people);
+    for (const car of this.#cars) this.#drive(car, dt, now, people, cars);
     for (const car of this.#cars) {
       const ahead = (car.s - car.lane.to) * car.lane.dir;
-      if (ahead >= 0) this.#respawn(car);
+      if (ahead >= 0 || car.shown <= 0) this.#respawn(car);
     }
     for (const car of this.#cars) {
       const p = lanePoint(car.lane, car.s);
@@ -96,7 +101,7 @@ export class Traffic {
       car.g.setVisible(shown);
       if (!shown) continue;
       const edge = Math.min(Math.abs(car.s - car.lane.from), Math.abs(car.lane.to - car.s));
-      car.g.setPosition(s.x, s.y).setDepth(this.depthOf(p.x, p.y)).setAlpha(Math.max(0, Math.min(1, edge / FADE)));
+      car.g.setPosition(s.x, s.y).setDepth(this.depthOf(p.x, p.y)).setAlpha(Math.max(0, Math.min(1, edge / FADE, car.shown)));
     }
     for (const ship of this.#ships) {
       this.#sail(ship, dt);
@@ -126,19 +131,20 @@ export class Traffic {
     this.#byLane.clear();
   }
 
-  #addCar(lane: Lane, s: number, color: number, style: CarStyle, len: number): void {
+  #addCar(lane: Lane, s: number, color: number, style: CarStyle, len: number, hw: number): void {
     const g = new Phaser.GameObjects.Graphics(this.scene);
     this.layer.add(g);
     drawModernCar(g, laneHeading(lane), color, false, style);
-    const car: Car = { g, lane, s, v: CAR_SPEED, color, style, len };
+    const car: Car = { g, lane, s, v: CAR_SPEED, color, style, len, hw, shown: 1 };
     this.#cars.push(car);
     const list = this.#byLane.get(lane) ?? [];
     list.push(car);
     this.#byLane.set(lane, list);
   }
 
-  // How far a car may still go: up to the car in front, anyone in the road, or a red light's stop line.
-  #drive(car: Car, dt: number, now: number, people: readonly Vec2[]): void {
+  // How far a car may still go: up to the car in front, anyone in the road, a player car in its path, or a red light's
+  // stop line; a player car pressing into it makes it fade off the road instead of being driven through.
+  #drive(car: Car, dt: number, now: number, people: readonly Vec2[], players: readonly CarPose[]): void {
     const { lane } = car;
     let room = Infinity;
     for (const other of this.#byLane.get(lane) ?? []) {
@@ -159,6 +165,22 @@ export class Traffic {
         if (d > car.len / 2 - 0.05) room = Math.min(room, d - car.len / 2 - 0.1);
       }
     }
+    const here = lanePoint(lane, car.s);
+    let crowded = false;
+    let touching = false;
+    for (const pc of players) {
+      if (Math.abs(pc.x - here.x) + Math.abs(pc.y - here.y) > YIELD.lookAhead + car.len + 2 * CAR_HALF_LENGTH) continue;
+      const other: GroundBox = { x: pc.x, y: pc.y, heading: pc.heading, halfLength: CAR_HALF_LENGTH, halfWidth: CAR_HALF_WIDTH };
+      if (boxesOverlap(laneBox(car, car.s, YIELD.yieldMargin), other)) crowded = true;
+      for (let t = 0; t <= YIELD.lookAhead; t += YIELD.probeStep) {
+        if (!boxesOverlap(laneBox(car, car.s + t * lane.dir, 0), other)) continue;
+        if (t === 0) touching = true;
+        room = Math.min(room, t - YIELD.gap);
+        break;
+      }
+    }
+    const fade = (dt * 1000) / YIELD.yieldFadeMs;
+    car.shown = touching ? 0 : crowded ? Math.max(0, car.shown - fade) : Math.min(1, car.shown + fade);
     const want = room <= 0 ? 0 : Math.min(CAR_SPEED, Math.sqrt(2 * CAR_ACCEL * room));
     car.v = want < car.v ? want : Math.min(want, car.v + CAR_ACCEL * dt);
     car.s += car.v * dt * lane.dir;
@@ -177,6 +199,7 @@ export class Traffic {
       car.v = CAR_SPEED;
       break;
     }
+    car.shown = 1;
     const list = this.#byLane.get(car.lane) ?? [];
     list.push(car);
     this.#byLane.set(car.lane, list);
@@ -208,6 +231,12 @@ export class Traffic {
     }
   }
 }
+
+// A traffic car's body at `s` along its lane, grown by `margin` all round.
+const laneBox = (car: Car, s: number, margin: number): GroundBox => {
+  const p = lanePoint(car.lane, s);
+  return { x: p.x, y: p.y, heading: laneHeading(car.lane), halfLength: car.len / 2 + margin, halfWidth: car.hw + margin };
+};
 
 // A car along its lane: east or west on a row, south or north on a column.
 const laneHeading = (lane: Lane): number => (lane.axis === 'row' ? (lane.dir === 1 ? 0 : Math.PI) : lane.dir === 1 ? Math.PI / 2 : -Math.PI / 2);

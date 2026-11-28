@@ -960,6 +960,19 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .city-ride small { font-size: 11px; font-weight: 600; opacity: 0.7; }
 .city-ride:active { transform: translateY(4px); box-shadow: 0 1px 0 #2a1a33; }
 .city-door { background: #ffd27a; }
+.city-shop { background: #9fe3c4; }
+.city-ferry { background: #7ad0d6; }
+.city-ferry.locked { background: #c9c1d4; }
+.beach-ferry { pointer-events: auto; }
+@media (max-width: 640px) { .city-ride { bottom: max(256px, calc(env(safe-area-inset-bottom) + 256px)); } }
+/* The ferry crossing: the island HUDs step aside and a card names where the ferry is going. */
+:root[data-ferry='sailing'] .city-hud, :root[data-ferry='sailing'] .beach-hud { visibility: hidden; }
+.ferry-card { position: absolute; left: 50%; bottom: max(40px, calc(env(safe-area-inset-bottom) + 40px)); transform: translateX(-50%); display: grid; gap: 4px; justify-items: center; padding: 12px 22px; max-width: calc(100% - 32px); text-align: center; background: var(--glass-strong); border: 1px solid rgba(122, 208, 214, 0.5); border-radius: 14px; z-index: 1; pointer-events: none; animation: ferry-card-in 0.4s ease-out; }
+.ferry-card b { font-size: 18px; }
+.ferry-card small { font-size: 12px; color: var(--muted); }
+.ferry-card.leaving { opacity: 0; transition: opacity 0.4s; }
+@keyframes ferry-card-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ferry-card { animation: none; } .ferry-card.leaving { transition: none; } }
 .city-hud.indoors .city-map { display: none; }
 .city-deposit { position: absolute; left: 50%; bottom: max(86px, calc(env(safe-area-inset-bottom) + 86px)); transform: translateX(-50%); display: grid; gap: 2px; padding: 12px 20px; font-weight: 800; font-size: 16px; background: #ffd27a; color: #2a1a33; border: 3px solid #2a1a33; border-radius: 14px; box-shadow: 0 5px 0 #2a1a33; touch-action: manipulation; }
 .city-deposit small { font-size: 11px; font-weight: 600; opacity: 0.7; }

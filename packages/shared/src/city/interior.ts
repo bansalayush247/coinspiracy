@@ -5,7 +5,18 @@ import { z } from 'zod';
 import { isBlocked, tileAt, type CitadelMap, type Vec2 } from '../map.js';
 import { PLAYER_RADIUS, stepMovement } from '../movement.js';
 import { BUILDING_KINDS, CITY_BUILDINGS, CITY_MAP, type BuildingKind, type CityBuilding } from './map.js';
+import type { ShopId } from '../economy/catalog.js';
 import raw from './tuning/interiors.json' with { type: 'json' };
+
+/** The Beach Town shops whose wares a Port Concord shop can sell; each shop is one of them, by its building. */
+export const SHOP_TRADES = ['tailor', 'barber', 'hats', 'surf', 'cafe'] as const satisfies readonly ShopId[];
+/** What a Port Concord shop sells. */
+export type ShopTrade = (typeof SHOP_TRADES)[number];
+
+/** The trade of the shop in the building with this seed: the same on every client and the server. */
+export function shopTradeOf(seed: number): ShopTrade {
+  return SHOP_TRADES[Math.abs(Math.trunc(seed)) % SHOP_TRADES.length] ?? 'cafe';
+}
 
 /** The kinds of room a building can open into. */
 export const ROOM_KINDS = ['shop', 'mintHall', 'hospital', 'flat'] as const;
@@ -13,7 +24,10 @@ export const ROOM_KINDS = ['shop', 'mintHall', 'hospital', 'flat'] as const;
 export type RoomKind = (typeof ROOM_KINDS)[number];
 
 /** Every piece of furniture a room can hold. */
-export const PIECES = ['counter', 'shelf', 'rug', 'plant', 'lamp', 'table', 'chair', 'bed', 'sofa', 'bookcase', 'column', 'vaultDoor', 'noticeBoard', 'bench', 'desk', 'hospitalBed'] as const;
+export const PIECES = [
+  'counter', 'shelf', 'rug', 'plant', 'lamp', 'table', 'chair', 'bed', 'sofa', 'bookcase', 'column', 'vaultDoor', 'noticeBoard', 'bench', 'desk', 'hospitalBed',
+  'rack', 'mirror', 'displayCase', 'barberChair', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv',
+] as const;
 /** A piece of furniture. */
 export type Piece = (typeof PIECES)[number];
 
@@ -22,14 +36,23 @@ const FLAT_PIECES: ReadonlySet<Piece> = new Set(['rug']);
 
 const FurnitureSchema = z.strictObject({ piece: z.enum(PIECES), c: z.int().min(1), r: z.int().min(1), w: z.int().min(1), d: z.int().min(1) });
 const SpotSchema = z.strictObject({ kind: z.enum(['counter', 'reception', 'bed', 'board']), c: z.int().min(1), r: z.int().min(1) });
+/** Every floor finish a room can have. */
+export const FLOORS = ['planks', 'tile', 'marble', 'carpet'] as const;
+/** Every wall finish a room can have. */
+export const WALLS = ['plaster', 'brick', 'panel', 'stone'] as const;
+
 const LayoutSchema = z.strictObject({
   w: z.int().min(5).max(24),
   d: z.int().min(5).max(24),
-  floor: z.enum(['planks', 'tile', 'marble', 'carpet']),
-  wall: z.enum(['plaster', 'brick', 'panel', 'stone']),
+  floor: z.enum(FLOORS),
+  wall: z.enum(WALLS),
   furniture: z.array(FurnitureSchema).max(40),
   spots: z.array(SpotSchema).max(8),
 });
+
+const SizeRange = (lo: number, hi: number) => z.tuple([z.int().min(lo).max(hi), z.int().min(lo).max(hi)]).refine(([a, b]) => a <= b, 'an empty size range');
+const RecipePieceSchema = z.strictObject({ piece: z.enum(PIECES), min: z.int().min(0).max(6), max: z.int().min(0).max(6) }).refine((p) => p.min <= p.max, 'min above max');
+const FinishSchema = z.strictObject({ floors: z.array(z.enum(FLOORS)).min(1), walls: z.array(z.enum(WALLS)).min(1), pieces: z.array(RecipePieceSchema).max(12) });
 
 /** The shape of `tuning/interiors.json`: doors, which buildings open into which rooms, and every room's layout. */
 export const InteriorTuningSchema = z.strictObject({
@@ -40,9 +63,14 @@ export const InteriorTuningSchema = z.strictObject({
     lockMs: z.int().min(0).max(5_000),
     hitLockMs: z.int().min(0).max(60_000),
     maxOccupants: z.int().min(1).max(60),
+    counterReach: z.number().positive().max(3),
   }),
   enterable: z.partialRecord(z.enum(BUILDING_KINDS), z.enum(ROOM_KINDS)),
   layouts: z.strictObject({ shop: z.array(LayoutSchema).min(1), mintHall: z.array(LayoutSchema).min(1), hospital: z.array(LayoutSchema).min(1), flat: z.array(LayoutSchema).min(1) }),
+  recipes: z.strictObject({
+    shop: z.strictObject({ w: SizeRange(6, 12), d: SizeRange(6, 10), trades: z.record(z.enum(SHOP_TRADES), FinishSchema) }),
+    flat: FinishSchema.extend({ w: SizeRange(6, 12), d: SizeRange(6, 10) }),
+  }),
 });
 /** The interiors' tuning, as checked by `InteriorTuningSchema`. */
 export type InteriorTuning = z.infer<typeof InteriorTuningSchema>;
@@ -79,8 +107,8 @@ export function roomMap(layout: RoomLayout): CitadelMap {
 /** Where a guardian appears on entering: a step and a half inside the door. */
 export const roomSpawn = (layout: RoomLayout): Vec2 => ({ x: doorColumn(layout) + 0.5, y: layout.d - 2.5 });
 
-// Every way a layout can be wrong that its shape alone can't catch.
-function layoutProblems(name: string, layout: RoomLayout): string[] {
+/** Every way a layout can be wrong that its shape alone can't catch: furniture outside, a blocked way in, floor nobody can reach. */
+export function layoutProblems(name: string, layout: RoomLayout): string[] {
   const problems: string[] = [];
   for (const f of layout.furniture) {
     if (f.c + f.w > layout.w - 1 || f.r + f.d > layout.d - 1) problems.push(`${name}: ${f.piece} at ${String(f.c)},${String(f.r)} is outside the room`);
@@ -164,24 +192,15 @@ export function doorAt(pos: Vec2): (typeof BUILDING_DOORS)[number] | null {
 /** The door of the building with this seed, if it opens. */
 export const doorBySeed = (seed: number): (typeof BUILDING_DOORS)[number] | null => BY_SEED.get(seed) ?? null;
 
-/** The layout of a building's room: the same for everyone, picked by its seed, or for a flat by its owner's number. */
-export function layoutFor(room: RoomKind, pick: number): RoomLayout {
-  const list = INTERIOR_TUNING.layouts[room];
-  const layout = list[Math.abs(Math.trunc(pick)) % list.length];
-  if (layout === undefined) throw new Error(`no ${room} layouts`);
-  return layout;
-}
-
-/** A stable number from an id, so a guardian's flat always looks the same. */
-export function flatPick(ownerId: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < ownerId.length; i++) h = Math.imul(h ^ ownerId.charCodeAt(i), 16777619);
-  return h >>> 0;
-}
-
 /** A room-local point as a world point inside the rooms area, and back. */
 export const toWorld = (local: Vec2): Vec2 => ({ x: local.x + INTERIOR_ORIGIN.x, y: local.y + INTERIOR_ORIGIN.y });
 export const toLocal = (world: Vec2): Vec2 => ({ x: world.x - INTERIOR_ORIGIN.x, y: world.y - INTERIOR_ORIGIN.y });
+
+/** Whether a guardian at this world point stands at the room's shop counter, close enough to be served. */
+export function atCounter(world: Vec2, layout: RoomLayout): boolean {
+  const local = toLocal(world);
+  return layout.spots.some((s) => s.kind === 'counter' && Math.hypot(local.x - (s.c + 0.5), local.y - (s.r + 0.5)) <= DOOR_TUNING.counterReach);
+}
 
 /** Whether a world point lies in the rooms area rather than on the street. */
 export const isIndoors = (world: Vec2): boolean => world.x >= INTERIOR_ORIGIN.x - 1 && world.y >= INTERIOR_ORIGIN.y - 1;

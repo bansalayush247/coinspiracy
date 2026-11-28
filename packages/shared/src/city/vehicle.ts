@@ -1,6 +1,6 @@
 // Cars anyone can drive in Port Concord. On the keyboard the driver works the pedal and wheel; on the touch stick they
 // point where they want to go and the car steers toward it, reversing when it points behind. Cars stop dead against
-// walls, water and people. The server runs it; these are the rules it runs.
+// walls, water, people and other cars. The server runs it; these are the rules it runs.
 import { isBlocked, type Vec2 } from '../map.js';
 import { CITY_DISTRICTS, CITY_MAP, CITY_SPAWNS } from './map.js';
 
@@ -43,9 +43,9 @@ export function driveControls(heading: number, speed: number, input: { dx: numbe
   return controls(heading, speed, { x: input.dx, y: input.dy });
 }
 
-// One physics step. `blocked` says whether the car's middle may stand somewhere; a blocked move slides along the
-// obstacle if it can, and otherwise stops the car.
-export function stepCar(car: CarBody, throttle: number, steer: number, dt: number, blocked: (p: Vec2) => boolean): CarBody & { bumped: boolean } {
+// One physics step. `blocked` says whether the car's middle may stand somewhere, facing `heading`; a blocked move
+// slides along the obstacle if it can, and otherwise stops the car.
+export function stepCar(car: CarBody, throttle: number, steer: number, dt: number, blocked: (p: Vec2, heading: number) => boolean): CarBody & { bumped: boolean } {
   const target = throttle >= 0 ? throttle * CAR_TOP_SPEED : throttle * CAR_REVERSE_SPEED;
   const braking = target !== 0 && Math.sign(target) !== Math.sign(car.speed) && car.speed !== 0;
   const rate = throttle === 0 ? CAR_DRAG : braking ? CAR_BRAKE : CAR_ACCEL;
@@ -61,13 +61,13 @@ export function stepCar(car: CarBody, throttle: number, steer: number, dt: numbe
   const dy = (Math.sin(heading) * total) / steps;
   const slide = Math.hypot(dx, dy) * 0.3;
   for (let i = 0; i < steps; i++) {
-    if (!blocked({ x: x + dx, y: y + dy })) {
+    if (!blocked({ x: x + dx, y: y + dy }, heading)) {
       x += dx;
       y += dy;
-    } else if (Math.abs(dx) > slide && !blocked({ x: x + dx, y })) {
+    } else if (Math.abs(dx) > slide && !blocked({ x: x + dx, y }, heading)) {
       x += dx;
       speed *= 0.6;
-    } else if (Math.abs(dy) > slide && !blocked({ x, y: y + dy })) {
+    } else if (Math.abs(dy) > slide && !blocked({ x, y: y + dy }, heading)) {
       y += dy;
       speed *= 0.6;
     } else {
@@ -103,6 +103,55 @@ export function touchesCar(car: { readonly x: number; readonly y: number; readon
 export function carsSolid(cars: readonly { readonly x: number; readonly y: number; readonly heading: number }[], from: Vec2, radius: number): (p: Vec2) => boolean {
   const solid = cars.filter((car) => !touchesCar(car, from, radius));
   return (p) => solid.some((car) => touchesCar(car, p, radius));
+}
+
+/** A car's body on the ground: its middle and the way it points, in radians. */
+export interface CarPose {
+  readonly x: number;
+  readonly y: number;
+  readonly heading: number;
+}
+
+/** A box on the ground turned to `heading`, with half its length along the heading and half its width across. */
+export interface GroundBox extends CarPose {
+  readonly halfLength: number;
+  readonly halfWidth: number;
+}
+
+/** Whether two turned boxes overlap (touching edges do not count), by the separating axis test. */
+export function boxesOverlap(a: GroundBox, b: GroundBox): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const ac = Math.cos(a.heading);
+  const as = Math.sin(a.heading);
+  const bc = Math.cos(b.heading);
+  const bs = Math.sin(b.heading);
+  const axes: readonly (readonly [number, number])[] = [[ac, as], [-as, ac], [bc, bs], [-bs, bc]];
+  for (const [nx, ny] of axes) {
+    const ra = a.halfLength * Math.abs(ac * nx + as * ny) + a.halfWidth * Math.abs(-as * nx + ac * ny);
+    const rb = b.halfLength * Math.abs(bc * nx + bs * ny) + b.halfWidth * Math.abs(-bs * nx + bc * ny);
+    if (Math.abs(dx * nx + dy * ny) >= ra + rb) return false;
+  }
+  return true;
+}
+
+const carBox = (c: CarPose): GroundBox => ({ x: c.x, y: c.y, heading: c.heading, halfLength: CAR_HALF_LENGTH, halfWidth: CAR_HALF_WIDTH });
+
+/** Whether the bodies of two cars overlap. */
+export const carsOverlap = (a: CarPose, b: CarPose): boolean => boxesOverlap(carBox(a), carBox(b));
+
+/**
+ * Other cars as obstacles for a car leaving `from`: a step that would put its body into another car is refused, but
+ * a car already overlapping one (towed or parked onto it) may always move off it, as long as it moves away from it.
+ */
+export function carsBlockCar(others: readonly CarPose[], from: CarPose): (p: Vec2, heading: number) => boolean {
+  const stuck = others.filter((o) => carsOverlap(o, from));
+  const clear = others.filter((o) => !stuck.includes(o));
+  return (p, heading) => {
+    const at = { x: p.x, y: p.y, heading };
+    if (clear.some((o) => carsOverlap(o, at))) return true;
+    return stuck.some((o) => carsOverlap(o, at) && Math.hypot(p.x - o.x, p.y - o.y) < Math.hypot(from.x - o.x, from.y - o.y));
+  };
 }
 
 export interface ParkingSpot {

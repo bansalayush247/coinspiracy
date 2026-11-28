@@ -1,0 +1,22 @@
+{
+  "reach": 1,
+  "tripMs": 8000,
+  "skipAfterMs": 1000,
+  "reducedMs": 1800,
+  "landMs": 600,
+  "hull": { "length": 2.8, "beam": 0.95 },
+  "stops": {
+    "city": {
+      "at": { "x": 70.5, "y": 100.55 },
+      "arrive": { "x": 69, "y": 99.5 },
+      "ship": { "x": 70.6, "y": 101.8, "heading": "e", "seed": 3 },
+      "sign": { "x": 71.7, "y": 100.25 }
+    },
+    "beach": {
+      "at": { "x": 15.6, "y": 19.4 },
+      "arrive": { "x": 14.6, "y": 17.4 },
+      "ship": { "x": 16.62, "y": 19, "heading": "s", "seed": 5 },
+      "sign": { "x": 14.12, "y": 19.7 }
+    }
+  }
+}

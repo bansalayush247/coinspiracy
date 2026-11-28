@@ -27,6 +27,8 @@ import { MissionController } from './city/missionController.js';
 import { nextSpeed } from './city/readingPace.js';
 import { storyPrefs } from './city/storyPrefs.js';
 import type { ActId } from '@byzantine-council/shared/city';
+import { beachUnlock, ferryDestination, ferryOpenTo, type FerryIsland } from '@byzantine-council/shared/city';
+import { FERRY_NAMES, FERRY_SCENE_KEY, FerryScene } from './ferry/FerryScene.js';
 import { ISLAND_SCENE_KEY, IslandScene, type PreviewIslandId } from './explore/IslandScene.js';
 import { Wardrobe } from './profile/wardrobe.js';
 import { startPlatform, type Platform } from './platform/index.js';
@@ -78,7 +80,7 @@ function startGame(parent: HTMLElement): Promise<CitadelScene> {
       input: { keyboard: false, mouse: false, touch: false, gamepad: false },
       loader: { imageLoadType: 'HTMLImageElement' },
       scale: setup.scale,
-      scene: [CitadelScene, BeachScene, IslandScene, CityScene],
+      scene: [CitadelScene, BeachScene, IslandScene, CityScene, FerryScene],
       callbacks: {
         preBoot: (game) => {
           game.registry.set(REG_DPR, setup.dpr);
@@ -147,6 +149,8 @@ class Controller {
   #city: CityController | null = null;
   #mission: MissionController | null = null;
   #lastProfile: ProfileSummary | null = null;
+  // True from boarding the ferry until it lands: the island left behind closes without going back to the map.
+  #sailing = false;
   #seasonColors: readonly [string, string] | null = null;
   readonly #academy = new AcademyPanel();
   readonly #casebook = new Casebook();
@@ -504,26 +508,33 @@ class Controller {
       this.#setProfile(p);
     };
     controller.onLeft = () => {
-      this.#closeWorld(key);
+      if (this.#sailing) this.scene.scene.stop(key);
+      else this.#closeWorld(key);
     };
   }
 
   // Port Concord: switch scenes, join the city room, and come back to the menu on leaving.
-  async #visitCity(): Promise<void> {
+  async #visitCity(byFerry = false): Promise<boolean> {
     const opened = await this.#openWorld(CITY_SCENE_KEY, () => this.#cityScene());
-    if (opened === null) return;
+    if (opened === null) return false;
     if (this.#city === null) {
       const controller = new CityController(this.session, this.profiles, opened.scene, this.#input);
       this.#wireWorld(controller, CITY_SCENE_KEY);
+      controller.onFerry = () => {
+        void this.#takeFerry('city');
+      };
+      controller.ferryOpen = () => this.#ferryOpen('beach', this.#lastProfile);
       this.#city = controller;
     }
     this.#menu.hide();
     document.documentElement.dataset['phase'] = 'city';
     try {
-      await this.#city.enter(opened.nickname);
+      await this.#city.enter(opened.nickname, byFerry);
+      return true;
     } catch (error) {
       this.#closeWorld(CITY_SCENE_KEY);
       this.#menu.showError(joinErrorMessage(error));
+      return false;
     } finally {
       this.#busy = false;
     }
@@ -557,9 +568,9 @@ class Controller {
   }
 
   // Beach Town: switch scenes, join the hub room, and come back to the map on leaving.
-  async #visitBeach(): Promise<void> {
+  async #visitBeach(byFerry = false): Promise<boolean> {
     const opened = await this.#openWorld(BEACH_SCENE_KEY, () => this.#beachScene());
-    if (opened === null) return;
+    if (opened === null) return false;
     opened.scene.setSeason(this.#seasonColors);
     if (this.#beach === null) {
       const controller = new BeachController(this.session, this.profiles, opened.scene, this.#input);
@@ -574,17 +585,89 @@ class Controller {
         controller.holdStill(true);
         this.#story.open(chapter);
       };
+      controller.onFerry = () => {
+        void this.#takeFerry('beach');
+      };
       this.#beach = controller;
     }
     this.#beach.setProfile(this.#lastProfile);
     this.#menu.hide();
     try {
-      await this.#beach.enter(opened.nickname);
+      await this.#beach.enter(opened.nickname, byFerry);
+      return true;
     } catch (error) {
       this.#closeWorld(BEACH_SCENE_KEY);
       this.#menu.showError(joinErrorMessage(error));
+      return false;
     } finally {
       this.#busy = false;
+    }
+  }
+
+  #ferryOpen(to: FerryIsland, profile: ProfileSummary | null): boolean {
+    const v = profile?.progress;
+    return ferryOpenTo(to, v?.rank ?? 1, v?.academy.reduce((sum, l) => sum + l.stars, 0) ?? 0);
+  }
+
+  // The ferry: the crossing plays while this island's room is left and the other island's is joined at its dock.
+  async #takeFerry(from: FerryIsland): Promise<void> {
+    const leaving = from === 'city' ? this.#city : this.#beach;
+    const ferry = this.scene.scene.get(FERRY_SCENE_KEY);
+    if (this.#sailing || this.#busy || leaving?.active !== true || !(ferry instanceof FerryScene)) return;
+    this.#sailing = true;
+    const to = ferryDestination(from);
+    if (to === 'beach') {
+      const profile = (await this.profiles.profile()) ?? this.#lastProfile;
+      if (profile !== null) this.#setProfile(profile);
+      if (!this.#ferryOpen('beach', profile)) {
+        this.#sailing = false;
+        const need = beachUnlock();
+        const v = profile?.progress;
+        audio.play('refuse');
+        this.#hud.toast(t('ferry.locked', { rank: String(need.rank), stars: String(need.stars), myRank: String(v?.rank ?? 1), myStars: String(v?.academy.reduce((sum, l) => sum + l.stars, 0) ?? 0) }));
+        return;
+      }
+    }
+    document.documentElement.dataset['ferry'] = 'sailing';
+    const key = to === 'beach' ? BEACH_SCENE_KEY : CITY_SCENE_KEY;
+    const done = (): void => {
+      this.scene.scene.stop(FERRY_SCENE_KEY);
+      delete document.documentElement.dataset['ferry'];
+      this.#sailing = false;
+    };
+    try {
+      const created = new Promise<void>((resolve) => {
+        ferry.events.once(Phaser.Scenes.Events.CREATE, () => {
+          resolve();
+        });
+      });
+      this.scene.scene.launch(FERRY_SCENE_KEY, { from, to, look: leaving.ferryLook() });
+      await created;
+      audio.play('click');
+      await leaving.leave();
+      this.#input.enabled = false;
+      audio.setMood('beach');
+      audio.setSurf(true);
+      this.scene.scene.get(key).events.once(Phaser.Scenes.Events.CREATE, () => {
+        this.scene.scene.bringToTop(FERRY_SCENE_KEY);
+      });
+      const joined = to === 'beach' ? await this.#visitBeach(true) : await this.#visitCity(true);
+      this.#input.enabled = false;
+      if (!joined) {
+        audio.setSurf(false);
+        done();
+        if (this.scene.scene.isSleeping()) this.#closeWorld(key);
+        return;
+      }
+      await ferry.arrived;
+      await ferry.land();
+      done();
+      this.#input.enabled = to === 'beach' ? this.#beach?.active === true : this.#city?.active === true;
+      if (to === 'city') audio.setSurf(false);
+      this.#hud.toast(t('ferry.arrived', { name: FERRY_NAMES[to] }));
+    } catch {
+      done();
+      if (this.scene.scene.isSleeping() && this.#city?.active !== true && this.#beach?.active !== true) this.#closeWorld(key);
     }
   }
 

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { type Browser, type Page } from 'playwright-core';
 import { createGameServer } from '../apps/server/src/app.js';
 import type { CityRoom } from '../apps/server/src/city/CityRoom.js';
-import { BUILDING_DOORS, CITY_MAP, DOOR_TUNING, PUNCH_COOLDOWN_MS, ROUGH_STREETS, VAULT_DOOR, districtAt, layoutFor, toWorld } from '@byzantine-council/shared/city';
+import { BUILDING_DOORS, CITY_MAP, DOOR_TUNING, PUNCH_COOLDOWN_MS, ROUGH_STREETS, VAULT_DOOR, districtAt, layoutFor, shopTradeOf, toWorld } from '@byzantine-council/shared/city';
 import { canStand } from '@byzantine-council/shared/pathfinding';
 import { MemoryProfileStore } from '../apps/server/src/profile/store.js';
 import { matchMaker } from '@colyseus/core';
@@ -103,8 +103,18 @@ async function main(): Promise<void> {
       await mkdir(INTERIOR_SHOTS, { recursive: true });
       const indoors = (page: Page, want: boolean): Promise<boolean> =>
         page.waitForFunction((w) => ((window as unknown as { __bcCityPos?: () => { x: number } | null }).__bcCityPos?.()?.x ?? 0) > 4000 === w, want, { timeout: 6000 }).then(() => true).catch(() => false);
-      for (const [kind, name] of [['shop', 'shop'], ['mintHall', 'mint-hall'], ['hospital', 'hospital'], ['flat', 'flat']] as const) {
-        const door = BUILDING_DOORS.find((d) => d.room === kind);
+      const shops = BUILDING_DOORS.filter((d) => d.room === 'shop');
+      const flats = BUILDING_DOORS.filter((d) => d.room === 'flat');
+      const visits = [
+        ['shop', 'shop', shops[0]],
+        ['shop', 'shop-cafe', shops.find((d) => shopTradeOf(d.building.seed) === 'cafe')],
+        ['shop', 'shop-barber', shops.find((d) => shopTradeOf(d.building.seed) === 'barber')],
+        ['mintHall', 'mint-hall', BUILDING_DOORS.find((d) => d.room === 'mintHall')],
+        ['hospital', 'hospital', BUILDING_DOORS.find((d) => d.room === 'hospital')],
+        ['flat', 'flat', flats[0]],
+        ['flat', 'flat-2', flats[5]],
+      ] as const;
+      for (const [kind, name, door] of visits) {
         if (door === undefined) continue;
         walker.x = door.at.x;
         walker.y = door.at.y;
@@ -112,7 +122,7 @@ async function main(): Promise<void> {
         const offered = await rook.isVisible('#city-door');
         await rook.keyboard.press('e');
         check(offered && (await indoors(rook, true)), `the ${kind} door offers a way in and takes Rook inside`);
-        if (kind === 'shop') {
+        if (name === 'shop') {
           daniBody.x = door.at.x;
           daniBody.y = door.at.y;
           await dani.waitForTimeout(900);
@@ -124,15 +134,30 @@ async function main(): Promise<void> {
         }
         await rook.waitForTimeout(700);
         await rook.screenshot({ path: `${INTERIOR_SHOTS}${name}.png` });
+        const layout = layoutFor(kind, walker.inside);
+        const counter = layout.spots.find((sp) => sp.kind === 'counter');
+        if (name === 'shop' && counter !== undefined) {
+          const at = toWorld({ x: counter.c + 0.5, y: counter.r + 0.5 });
+          walker.x = at.x;
+          walker.y = at.y;
+          await rook.waitForTimeout(900);
+          const browse = await rook.isVisible('#city-shop');
+          await rook.keyboard.press('e');
+          const open = await rook.waitForSelector('#shop:not([hidden])', { timeout: 5000 }).then(() => true).catch(() => false);
+          check(browse && open, 'the shop counter offers its wares and opens the shop');
+          await rook.waitForTimeout(400);
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}shop-counter.png` });
+          await rook.keyboard.press('Escape');
+          check(await rook.waitForSelector('#shop', { state: 'hidden', timeout: 3000 }).then(() => true).catch(() => false), 'Escape closes the shop');
+        }
         await rook.waitForTimeout(DOOR_TUNING.gapMs);
-        const layout = layoutFor(kind, walker.layout);
         const inner = toWorld({ x: Math.floor(layout.w / 2) + 0.5, y: layout.d - 1.6 });
         walker.x = inner.x;
         walker.y = inner.y;
         await rook.waitForTimeout(700);
         await rook.keyboard.press('e');
         check(await indoors(rook, false), `Rook leaves the ${kind} by its door`);
-        if (kind === 'shop') {
+        if (name === 'shop') {
           await dani.waitForTimeout(DOOR_TUNING.gapMs);
           const out = toWorld({ x: Math.floor(layout.w / 2) + 0.5, y: layout.d - 0.5 });
           daniBody.x = out.x;

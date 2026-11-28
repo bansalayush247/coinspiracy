@@ -23,6 +23,7 @@ import { SHOP_IDS } from '@byzantine-council/shared/economy';
 import { audio } from '../audio/engine.js';
 import { quality } from '../game/quality.js';
 import { shadowScale, startJump, stepHop } from '../game/jump.js';
+import { drawFerryDock } from '../ferry/ferryDock.js';
 
 export const BEACH_SCENE_KEY = 'beach';
 const STEP_MS = TICK_SECONDS * 1000;
@@ -107,6 +108,7 @@ export class BeachScene extends Phaser.Scene {
     this.#swaying = props.swaying;
     this.#keepers = props.keepers;
     this.#hutDecor = props.hutDecor;
+    drawFerryDock(this, this.#entities, 'beach', isoDepth, this.#reduced);
     drawHutDecor(props.hutDecor, this.#owned);
     // Townsfolk browse the stalls and stroll to the shore.
     const spots = [...SHOP_IDS.map((id) => shopCounter(id)), homeDoor(), { x: 14.5, y: 15 }, { x: 7, y: 12.5 }, { x: 22.5, y: 12.5 }, { x: 15, y: 9.5 }];

@@ -22,6 +22,7 @@
     "peaks": "ARENA=peaks tsx --conditions=source e2e/reef.ts",
     "academy": "tsx --conditions=source e2e/academy.ts",
     "city": "tsx --conditions=source e2e/city.ts",
+    "ferry": "tsx --conditions=source e2e/ferry.ts",
     "story": "tsx --conditions=source e2e/story.ts",
     "languages": "tsx --conditions=source e2e/languages.ts",
     "loadtest": "tsx --conditions=source scripts/loadtest/run.ts",

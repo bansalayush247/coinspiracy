@@ -52,6 +52,8 @@ describe('walk-in buildings', () => {
     expect(a.doors[0]).toMatchObject({ ok: true, reason: 'in', inside: shopA?.building.seed });
     expect(isIndoors(a.me)).toBe(true);
     await waitFor(() => !b.client.state.players.has(a.client.sessionId), 'Bo loses sight of Ana');
+    b.me.x = shopA?.at.x ?? 0;
+    b.me.y = (shopA?.at.y ?? 0) + 1;
     await sleep(DOOR_TUNING.gapMs + 50);
     a.client.send('exit');
     await waitFor(() => a.doors.length === 2, 'exit answered');

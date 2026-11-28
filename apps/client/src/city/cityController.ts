@@ -1,13 +1,17 @@
 // Runs a visit to Port Concord: the city room, the HUD, the minimap and district arrivals.
 import { Callbacks } from '@colyseus/sdk';
-import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, DoorResultSchema, ENTER_RANGE, PunchLineSchema, VAULT_DOOR, atExit, atVault, districtAt, doorAt, doorBySeed, isRough, layoutFor, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId, type DoorResult, type RoomKind } from '@byzantine-council/shared/city';
+import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, DoorResultSchema, ENTER_RANGE, PunchLineSchema, VAULT_DOOR, atCounter, atExit, atVault, districtAt, doorAt, doorBySeed, isRough, layoutFor, shopTradeOf, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId, type DoorResult, type RoomKind, type ShopTrade } from '@byzantine-council/shared/city';
+import { getShop } from '@byzantine-council/shared/economy';
 import { EMOTES, EmoteLineSchema, JumpLineSchema, type Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import { type PlayerInput, isEditable } from '../game/input.js';
 import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { mountEmoteBar } from '../ui/emoteBar.js';
+import { shopPanel } from '../ui/shopPanel.js';
 import { el, h } from '../ui/dom.js';
+import { FerryButton, markFerryOnMinimap } from '../ferry/ferryDock.js';
+import type { FerryLook } from '../ferry/FerryScene.js';
 import { formatNumber, t, type PlainKey } from '../i18n/index.js';
 import type { CityScene } from './CityScene.js';
 
@@ -15,6 +19,7 @@ type CityRoom = Awaited<ReturnType<Session['city']>>;
 
 // If the server's answer is lost, the door button comes back after this long.
 const DOOR_RETRY_MS = 1_500;
+const shopName = (trade: ShopTrade): string => getShop(trade)?.name ?? trade;
 
 const ENTER_LABELS: Readonly<Record<RoomKind, PlainKey>> = { shop: 'city.enterShop', mintHall: 'city.enterMint', hospital: 'city.enterHospital', flat: 'city.enterFlat' };
 type Zone = 'rough' | 'safe' | 'indoors';
@@ -42,7 +47,10 @@ export class CityController {
   readonly #deposit = el('city-deposit', HTMLButtonElement);
   readonly #ride = el('city-ride', HTMLButtonElement);
   readonly #door = el('city-door', HTMLButtonElement);
-  #layout = 0;
+  readonly #shop = el('city-shop', HTMLButtonElement);
+  readonly #ferry = new FerryButton(el('city-ferry', HTMLButtonElement), 'city', () => {
+    this.onFerry();
+  });
   #inCar = false;
   #driveLoop = 0;
   #atVault = false;
@@ -56,6 +64,8 @@ export class CityController {
   onLeft: () => void = () => undefined;
   onToast: (text: string) => void = () => undefined;
   onProfile: (p: ProfileSummary) => void = () => undefined;
+  onFerry: () => void = () => undefined;
+  ferryOpen: () => boolean = () => true;
 
   constructor(
     private readonly session: Session,
@@ -64,6 +74,7 @@ export class CityController {
     private readonly input: PlayerInput,
   ) {
     paintMinimap(el('city-minimap', HTMLCanvasElement));
+    markFerryOnMinimap(el('city-minimap', HTMLCanvasElement));
     el('city-leave', HTMLButtonElement).addEventListener('click', () => {
       void this.leave();
     });
@@ -79,11 +90,14 @@ export class CityController {
     this.#door.addEventListener('click', () => {
       this.#useDoor();
     });
+    this.#shop.addEventListener('click', () => {
+      void this.#openShop();
+    });
     this.#ride.addEventListener('click', () => {
       this.#room?.send('ride');
     });
     window.addEventListener('keydown', (e) => {
-      if (this.#room === null || this.#hud.hidden) return;
+      if (this.#room === null || this.#hud.hidden || shopPanel().isOpen) return;
       if (e.code === 'Space' && !e.repeat && !isEditable(e.target)) {
         // A focused HUD button would otherwise be clicked by Space as well.
         if (e.target instanceof HTMLButtonElement) e.target.blur();
@@ -98,7 +112,9 @@ export class CityController {
       if ((e.key === 'e' || e.key === 'E') && !e.repeat && !(e.target instanceof HTMLInputElement)) {
         if (!this.#deposit.hidden) this.#vault();
         else if (!this.#ride.hidden) this.#room.send('ride');
+        else if (!this.#shop.hidden) void this.#openShop();
         else if (!this.#door.hidden) this.#useDoor();
+        else if (this.#ferry.shown) this.onFerry();
         return;
       }
       const n = Number(e.key);
@@ -111,8 +127,15 @@ export class CityController {
     return this.#room !== null;
   }
 
-  async enter(nickname: string): Promise<void> {
-    const room = await this.session.city(nickname);
+  /** How this guardian looks right now, for the ferry crossing; null when not in the city. */
+  ferryLook(): FerryLook | null {
+    const room = this.#room;
+    const me = room?.state.players.get(room.sessionId);
+    return me === undefined ? null : { seat: me.seat, wear: { hat: me.hat, shades: me.shades, outfit: me.outfit } };
+  }
+
+  async enter(nickname: string, byFerry = false): Promise<void> {
+    const room = await this.session.city(nickname, byFerry);
     this.#room = room;
     this.scene.attach(room.sessionId, this.input, {
       get canSend() {
@@ -206,6 +229,9 @@ export class CityController {
     this.#setDriving(false);
     this.#ride.hidden = true;
     this.#door.hidden = true;
+    this.#shop.hidden = true;
+    this.#ferry.hide();
+    shopPanel().close();
     this.#hud.classList.remove('indoors');
     this.scene.detach();
     this.#here = null;
@@ -257,6 +283,7 @@ export class CityController {
     }
     this.#deposit.hidden = !vaultHere || this.#coins === 0;
     this.#renderDoor(pos);
+    this.#ferry.update(pos, this.scene.inside === 0 && !this.scene.meDown && !this.#inCar, this.ferryOpen());
     drawDots(this.#dots, pos, this.scene.others());
   }
 
@@ -267,13 +294,46 @@ export class CityController {
     let label: string | null = null;
     if (inside !== 0) {
       const door = doorBySeed(inside);
-      if (door !== null && atExit(pos, layoutFor(door.room, this.#layout))) label = t('city.leaveBuilding');
+      if (door !== null && atExit(pos, layoutFor(door.room, inside))) label = t('city.leaveBuilding');
     } else if (!this.scene.meDown && !this.#inCar && this.#ride.hidden) {
       const door = doorAt(pos);
       if (door !== null) label = t(ENTER_LABELS[door.room]);
     }
     this.#door.hidden = label === null;
     if (label !== null) this.#door.firstChild?.replaceWith(document.createTextNode(label));
+    const trade = this.#shopHere(pos);
+    this.#shop.hidden = trade === null || shopPanel().isOpen;
+    if (trade !== null) this.#shop.firstChild?.replaceWith(document.createTextNode(t('city.browseShop', { name: shopName(trade) })));
+  }
+
+  // The trade of the shop whose counter this guardian stands at; null anywhere else.
+  #shopHere(pos: { x: number; y: number }): ShopTrade | null {
+    const inside = this.scene.inside;
+    const door = inside === 0 ? null : doorBySeed(inside);
+    if (door?.room !== 'shop' || this.scene.meDown || !atCounter(pos, layoutFor('shop', inside))) return null;
+    return shopTradeOf(inside);
+  }
+
+  async #openShop(): Promise<void> {
+    const pos = this.scene.predictedPosition();
+    const trade = pos === null ? null : this.#shopHere(pos);
+    if (trade === null || shopPanel().isOpen) return;
+    this.input.enabled = false;
+    this.#shop.hidden = true;
+    const profile = await this.profiles.profile();
+    if (this.#room === null) return;
+    shopPanel().open(trade, profile, {
+      profiles: this.profiles,
+      onProfile: (p) => {
+        this.onProfile(p);
+      },
+      onToast: (text) => {
+        this.onToast(text);
+      },
+      onClose: () => {
+        if (this.#room !== null) this.input.enabled = true;
+      },
+    });
   }
 
   #useDoor(): void {
@@ -289,6 +349,8 @@ export class CityController {
     this.#door.disabled = false;
     if (r.ok) {
       audio.play('click');
+      const door = r.inside === 0 ? null : doorBySeed(r.inside);
+      if (door?.room === 'shop') this.onToast(t('city.welcomeShop', { name: shopName(shopTradeOf(r.inside)) }));
       return;
     }
     const why: Record<Exclude<DoorResult['reason'], 'in' | 'out'>, PlainKey> = {
@@ -305,7 +367,6 @@ export class CityController {
   // Pocket, knockout and driving state for this client's own guardian.
   #mine(player: CityPlayer): void {
     this.#setDriving(player.car !== '');
-    this.#layout = player.layout;
     const coins = player.pocket ?? 0;
     if (coins !== this.#coins) {
       if (coins > this.#coins) audio.play('coin');

@@ -2,10 +2,38 @@
 
 ## 28 November 2026
 
+### Every building its own room, and shops you can buy from
+- No two shops or houses look alike inside any more: every building is furnished its own way, in its own size and
+  finishes. Each shop is a tailor, barber, hat shop, surf shop or café, fitted out for its trade with clothes rails
+  and mirrors, barber chairs, hat stands, surfboard racks or café tables, and its counter dressed to match.
+- Walk up to a shop's counter and press E (or tap "Shop at …") to browse its wares and pay with the notes in your
+  wallet, just as at the Beach Town stalls.
+- Every house is your own private home: a kitchen, a wardrobe, a TV with a sofa, a table and a bed, different in
+  every house you walk into.
+- Inside, the room now fills the screen and sits in the cut-away corner of its building, instead of floating in an
+  empty purple space.
+
+### Nobody walks through anybody
+- Guardians no longer pass through each other: bump into someone and you both ease apart, on the street and
+  indoors. Nobody can be pinned in a doorway, because a push always gives way.
+- A car you drive stops against other cars instead of sliding through them, and the city's traffic brakes and waits
+  behind your car.
+- The hand your guardian waves, cheers and throws a shaka with is now a clean cartoon glove.
+
+### A ferry between Port Concord and Beach Town
+- A ferry is moored at the Port Concord seafront, under a blue FERRY sign and marked on the minimap, and another at
+  the end of the Beach Town pier. Stand by it and press E (or tap "Ferry to …") to sail across.
+- The crossing takes about eight seconds: you stand on the foredeck while the harbour falls away behind, gulls wheel
+  overhead and the other island comes up ahead. Tap or press E after the first second to skip the rest; with reduced
+  motion on, it is a short card instead.
+- You step off at the other island's pier, and the ferry back leaves from the same spot.
+- Beach Town still opens at Rank 3 or with four Academy stars. Until then the button says it is locked and tells you
+  what opens it.
+
 ### Step inside: shops, the Mint Hall, the hospital and your own flat
 - Walk up to a shop, the Mint Hall, the hospital or any house and press E (or tap the door button) to go in.
   Leave by pressing E at the inner door or by simply walking out through the doorway.
-- Every house door leads to your own private flat that nobody else can enter. Shops, the Mint Hall and the
+- Every house door leads to your own private home that nobody else can enter. Shops, the Mint Hall and the
   hospital are shared: you see the other guardians inside, up to twelve at once, and nobody out on the street.
 - The hospital patches you up as you come in. Nobody can punch indoors, and you can't duck inside within ten
   seconds of being hit, from a car, or while knocked down.

@@ -2,11 +2,13 @@
 import { z } from 'zod';
 import { ShopIdSchema } from '../economy/catalog.js';
 import { NicknameSchema } from '../lobby.js';
+import { FerryArriveSchema } from '../city/ferry.js';
 
 export const BEACH_ROOM = 'beach';
 export const BEACH_MAX_PLAYERS = 16;
 
-export const BeachJoinSchema = z.strictObject({ nickname: NicknameSchema });
+/** Joining by nickname; `arrive: 'ferry'` lands the guardian at the ferry dock, and nothing else about it comes from the client. */
+export const BeachJoinSchema = z.strictObject({ nickname: NicknameSchema, arrive: FerryArriveSchema.optional() });
 
 export const TakeJobPayloadSchema = z.strictObject({ shop: ShopIdSchema });
 

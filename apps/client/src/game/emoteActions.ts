@@ -5,7 +5,7 @@ import type { Emote } from '@byzantine-council/shared/hub';
 import { ACTION, poseAt } from './emotePoses.js';
 import { GUARDIAN_HEIGHT } from './guardianArt.js';
 import { ART_SCALE } from './iso.js';
-import { lit, shade } from './palette.js';
+import { shade } from './palette.js';
 
 const H = GUARDIAN_HEIGHT;
 const S = ART_SCALE;
@@ -13,27 +13,74 @@ const S = ART_SCALE;
 /** The colours of a cheer's confetti. */
 export const CONFETTI: readonly number[] = Object.freeze([0xff7f6a, 0xffd27a, 0x5fd3b0, 0xa983ff, 0x7fc8ff]);
 
-/** Draws a mitten hand in the guardian's colour, wrist at the origin and fingers up: open, or a shaka. */
-export function drawHand(g: Phaser.GameObjects.Graphics, color: number, sign: 'open' | 'shaka'): void {
-  g.clear();
-  const ink = shade(color, 0.45);
-  g.lineStyle(1.2 * S, ink, 1);
-  g.fillStyle(color, 1);
-  if (sign === 'open') {
-    for (const fx of [-2.6, -0.9, 0.9, 2.6]) {
-      g.fillRoundedRect((fx - 0.9) * S, -10 * S, 1.8 * S, 5 * S, 0.9 * S);
-      g.strokeRoundedRect((fx - 0.9) * S, -10 * S, 1.8 * S, 5 * S, 0.9 * S);
-    }
-  } else {
-    g.fillRoundedRect(-5.4 * S, -8.4 * S, 1.9 * S, 5 * S, 0.9 * S);
-    g.strokeRoundedRect(-5.4 * S, -8.4 * S, 1.9 * S, 5 * S, 0.9 * S);
-    g.fillRoundedRect(3.4 * S, -9.6 * S, 1.9 * S, 5.6 * S, 0.9 * S);
-    g.strokeRoundedRect(3.4 * S, -9.6 * S, 1.9 * S, 5.6 * S, 0.9 * S);
+const GLOVE = 0xffe9cc;
+const HAND_INK = (robe: number): number => shade(robe, 0.6);
+
+type HandPart =
+  | { readonly kind: 'capsule'; readonly ax: number; readonly ay: number; readonly bx: number; readonly by: number; readonly r: number }
+  | { readonly kind: 'box'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly r: number }
+  | { readonly kind: 'dot'; readonly x: number; readonly y: number; readonly r: number };
+
+const finger = (ax: number, ay: number, bx: number, by: number, r: number): HandPart => ({ kind: 'capsule', ax, ay, bx, by, r });
+
+const PALM: HandPart = { kind: 'box', x: -3.4, y: -7.4, w: 6.8, h: 7, r: 2.8 };
+const CUFF: HandPart = { kind: 'box', x: -2.5, y: -1.1, w: 5, h: 3, r: 1 };
+
+const OPEN_HAND: readonly HandPart[] = [
+  PALM,
+  finger(-2.3, -6, -3.1, -9.6, 1),
+  finger(-0.75, -6.4, -0.95, -11.2, 1.02),
+  finger(0.85, -6.4, 1.25, -10.7, 1),
+  finger(2.35, -5.8, 3.3, -9, 0.92),
+  finger(-2.4, -2.8, -5.7, -5.4, 1.1),
+];
+
+const SHAKA_HAND: readonly HandPart[] = [
+  PALM,
+  { kind: 'dot', x: -2.1, y: -7, r: 1.35 },
+  { kind: 'dot', x: -0.3, y: -7.3, r: 1.35 },
+  { kind: 'dot', x: 1.45, y: -7, r: 1.3 },
+  finger(2.4, -5.4, 5.3, -9.1, 1),
+  finger(-2.4, -2.8, -6.6, -4.4, 1.1),
+];
+
+// A round-ended bar from (ax, ay) to (bx, by): two circles joined by a quad.
+function fillCapsule(g: Phaser.GameObjects.Graphics, ax: number, ay: number, bx: number, by: number, r: number): void {
+  const len = Math.hypot(bx - ax, by - ay) || 1;
+  const nx = (-(by - ay) / len) * r;
+  const ny = ((bx - ax) / len) * r;
+  g.fillCircle(ax, ay, r);
+  g.fillCircle(bx, by, r);
+  g.fillTriangle(ax + nx, ay + ny, bx + nx, by + ny, bx - nx, by - ny);
+  g.fillTriangle(ax + nx, ay + ny, bx - nx, by - ny, ax - nx, ay - ny);
+}
+
+function fillPart(g: Phaser.GameObjects.Graphics, p: HandPart, grow: number): void {
+  switch (p.kind) {
+    case 'capsule':
+      fillCapsule(g, p.ax * S, p.ay * S, p.bx * S, p.by * S, p.r * S + grow);
+      return;
+    case 'box':
+      g.fillRoundedRect(p.x * S - grow, p.y * S - grow, p.w * S + 2 * grow, p.h * S + 2 * grow, p.r * S + grow);
+      return;
+    case 'dot':
+      g.fillCircle(p.x * S, p.y * S, p.r * S + grow);
   }
-  g.fillCircle(0, -4 * S, 3.8 * S);
-  g.strokeCircle(0, -4 * S, 3.8 * S);
-  g.fillStyle(0xffffff, 0.35);
-  g.fillCircle(-1.2 * S, -5.2 * S, 1.3 * S);
+}
+
+/** Draws a cartoon glove for a guardian in robe colour `robe`, wrist at the origin and fingers up: open, or a shaka. */
+export function drawHand(g: Phaser.GameObjects.Graphics, robe: number, sign: 'open' | 'shaka'): void {
+  g.clear();
+  const parts = sign === 'open' ? OPEN_HAND : SHAKA_HAND;
+  const outline = 0.75 * S;
+  g.fillStyle(HAND_INK(robe), 1);
+  for (const p of [...parts, CUFF]) fillPart(g, p, outline);
+  g.fillStyle(GLOVE, 1);
+  for (const p of parts) fillPart(g, p, 0);
+  g.fillStyle(0xffffff, 0.5);
+  g.fillEllipse(-1.2 * S, -5.4 * S, 2.6 * S, 1.8 * S);
+  g.fillStyle(robe, 1);
+  fillPart(g, CUFF, 0);
 }
 
 function drawHeart(g: Phaser.GameObjects.Graphics, size: number): void {
@@ -116,7 +163,7 @@ export class EmoteAction {
     for (let i = 0; i < (first.hand.both ? 2 : 1); i++) {
       const sleeve = new Phaser.GameObjects.Graphics(scene);
       const hand = new Phaser.GameObjects.Graphics(scene);
-      drawHand(hand, lit(color, 0.45), first.hand.sign);
+      drawHand(hand, color, first.hand.sign);
       root.add([sleeve, hand]);
       this.#arms.push({ sleeve, hand });
     }
@@ -137,10 +184,10 @@ export class EmoteAction {
       const sx = p.dx + side * SHOULDER.x * H;
       const sy = baseY + p.dy - SHOULDER.y * H;
       sleeve.clear();
-      sleeve.lineStyle(SLEEVE + 2 * S, shade(this.#robe, 0.45), 1);
-      sleeve.lineBetween(sx, sy, wx, wy + 2 * S);
+      sleeve.lineStyle(SLEEVE + 2 * S, HAND_INK(this.#robe), 1);
+      sleeve.lineBetween(sx, sy, wx, wy);
       sleeve.lineStyle(SLEEVE, this.#robe, 1);
-      sleeve.lineBetween(sx, sy, wx, wy + 2 * S);
+      sleeve.lineBetween(sx, sy, wx, wy);
       hand.setPosition(wx, wy).setRotation(reduced ? 0 : side * held.rot).setScale(side * HAND_SCALE, HAND_SCALE);
     });
     return true;

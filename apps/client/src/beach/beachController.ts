@@ -1,7 +1,6 @@
 // Runs a visit to Beach Town: the hub room, the HUD, the shops and courier jobs.
 import { Callbacks } from '@colyseus/sdk';
-import { toDenominations } from '@byzantine-council/shared';
-import { SHOPS, getShop, itemsInShop, ownsItem, payWithNotes, type CatalogItem, type ShopId } from '@byzantine-council/shared/economy';
+import { SHOPS, getShop, type ShopId } from '@byzantine-council/shared/economy';
 import { BEACH_MESSAGES, CourierDoneSchema, CourierJobSchema, CourierRefusedSchema, EMOTES, EmoteLineSchema, JumpLineSchema, atHome, shopAt, type CourierJob, type Emote, type HubPlayer } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import { Achievements } from '../profile/achievements.js';
@@ -11,7 +10,10 @@ import { type PlayerInput, isEditable } from '../game/input.js';
 import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { mountEmoteBar } from '../ui/emoteBar.js';
-import { el, h } from '../ui/dom.js';
+import { shopPanel } from '../ui/shopPanel.js';
+import { el } from '../ui/dom.js';
+import { FerryButton } from '../ferry/ferryDock.js';
+import type { FerryLook } from '../ferry/FerryScene.js';
 import { t, type PlainKey } from '../i18n/index.js';
 import type { BeachScene } from './BeachScene.js';
 
@@ -36,35 +38,29 @@ export class BeachController {
   readonly #promptText = el('beach-prompt-text', HTMLSpanElement);
   readonly #browse = el('beach-shop', HTMLButtonElement);
   readonly #jobAction = el('beach-job-action', HTMLButtonElement);
-  readonly #shopRoot = el('shop', HTMLElement);
-  readonly #shopTitle = el('shop-title', HTMLHeadingElement);
-  readonly #shopSells = el('shop-sells', HTMLParagraphElement);
-  readonly #shopItems = el('shop-items', HTMLDivElement);
-  readonly #pay = el('shop-pay', HTMLDivElement);
-  readonly #payTitle = el('shop-pay-title', HTMLParagraphElement);
-  readonly #notes = el('shop-notes', HTMLDivElement);
-  readonly #payStatus = el('shop-pay-status', HTMLParagraphElement);
-  readonly #payGo = el('shop-pay-go', HTMLButtonElement);
+  readonly #ferry = new FerryButton(el('beach-ferry', HTMLButtonElement), 'beach', () => {
+    this.onFerry();
+  });
   readonly #achievements = new Achievements();
   readonly #coach = new Coach();
   #room: BeachRoom | null = null;
   #profile: ProfileSummary | null = null;
   #here: ShopId | null = null;
   #job: CourierJob | null = null;
-  #buying: { item: CatalogItem; shop: ShopId; price: number } | null = null;
-  #selected: number[] = [];
   #poll = 0;
   onLeft: () => void = () => undefined;
   onProfile: (p: ProfileSummary) => void = () => undefined;
   onToast: (text: string) => void = () => undefined;
   onWardrobe: () => void = () => undefined;
   onChronicle: () => void = () => undefined;
+  onFerry: () => void = () => undefined;
+  ferryOpen: () => boolean = () => true;
   // True while the guardian stands on their own hut's porch (and at no shop).
   #home = false;
 
   // While a panel from the menu (the wardrobe) is open over the town, the guardian stands still.
   holdStill(hold: boolean): void {
-    if (this.#room !== null) this.input.enabled = !hold && this.#shopRoot.hidden;
+    if (this.#room !== null) this.input.enabled = !hold && !shopPanel().isOpen;
   }
 
   // The wardrobe changed: let the town see the new look.
@@ -91,23 +87,13 @@ export class BeachController {
       if (this.#home) this.onChronicle();
       else this.#jobStep();
     });
-    el('shop-close', HTMLButtonElement).addEventListener('click', () => {
-      this.#closeShop();
-    });
-    el('shop-pay-back', HTMLButtonElement).addEventListener('click', () => {
-      this.#pay.hidden = true;
-      this.#shopItems.hidden = false;
-    });
-    this.#payGo.addEventListener('click', () => {
-      void this.#confirmPay();
-    });
     // Emote buttons, also on keys 1 to 6.
     mountEmoteBar(el('beach-emotes', HTMLDivElement), (emote) => {
       this.#emote(emote);
     });
     window.addEventListener('keydown', (e) => {
       if (this.#room === null || this.#hud.hidden || !el('wardrobe', HTMLElement).hidden || !el('story', HTMLElement).hidden) return;
-      if (e.code === 'Space' && !e.repeat && !isEditable(e.target) && this.#shopRoot.hidden) {
+      if (e.code === 'Space' && !e.repeat && !isEditable(e.target) && !shopPanel().isOpen) {
         // A focused HUD button would otherwise be clicked by Space as well.
         if (e.target instanceof HTMLButtonElement) e.target.blur();
         e.preventDefault();
@@ -116,13 +102,12 @@ export class BeachController {
         return;
       }
       const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1 && n <= EMOTES.length && this.#shopRoot.hidden) {
+      if (Number.isInteger(n) && n >= 1 && n <= EMOTES.length && !shopPanel().isOpen) {
         const emote = EMOTES[n - 1];
         if (emote !== undefined) this.#emote(emote);
         return;
       }
-      if (e.key === 'Escape' && !this.#shopRoot.hidden) this.#closeShop();
-      else if ((e.key === 'e' || e.key === 'E') && this.#shopRoot.hidden) this.#use();
+      if ((e.key === 'e' || e.key === 'E') && !shopPanel().isOpen) this.#use();
     });
   }
 
@@ -130,6 +115,7 @@ export class BeachController {
   #use(): void {
     if (this.#here !== null) this.#openShop(this.#here);
     else if (this.#home) this.onWardrobe();
+    else if (this.#ferry.shown) this.onFerry();
   }
 
   setProfile(p: ProfileSummary | null): void {
@@ -142,8 +128,15 @@ export class BeachController {
     return this.#room !== null;
   }
 
-  async enter(nickname: string): Promise<void> {
-    const room = await this.session.beach(nickname);
+  /** How this guardian looks right now, for the ferry crossing; null when not in town. */
+  ferryLook(): FerryLook | null {
+    const room = this.#room;
+    const me = room?.state.players.get(room.sessionId);
+    return me === undefined ? null : { seat: me.seat, wear: { hat: me.hat, shades: me.shades, outfit: me.outfit } };
+  }
+
+  async enter(nickname: string, byFerry = false): Promise<void> {
+    const room = await this.session.beach(nickname, byFerry);
     this.#room = room;
     this.scene.attach(room.sessionId, this.input, {
       get canSend() {
@@ -233,7 +226,8 @@ export class BeachController {
     this.#room = null;
     window.clearInterval(this.#poll);
     this.#job = null;
-    this.#closeShop();
+    this.#ferry.hide();
+    shopPanel().close();
     this.scene.detach();
     this.#here = null;
     this.#home = false;
@@ -248,6 +242,7 @@ export class BeachController {
   // Which counter the guardian stands at, and what the prompt offers there.
   #render(): void {
     const pos = this.scene.predictedPosition();
+    this.#ferry.update(pos, !shopPanel().isOpen, this.ferryOpen());
     const here = pos === null ? null : shopAt(pos);
     if (here !== this.#here) {
       this.#here = here;
@@ -262,7 +257,7 @@ export class BeachController {
       // A small welcome chime on stepping onto your own porch.
       if (home) audio.play('chirp');
     }
-    this.#prompt.hidden = (here === null && !home) || !this.#shopRoot.hidden;
+    this.#prompt.hidden = (here === null && !home) || shopPanel().isOpen;
     if (home) {
       this.#promptText.textContent = t('beach.hut');
       this.#browse.textContent = t('beach.wardrobeKey');
@@ -297,102 +292,20 @@ export class BeachController {
   }
 
   #openShop(shop: ShopId): void {
-    const info = getShop(shop);
-    if (info === undefined) return;
-    this.#shopTitle.textContent = info.name;
-    this.#shopSells.textContent = info.sells;
-    this.#pay.hidden = true;
-    this.#shopItems.hidden = false;
-    const owned = new Set(this.#profile?.owned ?? []);
-    const rows = itemsInShop(shop).flatMap((item) => {
-      if (item.source.kind !== 'shop' || item.source.price < 1) return [];
-      const price = item.source.price;
-      const row = h('div', 'shop-item');
-      const swatch = h('span', 'swatch');
-      swatch.style.background = item.hints.swatch;
-      const have = item.category !== 'food' && ownsItem(owned, item.id);
-      const buy = h('button', have ? '' : 'cta', t(have ? 'beach.owned' : 'beach.buy'));
-      buy.type = 'button';
-      buy.disabled = have || this.#profile === null;
-      buy.addEventListener('click', () => {
-        this.#startPay(item, shop, price);
-      });
-      row.append(swatch, h('span', 'name', item.name), h('span', 'price', t('progress.sats', { sats: String(price) })), buy);
-      return [row];
+    shopPanel().open(shop, this.#profile, {
+      profiles: this.profiles,
+      onProfile: (p) => {
+        this.onProfile(p);
+      },
+      onToast: (text) => {
+        this.onToast(text);
+      },
+      onClose: () => {
+        if (this.#room !== null) this.input.enabled = true;
+        this.#render();
+      },
     });
-    this.#shopItems.replaceChildren(...rows);
-    this.#shopRoot.hidden = false;
-    this.#shopRoot.focus();
     this.input.enabled = false;
     this.#render();
-  }
-
-  #closeShop(): void {
-    this.#shopRoot.hidden = true;
-    this.#buying = null;
-    if (this.#room !== null) this.input.enabled = true;
-  }
-
-  // Note picking: tap notes from the wallet; the same rule as the mint says when it is enough.
-  #startPay(item: CatalogItem, shop: ShopId, price: number): void {
-    this.#buying = { item, shop, price };
-    this.#selected = [];
-    this.#payTitle.textContent = t('beach.payTitle', { name: item.name, sats: String(price) });
-    this.#shopItems.hidden = true;
-    this.#pay.hidden = false;
-    this.#renderNotes();
-  }
-
-  #renderNotes(): void {
-    const p = this.#profile;
-    const b = this.#buying;
-    if (p === null || b === null) return;
-    const notes = [...p.notes].sort((x, y) => y - x);
-    const picked = [...this.#selected];
-    const buttons = notes.map((note, i) => {
-      const btn = h('button', '', String(note));
-      btn.type = 'button';
-      const on = picked.includes(i);
-      btn.setAttribute('aria-pressed', String(on));
-      btn.addEventListener('click', () => {
-        this.#selected = on ? this.#selected.filter((k) => k !== i) : [...this.#selected, i];
-        audio.play('click');
-        this.#renderNotes();
-      });
-      return btn;
-    });
-    this.#notes.replaceChildren(...buttons);
-    const chosen = this.#selected.map((i) => notes[i] ?? 0);
-    const sum = chosen.reduce((a, n) => a + n, 0);
-    const check = chosen.length === 0 ? null : payWithNotes(p.notes, chosen, b.price);
-    this.#payStatus.classList.toggle('ok', check?.ok === true);
-    if (check === null) this.#payStatus.textContent = t('beach.selectedNone', { price: String(b.price) });
-    else if (check.ok) {
-      const change = sum - b.price;
-      this.#payStatus.textContent = change === 0 ? t('beach.exact') : t('beach.change', { change: String(change), notes: toDenominations(change).join(' + ') });
-    } else if (check.error === 'underpaid') this.#payStatus.textContent = t('beach.underpaid', { sum: String(sum), price: String(b.price) });
-    else if (check.error === 'overpaid') this.#payStatus.textContent = t('beach.overpaid');
-    else if (check.error === 'insufficientFunds') this.#payStatus.textContent = t('beach.insufficient');
-    else this.#payStatus.textContent = t('beach.pickNotes');
-    this.#payGo.disabled = check?.ok !== true;
-  }
-
-  async #confirmPay(): Promise<void> {
-    const p = this.#profile;
-    const b = this.#buying;
-    if (p === null || b === null) return;
-    const notes = [...p.notes].sort((x, y) => y - x);
-    const chosen = this.#selected.map((i) => notes[i] ?? 0);
-    this.#payGo.disabled = true;
-    const next = await this.profiles.buy(b.item.id, b.shop, chosen);
-    if (next === null) {
-      this.#payStatus.textContent = t('beach.refused');
-      this.#payGo.disabled = false;
-      return;
-    }
-    audio.play('coin');
-    this.onProfile(next);
-    this.onToast(b.item.category === 'food' ? t('beach.enjoy', { name: b.item.name.toLowerCase() }) : t('beach.inWardrobe', { name: b.item.name }));
-    this.#openShop(b.shop);
   }
 }

@@ -4,6 +4,7 @@ import Phaser from 'phaser';
 import { PLAYER_RADIUS, TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
 import { canStand } from '@byzantine-council/shared/pathfinding';
 import { INTERIOR_ORIGIN, doorBySeed, layoutFor, roomMap } from '@byzantine-council/shared/city';
+import { pushClear, type CarPose, type CrowdBody } from '@byzantine-council/shared/city';
 import { CHUNK, CITY_BUILDINGS, carsSolid, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityCar, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
 import type { Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
@@ -14,21 +15,27 @@ import { GUARDIAN_HEIGHT, NO_WEAR, drawGuardian, drawShadow, type Wear } from '.
 import { turnToward } from '../game/facing.js';
 import { fairZoom, sceneDpr, viewSize } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer, lerpFactor } from '../game/interpolation.js';
-import { ART_SCALE, TILE_H, isoDepth, screenToWorld, worldToScreen } from '../game/iso.js';
+import { ART_SCALE, TILE_H, TILE_W, isoDepth, screenToWorld, worldToScreen } from '../game/iso.js';
 import { COLORS, cssColor, seatColors } from '../game/palette.js';
 import { PhysicsFx, makeFxTextures } from '../game/physics.js';
 import { CorrectionSmoother, Predictor, type PendingInput } from '../game/prediction.js';
 import { Townsfolk } from '../game/townsfolk.js';
+import { roomBackdrop } from './interiorArt.js';
 import { InteriorView } from './interiorView.js';
 import { MissionView } from './missionView.js';
 import { drawModernCar } from './carArt.js';
 import { CAR_COLORS, Traffic } from './traffic.js';
+import { drawFerryDock } from '../ferry/ferryDock.js';
 import { buildingFront, drawBuilding, drawContainer, drawMound, drawStreetLamp, drawStreetTree, makeCoinTexture, paintChunk } from './cityArt.js';
 import { shadowScale, startJump, stepHop } from '../game/jump.js';
 
 export const CITY_SCENE_KEY = 'city';
 const STEP_MS = TICK_SECONDS * 1000;
 const BASE_ZOOM = 0.72;
+// Indoors: how much closer the camera may come than on the street, the room's wall height above its floor, and the dark kept round it.
+const ROOM_ZOOM_MAX = 1.8;
+const ROOM_WALL_PX = 120 * ART_SCALE;
+const ROOM_MARGIN = 48;
 const COIN = 'city-coin';
 const GHOST = { lit: 0xffd27a, shadow: 0xffb347, highlight: 0xfff1c9 };
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -69,6 +76,8 @@ interface Avatar {
   readonly npc: boolean;
   inCar: boolean;
   readonly pos: { x: number; y: number };
+  // The latest position the server sent, for nudging this client's own guardian out of them.
+  readonly server: { x: number; y: number };
   seat: number;
   wear: Wear;
   facing: 1 | -1;
@@ -165,6 +174,7 @@ export class CityScene extends Phaser.Scene {
   readonly #wallsInView: Wall[] = [];
   readonly #fade = new Set<Wall>();
   readonly #people: Vec2[] = [];
+  readonly #carPoses: CarPose[] = [];
   readonly #cars = new Map<string, DrivenCar>();
   #driving = false;
   #following: Phaser.GameObjects.GameObject | null = null;
@@ -190,6 +200,7 @@ export class CityScene extends Phaser.Scene {
   #inside = 0;
   #room: InteriorView | null = null;
   #userZoom = 1;
+  #roomBox: Phaser.Geom.Rectangle | null = null;
   readonly #tmp = { x: 0, y: 0 };
 
   constructor() {
@@ -220,6 +231,7 @@ export class CityScene extends Phaser.Scene {
     this.#vaultMark();
     this.#mission = data?.mission === true ? new MissionView(this, this.#entities, this.#names, sortDepth, this.#reduced) : null;
     this.#traffic = new Traffic(this, this.#entities, sortDepth, this.#reduced, this.#mission === null ? 44 : 12);
+    if (this.#mission === null) drawFerryDock(this, this.#entities, 'city', sortDepth, this.#reduced);
     // A few townsfolk wander between the city's squares and stalls; on a story night the streets are empty.
     const spots = [
       { x: 52, y: 63 }, { x: 78, y: 79 }, { x: 88, y: 47 }, { x: 57, y: 31 }, { x: 31, y: 47 }, { x: 103, y: 79 }, { x: 47, y: 90 }, { x: 74, y: 95 },
@@ -296,7 +308,7 @@ export class CityScene extends Phaser.Scene {
     this.#names.add(ghost);
     const avatar: Avatar = {
       root, soft, body, bubble, bar, label, talk: new TalkBubble(this, this.#names, this.#reduced), action: null, ghost, ghostPose: 0, stars: null, health: MAX_HEALTH, down: false, shielded: false, lunge: 0,
-      buffer: new InterpBuffer(), isMe, npc: p.npc, inCar: false, pos: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, back: false, lastScreenX: 0, lastScreenY: 0, hop: 0, hopV: 0,
+      buffer: new InterpBuffer(), isMe, npc: p.npc, inCar: false, pos: { x: p.x, y: p.y }, server: { x: p.x, y: p.y }, seat: p.seat, wear, facing: 1, back: false, lastScreenX: 0, lastScreenY: 0, hop: 0, hopV: 0,
     };
     this.#setFight(avatar, p);
     this.#seat(avatar, p.car);
@@ -305,6 +317,7 @@ export class CityScene extends Phaser.Scene {
     if (isMe) {
       this.#predictor = new Predictor({ x: p.x, y: p.y }, CITY_MAP);
       this.#predictor.solidFrom = this.#carsAround;
+      this.#predictor.crowd = this.#crowd;
       this.#prev = { x: p.x, y: p.y };
       this.#acc = 0;
       this.cameras.main.startFollow(root, false, 0.12, 0.12);
@@ -408,6 +421,8 @@ export class CityScene extends Phaser.Scene {
       this.#smoother.correct(before, after);
     } else {
       a.buffer.push(performance.now(), p.x, p.y);
+      a.server.x = p.x;
+      a.server.y = p.y;
     }
   }
 
@@ -598,10 +613,12 @@ export class CityScene extends Phaser.Scene {
     this.#townsfolk?.cull(sees);
     const people = this.#people;
     people.length = 0;
-    for (const a of this.#avatars.values()) people.push(a.pos);
-    for (const c of this.#cars.values()) people.push(c.pos);
+    for (const a of this.#avatars.values()) if (!a.inCar) people.push(a.pos);
     this.#townsfolk?.collectPositions(people);
-    this.#traffic?.update(time, delta, people, sees);
+    const cars = this.#carPoses;
+    cars.length = 0;
+    for (const c of this.#cars.values()) cars.push({ x: c.pos.x, y: c.pos.y, heading: c.heading });
+    this.#traffic?.update(time, delta, people, sees, cars);
     this.#mission?.update(time, delta, (this.#myId === null ? undefined : this.#avatars.get(this.#myId))?.pos ?? eye);
     const k = lerpFactor(0.12, delta);
     this.cameras.main.setLerp(k, k);
@@ -813,6 +830,15 @@ export class CityScene extends Phaser.Scene {
 
   readonly #carsAround = (from: Vec2): ((p: Vec2) => boolean) => carsSolid([...this.#cars.values()].map((c) => c.body), from, PLAYER_RADIUS);
 
+  // This guardian's half of the server's crowd push, away from the other guardians on foot where the server last put them.
+  readonly #crowd = (at: Vec2, blocked: (from: Vec2, to: Vec2) => boolean): Vec2 => {
+    const myId = this.#myId;
+    if (myId === null) return at;
+    const others: CrowdBody[] = [];
+    for (const [id, a] of this.#avatars) if (!a.isMe && !a.npc && !a.inCar) others.push({ id, x: a.server.x, y: a.server.y });
+    return others.length === 0 ? at : pushClear({ id: myId, x: at.x, y: at.y }, others, blocked);
+  };
+
   /** The building this client's guardian is inside, by its seed; 0 on the street. */
   get inside(): number {
     return this.#inside;
@@ -827,22 +853,27 @@ export class CityScene extends Phaser.Scene {
     const door = p.inside === 0 ? null : doorBySeed(p.inside);
     const predictor = this.#predictor;
     if (door !== null) {
-      const layout = layoutFor(door.room, p.layout);
+      const layout = layoutFor(door.room, door.building.seed);
       this.#room = new InteriorView(this, this.#ground, this.#entities, layout, door.room, door.building.seed, sortDepth);
       if (predictor !== null) {
         predictor.map = roomMap(layout);
         predictor.origin = INTERIOR_ORIGIN;
         predictor.solidFrom = null;
       }
-      this.cameras.main.setBackgroundColor('#140f1c');
+      const at = worldToScreen(INTERIOR_ORIGIN.x, INTERIOR_ORIGIN.y);
+      const span = layout.w + layout.d;
+      this.#roomBox = new Phaser.Geom.Rectangle(at.x - layout.d * (TILE_W / 2), at.y - ROOM_WALL_PX, span * (TILE_W / 2), span * (TILE_H / 2) + ROOM_WALL_PX);
+      this.cameras.main.setBackgroundColor(roomBackdrop(layout, door.room));
     } else {
       if (predictor !== null) {
         predictor.map = CITY_MAP;
         predictor.origin = { x: 0, y: 0 };
         predictor.solidFrom = this.#carsAround;
       }
+      this.#roomBox = null;
       this.cameras.main.setBackgroundColor('#1d4a66');
     }
+    this.#applyZoom();
     predictor?.reset({ x: p.x, y: p.y });
     this.#prev = { x: p.x, y: p.y };
     this.#acc = 0;
@@ -853,7 +884,8 @@ export class CityScene extends Phaser.Scene {
     a.root.setPosition(s.x, s.y);
     this.cameras.main.centerOn(s.x, s.y);
     if (door === null) this.#stream(true);
-    if (!this.#reduced) this.cameras.main.fadeIn(220, 20, 15, 28);
+    const bg = this.#room === null || door === null ? 0x0c0a08 : roomBackdrop(layoutFor(door.room, door.building.seed), door.room);
+    if (!this.#reduced) this.cameras.main.fadeIn(220, (bg >> 16) & 255, (bg >> 8) & 255, bg & 255);
   }
 
   /** Shows the talking dots over the guardian with this session id, or over nobody. */
@@ -866,9 +898,21 @@ export class CityScene extends Phaser.Scene {
     return this.#myId;
   }
 
+  // Indoors the camera closes in until the room fills the view, and stays over the room instead of the dark around it.
   #applyZoom(): void {
     const { w, h } = viewSize(this);
-    this.cameras.main.setZoom(sceneDpr(this) * fairZoom(w, h) * BASE_ZOOM * this.#userZoom);
+    const cam = this.cameras.main;
+    let zoom = fairZoom(w, h) * BASE_ZOOM * this.#userZoom;
+    const box = this.#roomBox;
+    if (box !== null) zoom = Phaser.Math.Clamp(Math.min(w / box.width, h / box.height) * this.#userZoom, zoom, zoom * ROOM_ZOOM_MAX);
+    cam.setZoom(sceneDpr(this) * zoom);
+    if (box === null) {
+      cam.removeBounds();
+      return;
+    }
+    const bw = Math.max(box.width + ROOM_MARGIN * 2, cam.width / cam.zoom);
+    const bh = Math.max(box.height + ROOM_MARGIN * 2, cam.height / cam.zoom);
+    cam.setBounds(box.centerX - bw / 2, box.centerY - bh / 2, bw, bh);
   }
 
   // A pulsing gold ring on the street at the Mint Hall door, where pockets go into the vault.

@@ -107,14 +107,14 @@ export class Session {
     return this.#open(() => this.#client.create(ACADEMY_ROOM, {}));
   }
 
-  // Beach Town: one public hub room shared by whoever is in town.
-  beach(nickname: string) {
-    return this.#open(() => this.#client.joinOrCreate<HubState>(BEACH_ROOM, { nickname }, HubState));
+  // Beach Town: one public hub room shared by whoever is in town; off the ferry, the guardian lands at its pier.
+  beach(nickname: string, byFerry = false) {
+    return this.#open(() => this.#client.joinOrCreate<HubState>(BEACH_ROOM, byFerry ? { nickname, arrive: 'ferry' } : { nickname }, HubState));
   }
 
-  // Port Concord: the open city, one region room shared by everyone in it.
-  city(nickname: string) {
-    return this.#open(() => this.#client.joinOrCreate<CityState>(CITY_ROOM, { nickname }, CityState));
+  // Port Concord: the open city, one region room shared by everyone in it; off the ferry, the guardian lands at its dock.
+  city(nickname: string, byFerry = false) {
+    return this.#open(() => this.#client.joinOrCreate<CityState>(CITY_ROOM, byFerry ? { nickname, arrive: 'ferry' } : { nickname }, CityState));
   }
 
   // A story mission: a private night in Port Concord, a fresh one of the given act or a crew joined by room id.

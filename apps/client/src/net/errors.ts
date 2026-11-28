@@ -24,6 +24,8 @@ export function joinErrorMessage(error: unknown): string {
       return t('join.tooMany');
     case CLOSE_CODES.MATCH_IN_PROGRESS:
       return t('join.inProgress');
+    case CLOSE_CODES.ISLAND_LOCKED:
+      return t('join.islandLocked');
     case ErrorCode.AUTH_FAILED:
       return t('join.badNickname');
     case ErrorCode.MATCHMAKE_INVALID_ROOM_ID:
