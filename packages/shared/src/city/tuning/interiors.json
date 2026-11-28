@@ -6,7 +6,8 @@
     "lockMs": 350,
     "hitLockMs": 10000,
     "maxOccupants": 12,
-    "counterReach": 1.4
+    "counterReach": 1.4,
+    "restGapMs": 1000
   },
   "enterable": {
     "shop": "shop",

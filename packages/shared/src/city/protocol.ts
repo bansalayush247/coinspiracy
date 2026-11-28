@@ -16,6 +16,7 @@ export const CITY_MESSAGES = Object.freeze({
   PUNCH: 'punch',
   VAULT: 'vault',
   DOOR: 'door',
+  REST: 'rest',
 } as const);
 
 export const DOOR_REASONS = ['in', 'out', 'notAtDoor', 'full', 'tooSoon', 'inCar', 'down', 'fighting'] as const;
@@ -42,6 +43,14 @@ export const DepositResultSchema = z.strictObject({
   limit: z.number().int().min(0).max(1_000_000),
 });
 export type DepositResult = z.infer<typeof DepositResultSchema>;
+
+export const REST_REASONS = ['healed', 'full', 'notHere', 'down'] as const;
+/** Why resting in a bed or at the hospital desk did or did not heal. */
+export type RestReason = (typeof REST_REASONS)[number];
+
+/** The outcome of resting: healed to full, or why not. */
+export const RestResultSchema = z.strictObject({ ok: z.boolean(), reason: z.enum(REST_REASONS) });
+export type RestResult = z.infer<typeof RestResultSchema>;
 
 // A punch the viewer can see: who swung, who it landed on (null for a miss), and whether it knocked them out.
 export const PunchLineSchema = z.strictObject({

@@ -1,6 +1,6 @@
 // Runs a visit to Port Concord: the city room, the HUD, the minimap and district arrivals.
 import { Callbacks } from '@colyseus/sdk';
-import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, DoorResultSchema, ENTER_RANGE, PunchLineSchema, VAULT_DOOR, atCounter, atExit, atVault, districtAt, doorAt, doorBySeed, isRough, layoutFor, shopTradeOf, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId, type DoorResult, type RoomKind, type ShopTrade } from '@byzantine-council/shared/city';
+import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, DoorResultSchema, ENTER_RANGE, PunchLineSchema, RestResultSchema, VAULT_DOOR, atExit, atVault, districtAt, doorAt, doorBySeed, isRough, layoutFor, shopTradeOf, spotAt, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId, type DoorResult, type RestResult, type RoomKind, type RoomSpot, type ShopTrade, type SpotKind } from '@byzantine-council/shared/city';
 import { getShop } from '@byzantine-council/shared/economy';
 import { EMOTES, EmoteLineSchema, JumpLineSchema, type Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
@@ -20,6 +20,16 @@ type CityRoom = Awaited<ReturnType<Session['city']>>;
 // If the server's answer is lost, the door button comes back after this long.
 const DOOR_RETRY_MS = 1_500;
 const shopName = (trade: ShopTrade): string => getShop(trade)?.name ?? trade;
+
+// What can be done at each kind of spot, by its button label; the Mint Hall counter takes deposits through the vault button.
+const SPOT_LABELS: Readonly<Record<Exclude<SpotKind, 'counter'>, PlainKey>> = {
+  bed: 'city.useBed',
+  reception: 'city.useReception',
+  wardrobe: 'city.useWardrobe',
+  tv: 'city.useTv',
+  board: 'city.useBoard',
+};
+const WELCOME: Readonly<Record<Exclude<RoomKind, 'shop'>, PlainKey>> = { mintHall: 'city.welcomeMint', hospital: 'city.welcomeHospital', flat: 'city.welcomeFlat' };
 
 const ENTER_LABELS: Readonly<Record<RoomKind, PlainKey>> = { shop: 'city.enterShop', mintHall: 'city.enterMint', hospital: 'city.enterHospital', flat: 'city.enterFlat' };
 type Zone = 'rough' | 'safe' | 'indoors';
@@ -47,7 +57,8 @@ export class CityController {
   readonly #deposit = el('city-deposit', HTMLButtonElement);
   readonly #ride = el('city-ride', HTMLButtonElement);
   readonly #door = el('city-door', HTMLButtonElement);
-  readonly #shop = el('city-shop', HTMLButtonElement);
+  // The button for whatever the spot this guardian stands at offers: a shop's counter, a bed, the hospital desk and so on.
+  readonly #use = el('city-shop', HTMLButtonElement);
   readonly #ferry = new FerryButton(el('city-ferry', HTMLButtonElement), 'city', () => {
     this.onFerry();
   });
@@ -61,11 +72,17 @@ export class CityController {
   #room: CityRoom | null = null;
   #here: DistrictId | null = null;
   #poll = 0;
+  #held = false;
+  #lastRestAt = 0;
   onLeft: () => void = () => undefined;
   onToast: (text: string) => void = () => undefined;
   onProfile: (p: ProfileSummary) => void = () => undefined;
   onFerry: () => void = () => undefined;
   ferryOpen: () => boolean = () => true;
+  onWardrobe: () => void = () => undefined;
+  /** Opens the Chronicle; false if there is no chapter to read yet. */
+  onChronicle: () => boolean = () => false;
+  onBoard: () => void = () => undefined;
 
   constructor(
     private readonly session: Session,
@@ -90,14 +107,14 @@ export class CityController {
     this.#door.addEventListener('click', () => {
       this.#useDoor();
     });
-    this.#shop.addEventListener('click', () => {
-      void this.#openShop();
+    this.#use.addEventListener('click', () => {
+      this.#useSpot();
     });
     this.#ride.addEventListener('click', () => {
       this.#room?.send('ride');
     });
     window.addEventListener('keydown', (e) => {
-      if (this.#room === null || this.#hud.hidden || shopPanel().isOpen) return;
+      if (this.#room === null || this.#hud.hidden || this.#held || shopPanel().isOpen) return;
       if (e.code === 'Space' && !e.repeat && !isEditable(e.target)) {
         // A focused HUD button would otherwise be clicked by Space as well.
         if (e.target instanceof HTMLButtonElement) e.target.blur();
@@ -112,7 +129,7 @@ export class CityController {
       if ((e.key === 'e' || e.key === 'E') && !e.repeat && !(e.target instanceof HTMLInputElement)) {
         if (!this.#deposit.hidden) this.#vault();
         else if (!this.#ride.hidden) this.#room.send('ride');
-        else if (!this.#shop.hidden) void this.#openShop();
+        else if (!this.#use.hidden) this.#useSpot();
         else if (!this.#door.hidden) this.#useDoor();
         else if (this.#ferry.shown) this.onFerry();
         return;
@@ -125,6 +142,17 @@ export class CityController {
 
   get active(): boolean {
     return this.#room !== null;
+  }
+
+  /** The wardrobe changed: let the city see the new look. */
+  lookChanged(): void {
+    this.#room?.send('refreshLook');
+  }
+
+  /** Keeps the guardian still while a panel opened from a spot (wardrobe, Chronicle, notice board) is over the city. */
+  holdStill(hold: boolean): void {
+    this.#held = hold;
+    if (this.#room !== null) this.input.enabled = !hold && !shopPanel().isOpen && !this.scene.meDown;
   }
 
   /** How this guardian looks right now, for the ferry crossing; null when not in the city. */
@@ -180,6 +208,10 @@ export class CityController {
       const result = DepositResultSchema.safeParse(payload);
       if (result.success) this.#deposited(result.data);
     });
+    room.onMessage(CITY_MESSAGES.REST, (payload: unknown) => {
+      const result = RestResultSchema.safeParse(payload);
+      if (result.success) this.#rested(result.data);
+    });
     room.onMessage(CITY_MESSAGES.PUNCH, (payload: unknown) => {
       const line = PunchLineSchema.safeParse(payload);
       if (line.success) this.scene.punch(line.data);
@@ -229,7 +261,9 @@ export class CityController {
     this.#setDriving(false);
     this.#ride.hidden = true;
     this.#door.hidden = true;
-    this.#shop.hidden = true;
+    this.#use.hidden = true;
+    this.#held = false;
+    this.scene.markSpot(null);
     this.#ferry.hide();
     shopPanel().close();
     this.#hud.classList.remove('indoors');
@@ -276,7 +310,7 @@ export class CityController {
     this.#ride.firstChild?.replaceWith(document.createTextNode(t(this.#inCar ? 'city.getOut' : 'city.getIn')));
     this.#punch.classList.toggle('off', !rough);
     this.#punch.setAttribute('aria-disabled', String(!rough));
-    const vaultHere = atVault(pos) && !this.scene.meDown;
+    const vaultHere = (atVault(pos) || (this.#spotHere(pos)?.kind === 'counter' && doorBySeed(this.scene.inside)?.room === 'mintHall')) && !this.scene.meDown;
     if (vaultHere !== this.#atVault) {
       this.#atVault = vaultHere;
       if (vaultHere) this.onToast(t(this.#coins > 0 ? 'city.vaultSafe' : 'city.vaultEmpty'));
@@ -301,25 +335,79 @@ export class CityController {
     }
     this.#door.hidden = label === null;
     if (label !== null) this.#door.firstChild?.replaceWith(document.createTextNode(label));
-    const trade = this.#shopHere(pos);
-    this.#shop.hidden = trade === null || shopPanel().isOpen;
-    if (trade !== null) this.#shop.firstChild?.replaceWith(document.createTextNode(t('city.browseShop', { name: shopName(trade) })));
+    const spot = this.#spotHere(pos);
+    this.scene.markSpot(spot);
+    const action = spot === null ? null : this.#spotLabel(spot);
+    this.#use.hidden = action === null || shopPanel().isOpen || this.#held;
+    if (action !== null) this.#use.firstChild?.replaceWith(document.createTextNode(action));
   }
 
-  // The trade of the shop whose counter this guardian stands at; null anywhere else.
-  #shopHere(pos: { x: number; y: number }): ShopTrade | null {
+  // The spot inside this guardian stands close enough to use; null on the street, when down, or nowhere near one.
+  #spotHere(pos: { x: number; y: number }): RoomSpot | null {
     const inside = this.scene.inside;
     const door = inside === 0 ? null : doorBySeed(inside);
-    if (door?.room !== 'shop' || this.scene.meDown || !atCounter(pos, layoutFor('shop', inside))) return null;
-    return shopTradeOf(inside);
+    if (door === null || this.scene.meDown) return null;
+    return spotAt(pos, layoutFor(door.room, inside));
+  }
+
+  // The use button's label at this spot; null where the spot has its own button (the Mint Hall counter's deposit).
+  #spotLabel(spot: RoomSpot): string | null {
+    if (spot.kind !== 'counter') return t(SPOT_LABELS[spot.kind]);
+    const trade = this.#tradeHere();
+    return trade === null ? null : t('city.browseShop', { name: shopName(trade) });
+  }
+
+  #tradeHere(): ShopTrade | null {
+    const inside = this.scene.inside;
+    return doorBySeed(inside)?.room === 'shop' ? shopTradeOf(inside) : null;
+  }
+
+  #useSpot(): void {
+    const pos = this.scene.predictedPosition();
+    const spot = pos === null ? null : this.#spotHere(pos);
+    if (spot === null || this.#use.hidden || this.#held || shopPanel().isOpen) return;
+    switch (spot.kind) {
+      case 'counter':
+        void this.#openShop();
+        return;
+      case 'bed':
+      case 'reception': {
+        const now = performance.now();
+        if (now - this.#lastRestAt < 500) return;
+        this.#lastRestAt = now;
+        this.#room?.send('rest');
+        return;
+      }
+      case 'wardrobe':
+        this.holdStill(true);
+        this.onWardrobe();
+        return;
+      case 'tv':
+        this.holdStill(true);
+        if (!this.onChronicle()) {
+          this.holdStill(false);
+          this.onToast(t('city.tvNothing'));
+        }
+        return;
+      case 'board':
+        this.holdStill(true);
+        this.onBoard();
+    }
+  }
+
+  #rested(r: RestResult): void {
+    const inHospital = doorBySeed(this.scene.inside)?.room === 'hospital';
+    if (r.reason === 'healed') {
+      audio.play('chirp');
+      this.onToast(t(inHospital ? 'city.patchedUp' : 'city.rested'));
+    } else if (r.reason === 'full') this.onToast(t(inHospital ? 'city.patchedFull' : 'city.restFull'));
   }
 
   async #openShop(): Promise<void> {
-    const pos = this.scene.predictedPosition();
-    const trade = pos === null ? null : this.#shopHere(pos);
+    const trade = this.#tradeHere();
     if (trade === null || shopPanel().isOpen) return;
     this.input.enabled = false;
-    this.#shop.hidden = true;
+    this.#use.hidden = true;
     const profile = await this.profiles.profile();
     if (this.#room === null) return;
     shopPanel().open(trade, profile, {
@@ -331,7 +419,7 @@ export class CityController {
         this.onToast(text);
       },
       onClose: () => {
-        if (this.#room !== null) this.input.enabled = true;
+        if (this.#room !== null) this.input.enabled = !this.#held && !this.scene.meDown;
       },
     });
   }
@@ -351,6 +439,7 @@ export class CityController {
       audio.play('click');
       const door = r.inside === 0 ? null : doorBySeed(r.inside);
       if (door?.room === 'shop') this.onToast(t('city.welcomeShop', { name: shopName(shopTradeOf(r.inside)) }));
+      else if (door !== null) this.onToast(t(WELCOME[door.room]));
       return;
     }
     const why: Record<Exclude<DoorResult['reason'], 'in' | 'out'>, PlainKey> = {
@@ -376,7 +465,7 @@ export class CityController {
     if (this.#down.hidden === player.down) {
       this.#down.hidden = !player.down;
       if (player.down) this.input.enabled = false;
-      else this.input.enabled = this.#room !== null;
+      else this.input.enabled = this.#room !== null && !this.#held && !shopPanel().isOpen;
     }
   }
 

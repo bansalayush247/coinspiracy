@@ -35,7 +35,12 @@ export type Piece = (typeof PIECES)[number];
 const FLAT_PIECES: ReadonlySet<Piece> = new Set(['rug']);
 
 const FurnitureSchema = z.strictObject({ piece: z.enum(PIECES), c: z.int().min(1), r: z.int().min(1), w: z.int().min(1), d: z.int().min(1) });
-const SpotSchema = z.strictObject({ kind: z.enum(['counter', 'reception', 'bed', 'board']), c: z.int().min(1), r: z.int().min(1) });
+/** Every kind of spot in a room where something can be done. */
+export const SPOT_KINDS = ['counter', 'reception', 'bed', 'board', 'wardrobe', 'tv'] as const;
+/** A kind of spot: a counter, the hospital desk, a bed, a notice board, a wardrobe, a TV. */
+export type SpotKind = (typeof SPOT_KINDS)[number];
+
+const SpotSchema = z.strictObject({ kind: z.enum(SPOT_KINDS), c: z.int().min(1), r: z.int().min(1) });
 /** Every floor finish a room can have. */
 export const FLOORS = ['planks', 'tile', 'marble', 'carpet'] as const;
 /** Every wall finish a room can have. */
@@ -64,6 +69,7 @@ export const InteriorTuningSchema = z.strictObject({
     hitLockMs: z.int().min(0).max(60_000),
     maxOccupants: z.int().min(1).max(60),
     counterReach: z.number().positive().max(3),
+    restGapMs: z.int().min(0).max(60_000),
   }),
   enterable: z.partialRecord(z.enum(BUILDING_KINDS), z.enum(ROOM_KINDS)),
   layouts: z.strictObject({ shop: z.array(LayoutSchema).min(1), mintHall: z.array(LayoutSchema).min(1), hospital: z.array(LayoutSchema).min(1), flat: z.array(LayoutSchema).min(1) }),
@@ -221,8 +227,17 @@ export function walkedOut(world: Vec2, layout: RoomLayout): boolean {
   return toLocal(world).y > layout.d - 1 + 0.35;
 }
 
-/** The spot in a room a guardian inside is close enough to use, if any. */
-export function spotAt(world: Vec2, layout: RoomLayout, reach = 1.1): RoomSpot | null {
+/** The spot in a room a guardian inside is close enough to use, the nearest if more than one; null if none. */
+export function spotAt(world: Vec2, layout: RoomLayout, reach = DOOR_TUNING.counterReach): RoomSpot | null {
   const local = toLocal(world);
-  return layout.spots.find((s) => Math.hypot(local.x - (s.c + 0.5), local.y - (s.r + 0.5)) <= reach) ?? null;
+  let best: RoomSpot | null = null;
+  let bestD = reach;
+  for (const s of layout.spots) {
+    const d = Math.hypot(local.x - (s.c + 0.5), local.y - (s.r + 0.5));
+    if (d <= bestD) {
+      best = s;
+      bestD = d;
+    }
+  }
+  return best;
 }

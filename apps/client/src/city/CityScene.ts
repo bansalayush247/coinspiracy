@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { PLAYER_RADIUS, TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
 import { canStand } from '@byzantine-council/shared/pathfinding';
-import { INTERIOR_ORIGIN, doorBySeed, layoutFor, roomMap } from '@byzantine-council/shared/city';
+import { INTERIOR_ORIGIN, doorBySeed, layoutFor, roomMap, type RoomSpot } from '@byzantine-council/shared/city';
 import { pushClear, type CarPose, type CrowdBody } from '@byzantine-council/shared/city';
 import { CHUNK, CITY_BUILDINGS, carsSolid, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityCar, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
 import type { Emote } from '@byzantine-council/shared/hub';
@@ -838,6 +838,11 @@ export class CityScene extends Phaser.Scene {
     for (const [id, a] of this.#avatars) if (!a.isMe && !a.npc && !a.inCar) others.push({ id, x: a.server.x, y: a.server.y });
     return others.length === 0 ? at : pushClear({ id: myId, x: at.x, y: at.y }, others, blocked);
   };
+
+  /** Lights up the room spot this client's guardian can use right now; null for none. */
+  markSpot(spot: RoomSpot | null): void {
+    this.#room?.mark(spot);
+  }
 
   /** The building this client's guardian is inside, by its seed; 0 on the street. */
   get inside(): number {

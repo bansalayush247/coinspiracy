@@ -1,7 +1,7 @@
 // Rooms made up from a building's seed, so no two shops or flats look alike: a size, finishes and furniture picked by
 // the recipes in tuning/interiors.json, placed along the walls and around the floor, and checked like a hand-made
 // layout (a clear way in, every floor tile reachable). The server and every client make the same room from the seed.
-import { INTERIOR_TUNING, doorColumn, layoutProblems, shopTradeOf, type Furniture, type Piece, type RoomKind, type RoomLayout, type RoomSpot } from './interior.js';
+import { INTERIOR_TUNING, doorColumn, layoutProblems, shopTradeOf, type Furniture, type Piece, type RoomKind, type RoomLayout, type RoomSpot, type SpotKind } from './interior.js';
 
 type Rand = () => number;
 
@@ -70,15 +70,23 @@ class Plan {
     if (c >= 1 && r >= 1 && c + w <= this.w - 1 && r + d <= this.d - 1) this.furniture.push({ piece: 'rug', c, r, w, d });
   }
 
-  // Against the back, west or east wall, long side along it; tall pieces keep off the east wall, where only their backs would show.
-  alongWall(piece: Piece, long: number): boolean {
+  // Against the back, west or east wall, long side along it; tall pieces keep off the east wall, where only their backs
+  // would show. With a spot, the tile in front of the piece is kept clear for using it.
+  alongWall(piece: Piece, long: number, spot?: SpotKind): boolean {
     const spots: [number, number, number, number][] = [];
     for (let c = 1; c + long <= this.w - 1; c++) spots.push([c, 1, long, 1]);
     for (let r = 1; r + long <= this.d - 1; r++) {
       spots.push([1, r, 1, long]);
       if (!TALL.has(piece)) spots.push([this.w - 2, r, 1, long]);
     }
-    return shuffled(this.rand, spots).some(([c, r, w, d]) => this.put(piece, c, r, w, d));
+    return shuffled(this.rand, spots).some(([c, r, w, d]) => {
+      if (spot === undefined) return this.put(piece, c, r, w, d);
+      const [fc, fr] = r === 1 && d === 1 ? [c, 2] : c === 1 ? [2, r] : [c - 1, r];
+      if (!this.fits(fc, fr, 1, 1) || !this.put(piece, c, r, w, d)) return false;
+      this.keepClear(fc, fr);
+      this.spots.push({ kind: spot, c: fc, r: fr });
+      return true;
+    });
   }
 
   // Out on the floor, a step away from the walls where the room allows.
@@ -100,9 +108,10 @@ class Plan {
 function place(plan: Plan, piece: Piece): boolean {
   const { rand } = plan;
   switch (piece) {
+    case 'wardrobe':
+      return plan.alongWall(piece, 2, 'wardrobe');
     case 'rack':
     case 'boardRack':
-    case 'wardrobe':
     case 'bench':
       return plan.alongWall(piece, 2);
     case 'shelf':
@@ -147,13 +156,15 @@ function place(plan: Plan, piece: Piece): boolean {
     case 'tv': {
       const rows = shuffled(rand, Array.from({ length: plan.d - 3 }, (_, i) => i + 1));
       for (const r of rows) {
-        if (plan.fits(1, r, 1, 2) && plan.fits(plan.w - 2, r, 1, 2)) {
+        if (plan.fits(1, r, 1, 2) && plan.fits(plan.w - 2, r, 1, 2) && plan.fits(2, r, 1, 1)) {
           plan.put('tv', 1, r, 1, 2);
           plan.put('sofa', plan.w - 2, r, 1, 2);
+          plan.keepClear(2, r);
+          plan.spots.push({ kind: 'tv', c: 2, r });
           return true;
         }
       }
-      return plan.alongWall('tv', 2) && plan.alongWall('sofa', 2);
+      return plan.alongWall('tv', 2, 'tv') && plan.alongWall('sofa', 2);
     }
     default:
       return plan.alongWall(piece, 1);

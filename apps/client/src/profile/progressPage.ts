@@ -7,7 +7,8 @@ import { button } from '../ui/tasks/types.js';
 import type { ProfileSummary } from './api.js';
 import { frameName, itemName, titleName } from './names.js';
 
-type Tab = 'rank' | 'seals' | 'quests' | 'epoch';
+/** A tab of the progress page. */
+export type Tab = 'rank' | 'seals' | 'quests' | 'epoch';
 
 function meter(value: number, max: number, label: string): HTMLDivElement {
   const outer = h('div', 'bar');
@@ -49,6 +50,7 @@ export class ProgressPage {
   onTitle: (title: string | null) => void = () => undefined;
   onFrame: (frame: string | null) => void = () => undefined;
   onReroll: (quest: string) => void = () => undefined;
+  onClosed: () => void = () => undefined;
 
   constructor() {
     el('progress-close', HTMLButtonElement).addEventListener('click', () => {
@@ -69,14 +71,18 @@ export class ProgressPage {
     return !this.#root.hidden;
   }
 
-  open(): void {
+  /** Opens the page, on the given tab if one is named. */
+  open(tab?: Tab): void {
+    if (tab !== undefined) this.#tab = tab;
     this.#root.hidden = false;
     this.#render();
     this.#root.focus();
   }
 
   hide(): void {
+    if (this.#root.hidden) return;
     this.#root.hidden = true;
+    this.onClosed();
   }
 
   setProfile(p: ProfileSummary): void {

@@ -2,6 +2,16 @@
 
 ## 28 November 2026
 
+### Things to do indoors
+- Every place you can use inside a building now has a gold tile on the floor. It lights up when you are close
+  enough, and a button tells you what it does: press E or tap it.
+- At home: rest in bed to get back to full health, change clothes at the wardrobe, or catch up on the Chronicle on
+  the TV.
+- In the Mint Hall: vault your pocket at the counter, just as at the hall's walls outside, and read today's quests
+  on the notice board.
+- At the hospital: step up to the desk to be patched up.
+- Shops point you to their counter as you walk in.
+
 ### Every building its own room, and shops you can buy from
 - No two shops or houses look alike inside any more: every building is furnished its own way, in its own size and
   finishes. Each shop is a tailor, barber, hat shop, surf shop or café, fitted out for its trade with clothes rails

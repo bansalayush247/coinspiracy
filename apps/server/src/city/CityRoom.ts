@@ -91,11 +91,14 @@ import {
   layoutFor,
   roomMap,
   roomSpawn,
+  spotAt,
   stepIndoors,
   toWorld,
   walkedOut,
   type DoorReason,
   type DoorResult,
+  type RestReason,
+  type RestResult,
   type RoomLayout,
 } from '@byzantine-council/shared/city';
 import { EMOTE_GAP_MS, EmotePayloadSchema, JUMP_GAP_MS, type Emote } from '@byzantine-council/shared/hub';
@@ -176,6 +179,7 @@ interface Sim {
   lastEmoteMs: number;
   lastJumpMs: number;
   lastLookMs: number;
+  lastRestMs: number;
   // Where this guardian is: '' on the street, else the room they are in. Only those in the same place see each other.
   place: string;
   room: { readonly layout: RoomLayout; readonly map: CitadelMap } | null;
@@ -264,6 +268,9 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     deposit: validate(NoPayloadSchema, (client: CityClient) => {
       void this.#deposit(client.sessionId);
     }),
+    rest: validate(NoPayloadSchema, (client: CityClient) => {
+      this.#rest(client.sessionId, Date.now());
+    }),
     refreshLook: validate(NoPayloadSchema, (client: CityClient) => {
       const sim = this.#sims.get(client.sessionId);
       const now = Date.now();
@@ -349,6 +356,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       lastEmoteMs: 0,
       lastJumpMs: 0,
       lastLookMs: 0,
+      lastRestMs: 0,
       place: '',
       room: null,
       lastDoorMs: 0,
@@ -904,6 +912,28 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     if (spot !== undefined) this.#addDrop(spot.x, spot.y, LOOSE_COIN_MIN + this.random.int(LOOSE_COIN_MAX - LOOSE_COIN_MIN + 1), now, true);
   }
 
+  // Inside the Mint Hall at its counter, where a deposit is taken just as at the hall's walls.
+  #atTeller(sim: Sim, me: CityPlayer): boolean {
+    return sim.room !== null && doorBySeed(me.inside)?.room === 'mintHall' && spotAt(me, sim.room.layout)?.kind === 'counter';
+  }
+
+  // A bed at home or the hospital desk: back to full health, only while standing at one.
+  #rest(sessionId: string, now: number): void {
+    const sim = this.#sims.get(sessionId);
+    const me = this.state.players.get(sessionId);
+    if (sim === undefined || me === undefined || now - sim.lastRestMs < DOOR_TUNING.restGapMs) return;
+    sim.lastRestMs = now;
+    sim.lastActiveMs = now;
+    const kind = sim.room === null ? null : spotAt(me, sim.room.layout)?.kind;
+    const reason: RestReason = me.down ? 'down' : kind !== 'bed' && kind !== 'reception' ? 'notHere' : sim.health >= MAX_HEALTH ? 'full' : 'healed';
+    if (reason === 'healed') {
+      sim.health = MAX_HEALTH;
+      me.health = MAX_HEALTH;
+    }
+    const result: RestResult = { ok: reason === 'healed', reason };
+    sim.client.send(CITY_MESSAGES.REST, result);
+  }
+
   // Carries the pocket into the wallet. The pocket is emptied first so the same coins can never be spent twice,
   // then whatever today's allowance or the wallet did not take is handed back.
   async #deposit(sessionId: string): Promise<void> {
@@ -919,7 +949,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     const profiles = roomPolicy().profiles;
     const refused: DepositReason | null = sim.depositing
       ? 'busy'
-      : player.down || player.car !== '' || !atVault(player)
+      : player.down || player.car !== '' || !(atVault(player) || this.#atTeller(sim, player))
         ? 'notAtVault'
         : pocket <= 0
           ? 'empty'
@@ -999,6 +1029,12 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
   shieldOff(sessionId: string): void {
     const sim = this.#sims.get(sessionId);
     if (sim !== undefined) sim.shieldUntil = 0;
+  }
+
+  // For tests: set a guardian's health, as a fight would have left it.
+  hurt(sessionId: string, health: number): void {
+    const sim = this.#sims.get(sessionId);
+    if (sim !== undefined) sim.health = health;
   }
 
   // For tests: put a pile on the ground.

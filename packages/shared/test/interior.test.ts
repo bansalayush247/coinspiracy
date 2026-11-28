@@ -18,6 +18,7 @@ import {
   layoutFor,
   roomMap,
   roomSpawn,
+  spotAt,
   stepIndoors,
   toLocal,
   toWorld,
@@ -55,16 +56,27 @@ describe('walk-in buildings', () => {
     expect(new Set(made.map((d) => JSON.stringify(layoutFor(d.room, d.building.seed)))).size).toBe(made.length);
   });
 
-  it('makes shops and flats that pass every layout check, with a counter or a bed to use', () => {
+  it('makes shops and flats that pass every layout check, with a counter in every shop and a bed, wardrobe and TV in every home', () => {
     const handMade = new Set([...INTERIOR_TUNING.layouts.shop, ...INTERIOR_TUNING.layouts.flat]);
     for (let seed = 1; seed < 400; seed++) {
       for (const room of ['shop', 'flat'] as const) {
         const layout = generateLayout(room, seed * 37);
         expect(handMade.has(layout)).toBe(false);
         expect(layoutProblems(room, layout)).toEqual([]);
-        expect(layout.spots.some((s) => s.kind === (room === 'shop' ? 'counter' : 'bed'))).toBe(true);
+        const kinds = new Set(layout.spots.map((s) => s.kind));
+        expect([...kinds].sort()).toEqual(room === 'shop' ? ['counter'] : ['bed', 'tv', 'wardrobe']);
       }
     }
+  });
+
+  it('finds the nearest spot in reach, and none out of reach', () => {
+    const layout = generateLayout('flat', 4242);
+    for (const spot of layout.spots) {
+      expect(spotAt(toWorld({ x: spot.c + 0.5, y: spot.r + 0.5 }), layout)).toBe(spot);
+    }
+    const far = toWorld({ x: doorColumn(layout) + 0.5, y: layout.d - 1.5 });
+    const nearest = Math.min(...layout.spots.map((s) => Math.hypot(s.c + 0.5 - (doorColumn(layout) + 0.5), s.r + 0.5 - (layout.d - 1.5))));
+    expect(spotAt(far, layout) === null).toBe(nearest > INTERIOR_TUNING.door.counterReach);
   });
 
   it('gives every shop a trade from the Beach Town shops, the same each time', () => {

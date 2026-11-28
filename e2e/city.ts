@@ -150,6 +150,66 @@ async function main(): Promise<void> {
           await rook.keyboard.press('Escape');
           check(await rook.waitForSelector('#shop', { state: 'hidden', timeout: 3000 }).then(() => true).catch(() => false), 'Escape closes the shop');
         }
+        const standOn = async (kindOf: string): Promise<string> => {
+          const spot = layout.spots.find((sp) => sp.kind === kindOf);
+          if (spot === undefined) return '';
+          const at = toWorld({ x: spot.c + 0.5, y: spot.r + 0.5 });
+          walker.x = at.x;
+          walker.y = at.y;
+          await rook.waitForTimeout(900);
+          return (await rook.isVisible('#city-shop')) ? ((await rook.textContent('#city-shop')) ?? '') : '';
+        };
+        const toasted = (text: string): Promise<boolean> =>
+          rook.waitForFunction((w) => [...document.querySelectorAll('#toasts .toast')].some((n) => n.textContent.includes(w)), text, { timeout: 4000 }).then(() => true).catch(() => false);
+        const panel = async (id: string, label: string, shot: string): Promise<void> => {
+          await rook.keyboard.press('e');
+          const open = await rook.waitForSelector(`#${id}:not([hidden])`, { timeout: 5000 }).then(() => true).catch(() => false);
+          check(open, `${label} opens from its spot`);
+          await rook.waitForTimeout(400);
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}${shot}.png` });
+          await rook.keyboard.press('Escape');
+          check(await rook.waitForSelector(`#${id}`, { state: 'hidden', timeout: 3000 }).then(() => true).catch(() => false), `Escape closes ${label}`);
+          await rook.waitForTimeout(300);
+        };
+        if (name === 'flat') {
+          check((await standOn('bed')).startsWith('Rest'), 'the bed offers a rest');
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}flat-bed.png` });
+          await rook.keyboard.press('e');
+          check(await toasted('wide awake'), 'resting at full health says so');
+          check((await standOn('wardrobe')).startsWith('Wardrobe'), 'the wardrobe offers a change of clothes');
+          await panel('wardrobe', 'the wardrobe', 'flat-wardrobe');
+          check((await standOn('tv')).startsWith('Watch'), 'the TV offers the Chronicle');
+          await rook.keyboard.press('e');
+          const story = await rook.waitForSelector('#story:not([hidden])', { timeout: 4000 }).then(() => true).catch(() => false);
+          check(story || (await toasted('Nothing on yet')), 'the TV opens the Chronicle, or says there is nothing on yet');
+          await rook.waitForTimeout(400);
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}flat-tv.png` });
+          if (story) {
+            await rook.keyboard.press('Escape');
+            await rook.waitForSelector('#story', { state: 'hidden', timeout: 3000 }).catch(() => undefined);
+          }
+          const before = { x: walker.x, y: walker.y };
+          await rook.keyboard.down('ArrowLeft');
+          await rook.waitForTimeout(500);
+          await rook.keyboard.up('ArrowLeft');
+          await rook.waitForTimeout(300);
+          check(Math.hypot(walker.x - before.x, walker.y - before.y) > 0.1, 'Rook can walk again after closing the panels');
+        }
+        if (name === 'mint-hall') {
+          check((await standOn('board')).startsWith('Notice'), 'the notice board offers today’s quests');
+          await panel('progress', 'the notice board', 'mint-board');
+          walker.pocket = 25;
+          await standOn('counter');
+          check(await rook.isVisible('#city-deposit'), 'the Mint Hall counter takes deposits');
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}mint-counter.png` });
+          walker.pocket = 0;
+        }
+        if (name === 'hospital') {
+          check((await standOn('reception')).startsWith('Get patched'), 'the hospital desk offers to patch you up');
+          await rook.keyboard.press('e');
+          check(await toasted('you are fine'), 'the desk says a healthy guardian is fine');
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}hospital-desk.png` });
+        }
         await rook.waitForTimeout(DOOR_TUNING.gapMs);
         const inner = toWorld({ x: Math.floor(layout.w / 2) + 0.5, y: layout.d - 1.6 });
         walker.x = inner.x;

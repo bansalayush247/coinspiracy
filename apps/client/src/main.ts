@@ -225,6 +225,10 @@ class Controller {
     this.#story.onClosed = () => {
       storyClosed();
       this.#beach?.holdStill(false);
+      this.#city?.holdStill(false);
+    };
+    this.#progressPage.onClosed = () => {
+      this.#city?.holdStill(false);
     };
     this.#world.onNewChapter = (chapter) => {
       audio.play('rankUp');
@@ -236,6 +240,7 @@ class Controller {
     };
     this.#wardrobe.onClosed = () => {
       this.#beach?.holdStill(false);
+      this.#city?.holdStill(false);
     };
     this.#wardrobe.onWear = (look) => {
       void this.profiles.wear(look).then((p) => {
@@ -245,6 +250,7 @@ class Controller {
         }
         this.#setProfile(p);
         this.#beach?.lookChanged();
+        this.#city?.lookChanged();
       });
     };
     el('open-wardrobe', HTMLButtonElement).addEventListener('click', () => {
@@ -524,6 +530,18 @@ class Controller {
         void this.#takeFerry('city');
       };
       controller.ferryOpen = () => this.#ferryOpen('beach', this.#lastProfile);
+      controller.onWardrobe = () => {
+        this.#wardrobe.open();
+      };
+      controller.onChronicle = () => {
+        const chapter = this.#world.firstUnread() ?? this.#world.latestOpen();
+        if (chapter === null) return false;
+        this.#story.open(chapter);
+        return true;
+      };
+      controller.onBoard = () => {
+        this.#progressPage.open('quests');
+      };
       this.#city = controller;
     }
     this.#menu.hide();

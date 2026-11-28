@@ -1,6 +1,6 @@
 import type { ColyseusTestServer } from '@colyseus/testing';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { BUILDING_DOORS, CITY_MESSAGES, CITY_ROOM, CityState, DOOR_TUNING, DoorResultSchema, MAX_HEALTH, ROUGH_STREETS, isIndoors, layoutFor, toWorld, type DoorResult } from '@byzantine-council/shared/city';
+import { BUILDING_DOORS, CITY_MESSAGES, CITY_ROOM, CityState, DOOR_TUNING, DepositResultSchema, DoorResultSchema, MAX_HEALTH, ROUGH_STREETS, RestResultSchema, isIndoors, layoutFor, toWorld, type DepositResult, type DoorResult, type RestResult, type RoomSpot } from '@byzantine-council/shared/city';
 import type { CityRoom } from '../src/city/CityRoom.js';
 import { sdk, startServer, waitFor } from './helpers.js';
 
@@ -21,6 +21,7 @@ const doorsOf = (room: string): (typeof BUILDING_DOORS)[number][] => BUILDING_DO
 const [shopA, shopB] = doorsOf('shop');
 const [house] = doorsOf('flat');
 const [hospital] = doorsOf('hospital');
+const [mintHall] = doorsOf('mintHall');
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 async function walkIn(name: string) {
@@ -37,7 +38,17 @@ async function walkIn(name: string) {
     me.x = door.at.x;
     me.y = door.at.y;
   };
-  return { client, room, me, doors, standAt };
+  const rests: RestResult[] = [];
+  client.onMessage(CITY_MESSAGES.REST, (m: unknown) => rests.push(RestResultSchema.parse(m)));
+  const deposits: DepositResult[] = [];
+  client.onMessage(CITY_MESSAGES.VAULT, (m: unknown) => deposits.push(DepositResultSchema.parse(m)));
+  const standOn = (spot: RoomSpot | undefined): void => {
+    if (spot === undefined) throw new Error('no such spot');
+    const at = toWorld({ x: spot.c + 0.5, y: spot.r + 0.5 });
+    me.x = at.x;
+    me.y = at.y;
+  };
+  return { client, room, me, doors, rests, deposits, standAt, standOn };
 }
 
 describe('walk-in buildings', () => {
@@ -166,5 +177,43 @@ describe('walk-in buildings', () => {
     a.client.send('punch');
     await sleep(200);
     expect(b.me.health).toBe(MAX_HEALTH);
+  });
+
+  it('rests a guardian back to full health in bed at home, and only at the bed', async () => {
+    const a = await walkIn('Ana');
+    a.standAt(house);
+    a.client.send('enter');
+    await waitFor(() => a.doors.length === 1, 'home');
+    const layout = layoutFor('flat', house?.building.seed ?? 0);
+    a.room.hurt(a.client.sessionId, 40);
+    a.client.send('rest');
+    await waitFor(() => a.rests.length === 1, 'rest answered away from the bed');
+    expect(a.rests[0]).toEqual({ ok: false, reason: 'notHere' });
+    a.standOn(layout.spots.find((s) => s.kind === 'bed'));
+    await sleep(DOOR_TUNING.restGapMs + 50);
+    a.client.send('rest');
+    await waitFor(() => a.rests.length === 2, 'rest answered in bed');
+    expect(a.rests[1]).toEqual({ ok: true, reason: 'healed' });
+    await waitFor(() => a.me.health === MAX_HEALTH, 'healed');
+    a.client.send('rest');
+    await sleep(200);
+    expect(a.rests).toHaveLength(2);
+  });
+
+  it('takes a deposit at the Mint Hall counter inside, but not elsewhere in the hall', async () => {
+    const a = await walkIn('Ana');
+    a.standAt(mintHall);
+    a.client.send('enter');
+    await waitFor(() => a.doors.length === 1, 'in the hall');
+    a.me.pocket = 50;
+    const layout = layoutFor('mintHall', mintHall?.building.seed ?? 0);
+    a.standOn(layout.spots.find((s) => s.kind === 'board'));
+    a.client.send('deposit');
+    await waitFor(() => a.deposits.length === 1, 'deposit answered at the board');
+    expect(a.deposits[0]?.reason).toBe('notAtVault');
+    a.standOn(layout.spots.find((s) => s.kind === 'counter'));
+    a.client.send('deposit');
+    await waitFor(() => a.deposits.length === 2, 'deposit answered at the counter');
+    expect(a.deposits[1]?.reason).toBe('noProfile');
   });
 });
