@@ -456,13 +456,23 @@ input::placeholder { color: rgba(226, 207, 214, 0.45); }
 .island-hud p { margin: 0; }
 .island-hud > div { min-width: 0; }
 .island-hud > div > p:last-child { margin-top: 3px; color: var(--gold); font-size: 12px; }
-.island-hud button { grid-column: 2; grid-row: 1; }
+.island-nav { display: grid; gap: 5px; justify-items: end; }
 .island-objective { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; padding-top: 9px; border-top: 1px solid var(--edge); font-size: 12px; }
 .island-objective span { color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .island-status { grid-column: 1 / -1; min-height: 1.3em; color: var(--text); font-size: 13px; }
 .island-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .island-controls { color: var(--muted); font-size: 11px; }
-.island-actions #island-action { grid-column: auto; grid-row: auto; flex: none; padding: 7px 12px; font-size: 12px; }
+.island-actions button { flex: none; padding: 7px 12px; font-size: 12px; }
+.find-search { background: var(--gold); color: #382719; }
+.find-journal { width: min(430px, calc(100% - 24px)); max-height: calc(100dvh - 32px); padding: 16px; overflow-y: auto; color: var(--text); background: var(--glass-strong); pointer-events: auto; }
+.find-journal::backdrop { background: rgba(21, 14, 30, 0.68); }
+.find-journal header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.find-journal h2, .find-journal p { margin: 0; }
+.find-journal p { color: var(--gold); font-size: 13px; margin-top: 4px; }
+.find-journal ol { margin: 14px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.find-journal li { display: grid; gap: 4px; padding: 9px 12px; border: 1px solid var(--edge); border-radius: 8px; font-size: 13px; }
+.find-journal li span { color: var(--muted); }
+.find-journal li.found { color: var(--honest); }
 
 /* Academy */
 .academy-open { margin-top: 4px; justify-self: stretch; background: rgba(95, 211, 176, 0.16); color: var(--honest); font-weight: 700; }
@@ -979,12 +989,16 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .city-ferry { background: #7ad0d6; }
 .city-ferry.locked { background: #c9c1d4; }
 .beach-ferry { pointer-events: auto; }
+#beach-search { background: var(--gold); }
 @media (max-width: 640px) { .city-ride { bottom: max(256px, calc(env(safe-area-inset-bottom) + 256px)); } }
 /* The ferry crossing: the island HUDs step aside and a card names where the ferry is going. */
-:root[data-ferry='sailing'] .city-hud, :root[data-ferry='sailing'] .beach-hud { visibility: hidden; }
+:root[data-ferry='sailing'] .city-hud, :root[data-ferry='sailing'] .beach-hud,
+:root[data-ferry='sailing'] .coach, :root[data-ferry='sailing'] #toasts { visibility: hidden; }
 .ferry-card { position: absolute; left: 50%; bottom: max(40px, calc(env(safe-area-inset-bottom) + 40px)); transform: translateX(-50%); display: grid; gap: 4px; justify-items: center; padding: 12px 22px; max-width: calc(100% - 32px); text-align: center; background: var(--glass-strong); border: 1px solid rgba(122, 208, 214, 0.5); border-radius: 14px; z-index: 1; pointer-events: none; animation: ferry-card-in 0.4s ease-out; }
 .ferry-card b { font-size: 18px; }
 .ferry-card small { font-size: 12px; color: var(--muted); }
+.ferry-track { display: block; width: 100%; height: 3px; margin: 4px 0; background: rgba(122, 208, 214, 0.2); border-radius: 3px; overflow: hidden; }
+.ferry-track > span { display: block; height: 100%; background: #7ad0d6; transform: scaleX(0); transform-origin: left; }
 .ferry-card.leaving { opacity: 0; transition: opacity 0.4s; }
 @keyframes ferry-card-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ferry-card { animation: none; } .ferry-card.leaving { transition: none; } }

@@ -828,4 +828,11 @@ export const sw: Messages = {
   'ferry.skip': 'Gusa au bonyeza E kuruka',
   'ferry.arrived': 'Karibu {name}. Feri ya kurudi inaondoka kwenye gati hili.',
   'join.islandLocked': 'Kisiwa hicho bado hakijafunguka kwako.',
+  'finds.journal': 'Vilivyopatikana',
+  'finds.title': 'Daftari la vidokezo',
+  'finds.search': 'Tafuta hapa (E)',
+  'finds.clue': 'Kidokezo',
+  'finds.locked': 'Hufunguka katika cheo cha {rank}',
+  'finds.count': '{found} kati ya {total} vimepatikana',
+  'finds.collected': 'Umepata {name}',
 };

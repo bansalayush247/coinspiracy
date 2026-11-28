@@ -828,4 +828,11 @@ export const zu: Messages = {
   'ferry.skip': 'Thepha noma ucindezele u-E ukweqa',
   'ferry.arrived': 'Wamukelekile e-{name}. Isikebhe sokubuyela sisuka kule chweba.',
   'join.islandLocked': 'Leso siqhingi asikakuvulekeli okwamanje.',
+  'finds.journal': 'Okutholakele',
+  'finds.title': 'Ijenali yezinkomba',
+  'finds.search': 'Sesha lapha (E)',
+  'finds.clue': 'Inkomba',
+  'finds.locked': 'Kuvuleka ezingeni {rank}',
+  'finds.count': 'Kutholwe {found} kwezingu-{total}',
+  'finds.collected': 'Uthole {name}',
 };

@@ -828,4 +828,11 @@ export const en = {
   'ferry.skip': 'Tap or press E to skip',
   'ferry.arrived': 'Welcome to {name}. The ferry back leaves from this pier.',
   'join.islandLocked': 'That island isn’t open for you yet.',
+  'finds.journal': 'Finds',
+  'finds.title': 'Clue journal',
+  'finds.search': 'Search here (E)',
+  'finds.clue': 'Clue',
+  'finds.locked': 'Unlocks at Rank {rank}',
+  'finds.count': '{found} of {total} found',
+  'finds.collected': 'Found {name}',
 } as const satisfies Readonly<Record<string, string | PluralForms>>;

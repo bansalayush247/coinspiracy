@@ -59,6 +59,11 @@ export const ROAD_COLS = Object.freeze([30, 46, 56, 72, 86, 102, 116]);
 export const ROAD_ROWS = Object.freeze([14, 30, 46, 62, 78]);
 const RIVER: { readonly c0: number; readonly c1: number } = { c0: 63, c1: 65 };
 const HARBOUR: Box = { c0: 2, r0: 40, c1: 21, r1: 74 };
+export const CITY_SHALLOWS_ISLETS: readonly Box[] = [
+  { c0: 14, r0: 90, c1: 26, r1: 99 },
+  { c0: 30, r0: 96, c1: 38, r1: 106 },
+  { c0: 12, r0: 106, c1: 22, r1: 116 },
+];
 
 // The coast: the land's southern edge, by column.
 function coastRow(c: number): number {
@@ -135,12 +140,7 @@ function build(): CityLayout {
   // Piers into the harbour basin.
   for (const pr of [48, 58, 68]) for (let c = 6; c <= HARBOUR.c1; c++) for (const r of [pr, pr + 1]) set(c, r, '=');
   // The Shallows: islets beyond the breakwater, joined to the docks by a long pier.
-  const islets: Box[] = [
-    { c0: 14, r0: 90, c1: 26, r1: 99 },
-    { c0: 30, r0: 96, c1: 38, r1: 106 },
-    { c0: 12, r0: 106, c1: 22, r1: 116 },
-  ];
-  for (const b of islets) fill(b, '.');
+  for (const b of CITY_SHALLOWS_ISLETS) fill(b, '.');
   for (let r = 70; r <= 89; r++) for (const c of [24, 25]) if (at(c, r) === '~') set(c, r, '=');
   fill({ c0: 27, r0: 98, c1: 29, r1: 99 }, '=');
   fill({ c0: 17, r0: 100, c1: 18, r1: 105 }, '=');
@@ -261,7 +261,7 @@ function build(): CityLayout {
     }
   }
   // Palms and crates on the Shallows islets.
-  for (const b of islets) for (let r = b.r0; r <= b.r1; r += 3) for (let c = b.c0; c <= b.c1; c += 4) if (at(c, r) === '.' && (c * 7 + r) % 3 === 0) set(c, r, 'T');
+  for (const b of CITY_SHALLOWS_ISLETS) for (let r = b.r0; r <= b.r1; r += 3) for (let c = b.c0; c <= b.c1; c += 4) if (at(c, r) === '.' && (c * 7 + r) % 3 === 0) set(c, r, 'T');
   // The void rim.
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (!inBounds(c, r)) (grid[r] ?? [])[c] = '#';
   // No walkable pocket may be sealed off: anything not reachable from the spawn becomes a tree.

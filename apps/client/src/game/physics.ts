@@ -230,7 +230,7 @@ export function makeFxTextures(scene: Phaser.Scene): void {
     c.ellipse(8, 5, 7, 3.5, 0.3, 0, Math.PI * 2);
     c.fill();
   });
-  make('fx-cloud', 256, 128, (c) => {
+  make('fx-cloud', 256, 144, (c) => {
     for (const [x, y, r] of [
       [70, 80, 44],
       [120, 60, 56],

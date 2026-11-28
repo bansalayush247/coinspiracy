@@ -16,6 +16,8 @@ import type { Wear } from '../game/guardianArt.js';
 import { el } from '../ui/dom.js';
 import { FerryButton } from '../ferry/ferryDock.js';
 import type { FerryLook } from '../ferry/FerryScene.js';
+import { findJournalOpen, islandFinds, openFindJournal } from '../explore/findJournal.js';
+import { FIND_REACH } from '../explore/islandFinds.js';
 import { t, type PlainKey } from '../i18n/index.js';
 import type { BeachScene } from './BeachScene.js';
 
@@ -40,6 +42,7 @@ export class BeachController {
   readonly #promptText = el('beach-prompt-text', HTMLSpanElement);
   readonly #browse = el('beach-shop', HTMLButtonElement);
   readonly #jobAction = el('beach-job-action', HTMLButtonElement);
+  readonly #search = el('beach-search', HTMLButtonElement);
   readonly #ferry = new FerryButton(el('beach-ferry', HTMLButtonElement), 'beach', () => {
     this.onFerry();
   });
@@ -90,6 +93,12 @@ export class BeachController {
     el('beach-wardrobe', HTMLButtonElement).addEventListener('click', () => {
       this.onWardrobe();
     });
+    el('beach-finds', HTMLButtonElement).addEventListener('click', () => {
+      if (!this.input.enabled || shopPanel().isOpen) return;
+      this.holdStill(true);
+      openFindJournal('beach', this.#profile?.progress.rank ?? 1, () => { this.holdStill(false); });
+    });
+    this.#search.addEventListener('click', () => { this.#searchHere(); });
     el('beach-leave', HTMLButtonElement).addEventListener('click', () => {
       void this.leave();
     });
@@ -105,7 +114,7 @@ export class BeachController {
       this.#emote(emote);
     });
     window.addEventListener('keydown', (e) => {
-      if (this.#room === null || this.#hud.hidden || !el('wardrobe', HTMLElement).hidden || !el('story', HTMLElement).hidden) return;
+      if (this.#room === null || this.#hud.hidden || findJournalOpen() || !el('wardrobe', HTMLElement).hidden || !el('story', HTMLElement).hidden) return;
       if (e.code === 'Space' && !e.repeat && !isEditable(e.target) && !shopPanel().isOpen) {
         // A focused HUD button would otherwise be clicked by Space as well.
         if (e.target instanceof HTMLButtonElement) e.target.blur();
@@ -129,6 +138,16 @@ export class BeachController {
     if (this.#here !== null) this.#openShop(this.#here);
     else if (this.#home) this.onWardrobe();
     else if (this.#ferry.shown) this.onFerry();
+    else if (!this.#search.hidden) this.#searchHere();
+  }
+
+  #searchHere(): void {
+    if (!this.input.enabled || shopPanel().isOpen) return;
+    const found = islandFinds.search('beach', this.scene.predictedPosition(), this.#profile?.progress.rank ?? 1);
+    if (found === null) return;
+    audio.play('coin');
+    this.onToast(t('finds.collected', { name: found.name }));
+    this.#render();
   }
 
   setProfile(p: ProfileSummary | null): void {
@@ -271,6 +290,10 @@ export class BeachController {
       if (home) audio.play('chirp');
     }
     this.#prompt.hidden = (here === null && !home) || shopPanel().isOpen;
+    const found = islandFinds.nearby('beach', pos, this.#profile?.progress.rank ?? 1, 1.85);
+    this.scene.showFind(found);
+    this.#search.hidden = found === null || pos === null || Math.hypot(found.at.x - pos.x, found.at.y - pos.y) > FIND_REACH ||
+      !this.#prompt.hidden || this.#ferry.shown || shopPanel().isOpen;
     if (home) {
       this.#promptText.textContent = t('beach.hut');
       this.#browse.textContent = t('beach.wardrobeKey');

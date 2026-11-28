@@ -828,4 +828,11 @@ export const hi: Messages = {
   'ferry.skip': 'छोड़ने के लिए टैप करो या E दबाओ',
   'ferry.arrived': '{name} में स्वागत है। वापसी की फ़ेरी इसी घाट से चलती है।',
   'join.islandLocked': 'वह द्वीप अभी तुम्हारे लिए नहीं खुला है।',
+  'finds.journal': 'खोज',
+  'finds.title': 'सुरागों की डायरी',
+  'finds.search': 'यहाँ खोजें (E)',
+  'finds.clue': 'सुराग',
+  'finds.locked': 'रैंक {rank} पर खुलेगा',
+  'finds.count': '{total} में से {found} मिले',
+  'finds.collected': '{name} मिला',
 };

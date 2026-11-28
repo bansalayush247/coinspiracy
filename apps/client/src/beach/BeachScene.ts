@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
 import { colorNumber, getShop, type BeachShopId } from '@byzantine-council/shared/economy';
 import type { Emote } from '@byzantine-council/shared/hub';
-import { BEACH_MAP, HOME_RANGE, SHOP_RANGE, homeDoor, shopCounter, type HubPlayer } from '@byzantine-council/shared/hub';
+import { BEACH_LANDMARKS, BEACH_MAP, HOME_RANGE, SHOP_RANGE, homeDoor, shopCounter, type HubPlayer } from '@byzantine-council/shared/hub';
 import { Atmosphere, type NatureNote } from '../game/atmosphere.js';
 import { CONFETTI, EmoteAction, spawnFlourishes } from '../game/emoteActions.js';
 import { Effects } from '../game/effects.js';
@@ -17,7 +17,10 @@ import { windAt, type Swaying } from '../game/mapArt.js';
 import { COLORS, cssColor } from '../game/palette.js';
 import { PhysicsFx, makeFxTextures } from '../game/physics.js';
 import { CorrectionSmoother, Predictor, type PendingInput } from '../game/prediction.js';
-import { createBeachProps, drawBoat, drawHutDecor, paintBeach } from './beachArt.js';
+import { BEACH_SEA, createBeachProps, drawBoat, drawHutDecor, paintBeach } from './beachArt.js';
+import { addOcean, fitOcean } from '../game/ocean.js';
+import { findSparkle } from '../explore/findJournal.js';
+import type { IslandFind } from '../explore/islandFinds.js';
 import { Townsfolk } from '../game/townsfolk.js';
 import { drawBunting } from '../game/festive.js';
 import { BEACH_SHOP_IDS } from '@byzantine-council/shared/economy';
@@ -74,6 +77,7 @@ export class BeachScene extends Phaser.Scene {
   #swaying: Swaying[] = [];
   #keepers: Phaser.GameObjects.Graphics[] = [];
   #boat!: Phaser.GameObjects.Graphics;
+  #ocean!: Phaser.GameObjects.TileSprite;
   #glintAt = 0;
   #townsfolk: Townsfolk | null = null;
   // Set by the controller so sky phenomena explain themselves here too.
@@ -95,6 +99,7 @@ export class BeachScene extends Phaser.Scene {
   #hutDecor: Phaser.GameObjects.Graphics | null = null;
   #owned: readonly string[] = [];
   #target!: Phaser.GameObjects.Graphics;
+  #find!: Phaser.GameObjects.Graphics;
   readonly #tmp = { x: 0, y: 0 };
 
   constructor() {
@@ -103,6 +108,7 @@ export class BeachScene extends Phaser.Scene {
 
   create(): void {
     this.#reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.#ocean = addOcean(this, 'beach-ocean', BEACH_SEA);
     const painted = paintBeach(this);
     this.add.image(painted.x, painted.y, painted.key).setOrigin(0).setScale(1 / painted.scale).setDepth(0);
     this.#entities = this.add.layer().setDepth(10);
@@ -115,8 +121,8 @@ export class BeachScene extends Phaser.Scene {
     drawFerryDock(this, this.#entities, 'beach', isoDepth, this.#reduced);
     drawHutDecor(props.hutDecor, this.#owned);
     // Townsfolk browse the stalls and stroll to the shore.
-    const spots = [...BEACH_SHOP_IDS.map((id) => shopCounter(id)), homeDoor(), { x: 14.5, y: 15 }, { x: 7, y: 12.5 }, { x: 22.5, y: 12.5 }, { x: 15, y: 9.5 }];
-    this.#townsfolk = new Townsfolk(this, this.#entities, BEACH_MAP, spots, 5);
+    const spots = [...BEACH_SHOP_IDS.map((id) => shopCounter(id)), homeDoor(), { x: 14.5, y: 15 }, { x: 7, y: 12.5 }, { x: 22.5, y: 12.5 }, { x: 15, y: 9.5 }, ...BEACH_LANDMARKS.map((site) => site.approach)];
+    this.#townsfolk = new Townsfolk(this, this.#entities, BEACH_MAP, spots, 9);
     // A sailboat tacking slowly across the lagoon.
     this.#boat = this.add.graphics().setDepth(5);
     drawBoat(this.#boat, 0xff7f6a);
@@ -129,6 +135,7 @@ export class BeachScene extends Phaser.Scene {
     };
     this.#focus = this.add.graphics().setDepth(2).setVisible(false);
     this.#target = this.add.graphics().setDepth(21).setVisible(false);
+    this.#find = this.add.graphics().setDepth(21).setVisible(false);
     // End-to-end builds only (compiled out otherwise): lets the browser test steer by the guardian's own position.
     if (import.meta.env.VITE_E2E === '1') Object.assign(window, { __bcBeachPos: () => this.predictedPosition() });
     if (!this.#reduced) this.tweens.add({ targets: this.#target, y: -8 * ART_SCALE, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
@@ -144,6 +151,7 @@ export class BeachScene extends Phaser.Scene {
     const center = worldToScreen(15, 9.5);
     this.cameras.main.centerOn(center.x, center.y);
     this.#applyZoom();
+    fitOcean(this.#ocean, this.cameras.main);
     const onResize = (): void => {
       this.#applyZoom();
     };
@@ -363,6 +371,10 @@ export class BeachScene extends Phaser.Scene {
     this.#effects.taskDone(c, paid > 0 ? 0xffd27a : 0xbfb3c8);
   }
 
+  showFind(find: IslandFind | null): void {
+    findSparkle(this.#find, find);
+  }
+
   zoomBy(factor: number): void {
     this.#userZoom = Phaser.Math.Clamp(this.#userZoom * factor, 0.6, 1.8);
     this.#applyZoom();
@@ -371,6 +383,7 @@ export class BeachScene extends Phaser.Scene {
   #userZoom = 1;
 
   override update(time: number, delta: number): void {
+    fitOcean(this.#ocean, this.cameras.main);
     this.#stepLocal(delta);
     this.#physics.update(delta);
     this.#atmosphere.update(time, delta);

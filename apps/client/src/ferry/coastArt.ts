@@ -4,16 +4,14 @@ import Phaser from 'phaser';
 import { tileAt, type CitadelMap, type Vec2 } from '@byzantine-council/shared';
 import { CITY_BUILDINGS, CITY_MAP, FERRY_TUNING, type FerryIsland } from '@byzantine-council/shared/city';
 import { colorNumber, getShop } from '@byzantine-council/shared/economy';
-import { BEACH_MAP, HOME_HUT, SHOP_BOOTHS } from '@byzantine-council/shared/hub';
-import { P, drawHut, drawPalm, fan, prism } from '../beach/beachArt.js';
+import { BEACH_LANDMARKS, BEACH_MAP, HOME_HUT, SHOP_BOOTHS } from '@byzantine-council/shared/hub';
+import { P, drawBeachLandmark, drawHut, drawPalm, fan, prism } from '../beach/beachArt.js';
 import { buildingFront, drawBuilding } from '../city/cityArt.js';
+import { CITY_SAND, SHALLOWS_BEACHES, citySandAt, isShallowsBeach } from '../city/cityBeach.js';
 import { ART_SCALE, TILE_H, worldToScreen } from '../game/iso.js';
 import { shade } from '../game/palette.js';
 
 type G = Phaser.GameObjects.Graphics;
-
-/** Which side of an island faces the ferry: the dock it leaves from, or the shore it sails up to. */
-export type CoastRole = 'behind' | 'ahead';
 
 interface Window {
   readonly map: CitadelMap;
@@ -28,38 +26,48 @@ const CITY_GROUND: Readonly<Record<string, number>> = {
   '.': 0xd9ccb4, ':': 0x5f5866, ',': 0x8fb86a, d: 0x9a8060, '=': 0xb8845a, B: 0xd9ccb4, T: 0x86b062, L: 0xd9ccb4, C: 0xd9ccb4, M: 0x9a8060,
 };
 const BEACH_GROUND: Readonly<Record<string, number>> = {
-  '.': 0xf1d9a6, '=': 0xb8845a, T: 0xf1d9a6, H: 0xf1d9a6, R: 0xf1d9a6, U: 0xf1d9a6, L: 0xf1d9a6,
+  '.': 0xf1d9a6, ',': 0xaac47d, d: 0xdcc6ac, '=': 0xb8845a, T: 0xf1d9a6, H: 0xf1d9a6, R: 0xf1d9a6, U: 0xf1d9a6, L: 0xf1d9a6,
 };
 const CLIFF = 14;
 
-// The patch of an island drawn for a crossing and its point nearest the ferry: the dock leaving, the north shore arriving.
-function windowFor(island: FerryIsland, role: CoastRole): Window {
-  const stop = FERRY_TUNING.stops[island].at;
-  if (island === 'beach') return { map: BEACH_MAP, c0: 0, r0: 0, c1: BEACH_MAP.width - 1, r1: BEACH_MAP.height - 1, anchor: role === 'behind' ? stop : { x: 15, y: 0.5 } };
-  const cx = Math.floor(stop.x);
-  if (role === 'behind') return { map: CITY_MAP, c0: cx - 24, r0: Math.floor(stop.y) - 20, c1: cx + 22, r1: Math.floor(stop.y) + 1, anchor: stop };
-  return { map: CITY_MAP, c0: cx - 24, r0: 0, c1: cx + 22, r1: 22, anchor: { x: cx, y: 1.5 } };
+function windowFor(island: FerryIsland): Window {
+  const { ship } = FERRY_TUNING.stops[island];
+  if (island === 'beach') return { map: BEACH_MAP, c0: 0, r0: 0, c1: BEACH_MAP.width - 1, r1: BEACH_MAP.height - 1, anchor: ship };
+  // The waterfront and the neighbourhoods behind it. Preserve the real shoreline at both ends of the trip.
+  return { map: CITY_MAP, c0: 0, r0: Math.floor(ship.y) - 35, c1: CITY_MAP.width - 1, r1: CITY_MAP.height - 1, anchor: ship };
 }
 
 const land = (t: string): boolean => t !== '~' && t !== '#' && t !== '';
 
 /** Draws an island's coast into a new container whose origin is the point nearest the ferry. */
-export function buildCoast(scene: Phaser.Scene, island: FerryIsland, role: CoastRole): Phaser.GameObjects.Container {
-  const win = windowFor(island, role);
+export function buildCoast(scene: Phaser.Scene, island: FerryIsland): Phaser.GameObjects.Container {
+  const win = windowFor(island);
   const origin = worldToScreen(win.anchor.x, win.anchor.y);
   const root = scene.add.container(0, 0);
   const ground = scene.add.graphics().setPosition(-origin.x, -origin.y);
   root.add(ground);
-  const at = (c: number, r: number): string => (c < win.c0 || c > win.c1 || r < win.r0 || r > win.r1 ? '~' : tileAt(win.map, c, r));
+  const at = (c: number, r: number): string => tileAt(win.map, c, r);
   const colors = island === 'city' ? CITY_GROUND : BEACH_GROUND;
+  if (island === 'city') {
+    for (const beach of SHALLOWS_BEACHES) {
+      const points = beach.shore.map(({ x, y }) => {
+        const p = P(x, y);
+        return new Phaser.Math.Vector2(p.x, p.y);
+      });
+      ground.fillStyle(CITY_SAND, 1).fillPoints(points, true);
+      ground.lineStyle(1.8 * ART_SCALE, 0xffeed2, 0.75).strokePoints(points, true);
+    }
+  }
   for (let r = win.r0; r <= win.r1; r++) {
     for (let c = win.c0; c <= win.c1; c++) {
       const t = at(c, r);
-      if (!land(t)) continue;
-      const color = colors[t] ?? 0xd9ccb4;
+      if (!land(t) || (island === 'city' && isShallowsBeach(c, r))) continue;
+      const sand = island === 'city' && citySandAt(c, r, t);
+      const color = sand ? CITY_SAND : (colors[t] ?? 0xd9ccb4);
       fan(ground, color, [P(c, r), P(c + 1, r), P(c + 1, r + 1), P(c, r + 1)]);
-      if (!land(at(c, r + 1))) fan(ground, shade(color, 0.35), [P(c, r + 1), P(c + 1, r + 1), P(c + 1, r + 1, -CLIFF), P(c, r + 1, -CLIFF)]);
-      if (!land(at(c + 1, r))) fan(ground, shade(color, 0.5), [P(c + 1, r), P(c + 1, r + 1), P(c + 1, r + 1, -CLIFF), P(c + 1, r, -CLIFF)]);
+      const depth = t === '=' || sand ? CLIFF / 3 : CLIFF;
+      if (!land(at(c, r + 1))) fan(ground, shade(color, 0.35), [P(c, r + 1), P(c + 1, r + 1), P(c + 1, r + 1, -depth), P(c, r + 1, -depth)]);
+      if (!land(at(c + 1, r))) fan(ground, shade(color, 0.5), [P(c + 1, r), P(c + 1, r + 1), P(c + 1, r + 1, -depth), P(c + 1, r, -depth)]);
     }
   }
   const props: { depth: number; draw: (g: G) => void; at?: Vec2 }[] = [];
@@ -74,6 +82,9 @@ export function buildCoast(scene: Phaser.Scene, island: FerryIsland, role: Coast
       }
     }
   } else {
+    for (const site of BEACH_LANDMARKS) {
+      props.push({ depth: site.col + site.row + site.width + site.depth, draw: (g) => { drawBeachLandmark(g, site); } });
+    }
     for (const [id, booth] of Object.entries(SHOP_BOOTHS)) {
       const color = colorNumber(getShop(id)?.color ?? '#ffd27a');
       props.push({ depth: booth.col + booth.row + 4, draw: (g) => { booth2x2(g, booth.col, booth.row, color); } });

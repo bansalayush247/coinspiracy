@@ -5,10 +5,11 @@ import { CHUNK, CITY_BUILDINGS, CITY_MAP, ROAD_COLS, ROAD_ROWS, districtAt, door
 import { tileAt, type Box } from '@byzantine-council/shared';
 import { P, fan, prism } from '../beach/beachArt.js';
 import { hex, jitter, paintPlanks, rng, type Ctx } from '../game/groundPaint.js';
-import { ART_SCALE, TILE_H, TILE_W } from '../game/iso.js';
+import { ART_SCALE, TILE_H, TILE_W, mapScreenBounds } from '../game/iso.js';
 import { lit, mix, shade } from '../game/palette.js';
 import { quality } from '../game/quality.js';
 import { drawHospital, drawOffice, drawResidence, drawStorefront } from './streetArchitecture.js';
+import { CITY_SAND, CITY_WET_SAND, SHALLOWS_BEACHES, citySandAt, isShallowsBeach } from './cityBeach.js';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -63,6 +64,7 @@ export function paintChunk(scene: Phaser.Scene, cx: number, cy: number): { key: 
   for (let r = r0 - 1; r <= r0 + CHUNK; r++) {
     for (let c = c0 - 1; c <= c0 + CHUNK; c++) smoothCoast(ctx, sea, c0, r0, c, r);
   }
+  paintShallowsShore(ctx, sea, c0, r0);
   if (quality.current !== 'low') {
     ctx.save();
     ctx.beginPath();
@@ -80,6 +82,35 @@ const isWater = (t: string): boolean => t === '~' || t === '#';
 // edge never lies over another chunk's ground.
 const SHADOW_RING = 0.5;
 const SEA = { shallow: 0x55a9b4, mid: 0x2f7f9c, deep: 0x1c4d72 };
+export const CITY_SEA = SEA.deep;
+
+/** A continuous base map under the streamed detail, visible while a new chunk is painted. */
+export function cityOverview(scene: Phaser.Scene): Phaser.GameObjects.Image {
+  const key = 'city-overview';
+  const bounds = mapScreenBounds(CITY_MAP.width, CITY_MAP.height);
+  const scale = 0.12;
+  if (!scene.textures.exists(key)) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(bounds.width * scale);
+    canvas.height = Math.ceil(bounds.height * scale);
+    const ctx = canvas.getContext('2d');
+    if (ctx === null) throw new Error('no 2d canvas');
+    ctx.setTransform(TILE_W * scale / 2, TILE_H * scale / 2, -TILE_W * scale / 2, TILE_H * scale / 2, -bounds.x * scale, 0);
+    const colors: Record<string, number> = { ':': 0x595360, ',': 0x8ead6c, '=': 0xb18760, d: 0xaa9779 };
+    ctx.fillStyle = hex(CITY_SAND);
+    for (const beach of SHALLOWS_BEACHES) ctx.fill(shorePath(beach));
+    for (let r = 0; r < CITY_MAP.height; r++) {
+      for (let c = 0; c < CITY_MAP.width; c++) {
+        const tile = at(c, r);
+        if (isWater(tile) || isShallowsBeach(c, r)) continue;
+        ctx.fillStyle = hex(citySandAt(c, r, tile) ? CITY_SAND : (colors[tile] ?? 0xd2c6b2));
+        ctx.fillRect(c - 0.025, r - 0.025, 1.05, 1.05);
+      }
+    }
+    scene.textures.addCanvas(key, canvas);
+  }
+  return scene.add.image(bounds.x, 0, key).setOrigin(0).setScale(1 / scale).setDepth(-1);
+}
 // How far from land, in tiles, the sea reaches its deepest blue.
 const SEA_DEPTH_TILES = 4;
 
@@ -101,7 +132,12 @@ function seaLayer(c0: number, r0: number): HTMLCanvasElement {
         for (let dc = -reach; dc <= reach; dc++) if (!isWater(at(c + dc, r + dr))) near = Math.min(near, Math.hypot(dc, dr) - 0.5);
       }
       const d = Math.max(0, near) / reach;
-      ctx.fillStyle = hex(d < 0.5 ? mix(SEA.shallow, SEA.mid, d * 2) : mix(SEA.mid, SEA.deep, (d - 0.5) * 2));
+      const sea = d < 0.5 ? mix(SEA.shallow, SEA.mid, d * 2) : mix(SEA.mid, SEA.deep, (d - 0.5) * 2);
+      const beach = d < 0.5 && (
+        citySandAt(c - 1, r) || citySandAt(c + 1, r) || citySandAt(c, r + 1) || citySandAt(c, r - 1) ||
+        (at(c, r - 1) === '=' && at(c, r - 2) === '=' && citySandAt(c, r - 3))
+      );
+      ctx.fillStyle = hex(beach ? mix(0x87c3b6, sea, 0.2 + d * 1.6) : sea);
       ctx.fillRect(i, j, 1, 1);
     }
   }
@@ -126,12 +162,70 @@ function drawSea(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number): void
   ctx.drawImage(sea, c0 - 1, r0 - 1, CHUNK + 2, CHUNK + 2);
 }
 
+function shorePath(beach: (typeof SHALLOWS_BEACHES)[number]): Path2D {
+  const path = new Path2D();
+  beach.shore.forEach(({ x, y }, i) => {
+    if (i === 0) path.moveTo(x, y);
+    else path.lineTo(x, y);
+  });
+  path.closePath();
+  return path;
+}
+
+function paintShallowsShore(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number): void {
+  for (const beach of SHALLOWS_BEACHES) {
+    const b = beach.box;
+    if (b.c1 < c0 - 2 || b.r1 < r0 - 2 || b.c0 > c0 + CHUNK + 1 || b.r0 > r0 + CHUNK + 1) continue;
+    const shore = shorePath(beach);
+    const rim = new Path2D();
+    rim.rect(b.c0 - 0.06, b.r0 - 0.06, b.c1 - b.c0 + 1.12, b.r1 - b.r0 + 1.12);
+    rim.addPath(shore);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(c0 - 1, r0 - 1, CHUNK + 2, CHUNK + 2);
+    ctx.clip();
+    ctx.save();
+    // Cover the sand texture's bleed into water without repainting the planks at bridge landings.
+    ctx.beginPath();
+    ctx.rect(b.c0, b.r0, b.c1 - b.c0 + 1, b.r1 - b.r0 + 1);
+    const allowWater = (c: number, r: number): void => {
+      if (isWater(at(c, r))) ctx.rect(c, r, 1, 1);
+    };
+    for (let c = b.c0 - 1; c <= b.c1 + 1; c++) {
+      allowWater(c, b.r0 - 1);
+      allowWater(c, b.r1 + 1);
+    }
+    for (let r = b.r0; r <= b.r1; r++) {
+      allowWater(b.c0 - 1, r);
+      allowWater(b.c1 + 1, r);
+    }
+    ctx.clip();
+    ctx.clip(rim, 'evenodd');
+    drawSea(ctx, sea, c0, r0);
+    ctx.restore();
+    ctx.lineJoin = 'round';
+    ctx.save();
+    ctx.clip(shore);
+    for (const [width, alpha] of [[0.8, 0.11], [0.5, 0.18], [0.24, 0.33]] as const) {
+      ctx.strokeStyle = hex(CITY_WET_SAND, alpha);
+      ctx.lineWidth = width;
+      ctx.stroke(shore);
+    }
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(231,251,243,0.54)';
+    ctx.lineWidth = 0.035;
+    ctx.stroke(shore);
+    ctx.restore();
+  }
+}
+
 function paintTile(ctx: Ctx, c: number, r: number): void {
-  paintSurface(ctx, at(c, r), c, r);
+  const tile = at(c, r);
+  paintSurface(ctx, tile, c, r, citySandAt(c, r, tile));
 }
 
 // Paints one kind of ground over a tile; the coast pass also uses it to fill half a tile with its neighbour's ground.
-function paintSurface(ctx: Ctx, t: string, c: number, r: number): void {
+function paintSurface(ctx: Ctx, t: string, c: number, r: number, sand: boolean): void {
   const rand = rng(c * 7919 + r * 104729);
   const district = districtAt({ x: c + 0.5, y: r + 0.5 })?.id ?? 'saltmarket';
   const tile = (color: number): void => {
@@ -140,6 +234,10 @@ function paintSurface(ctx: Ctx, t: string, c: number, r: number): void {
   };
   if (isWater(t)) {
     paintWaves(ctx, c, r, rand);
+    return;
+  }
+  if (sand) {
+    paintCitySand(ctx, c, r, rand);
     return;
   }
   if (t === '=') {
@@ -177,6 +275,45 @@ function paintSurface(ctx: Ctx, t: string, c: number, r: number): void {
     return;
   }
   paintPavement(ctx, c, r, rand, PAVEMENT[district]);
+}
+
+function paintCitySand(ctx: Ctx, c: number, r: number, rand: () => number): void {
+  ctx.fillStyle = hex(jitter(CITY_SAND, rand, 0.035));
+  ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    const other = at(c + dx, r + dy);
+    const water = isWater(other);
+    if (water ? isShallowsBeach(c, r) : other !== ',' || citySandAt(c + dx, r + dy, other)) continue;
+    const color = water ? CITY_WET_SAND : 0x92b96f;
+    const x = c + 0.5 + dx * 0.5;
+    const y = r + 0.5 + dy * 0.5;
+    const reach = water ? 0.38 : 0.64;
+    const damp = ctx.createLinearGradient(x, y, x - dx * reach, y - dy * reach);
+    damp.addColorStop(0, hex(color, water ? 1 : 0.85));
+    damp.addColorStop(1, hex(color, 0));
+    ctx.fillStyle = damp;
+    ctx.fillRect(c, r, 1, 1);
+  }
+  for (let i = 0; i < 45; i++) {
+    ctx.fillStyle = rand() > 0.5 ? 'rgba(255,250,230,0.48)' : 'rgba(157,106,57,0.24)';
+    ctx.fillRect(c + rand(), r + rand(), 0.022, 0.016);
+  }
+  for (let i = 0; i < 3; i++) {
+    const y = r + 0.14 + i * 0.24 + rand() * 0.1;
+    const x = c + 0.05 + rand() * 0.23;
+    ctx.strokeStyle = 'rgba(166,111,63,0.24)';
+    ctx.lineWidth = 0.016;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + 0.25, y - 0.075, x + 0.58, y + 0.035);
+    ctx.stroke();
+  }
+  if (rand() < 0.22) {
+    ctx.fillStyle = rand() < 0.5 ? '#fff2d5' : '#e7ab90';
+    ctx.beginPath();
+    ctx.ellipse(c + 0.2 + 0.6 * rand(), r + 0.2 + 0.6 * rand(), 0.044, 0.028, rand() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 // Pavement: slabs in a half-tile grid with worn joints, and a raised kerb where it meets the road.
@@ -272,7 +409,7 @@ function paintWaves(ctx: Ctx, c: number, r: number, rand: () => number): void {
   for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
     if (!shore(dc, dr)) continue;
     if (at(c + dc, r + dr) === '=') deckShadow(ctx, c, r, dc, dr);
-    else foamAlong(ctx, c, r, dc, dr, rand, 1);
+    else if (!isShallowsBeach(c + dc, r + dr)) foamAlong(ctx, c, r, dc, dr, rand, 1);
   }
 }
 
@@ -322,7 +459,7 @@ const CORNERS = [
 function smoothCoast(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number, c: number, r: number): void {
   const t = at(c, r);
   const wet = isWater(t);
-  if (!wet && !COAST_LAND.has(t)) return;
+  if (!wet && (!COAST_LAND.has(t) || isShallowsBeach(c, r))) return;
   const other = (dc: number, dr: number): boolean => isWater(at(c + dc, r + dr)) !== wet;
   for (const corner of CORNERS) {
     const [a, b] = corner.sides;
@@ -333,6 +470,7 @@ function smoothCoast(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number, c
     if (wet && !other(a[0] + b[0], a[1] + b[1])) continue;
     // A boardwalk is built square: its steps stay, so a deck is never cut or grown.
     if (wet && [at(c + a[0], r + a[1]), at(c + b[0], r + b[1])].includes('=')) continue;
+    if (wet && (isShallowsBeach(c + a[0], r + a[1]) || isShallowsBeach(c + b[0], r + b[1]))) continue;
     const pts = corner.tri.map(([x, y]) => [c + x, r + y] as const);
     ctx.save();
     ctx.beginPath();
@@ -342,9 +480,10 @@ function smoothCoast(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number, c
     }
     ctx.closePath();
     ctx.clip();
+    const shoreTile = wet ? at(c + a[0], r + a[1]) : t;
+    const sand = wet ? citySandAt(c + a[0], r + a[1], shoreTile) : citySandAt(c, r, t);
     if (wet) {
-      const land = at(c + a[0], r + a[1]);
-      paintSurface(ctx, isWater(land) ? at(c + b[0], r + b[1]) : land, c, r);
+      paintSurface(ctx, shoreTile, c, r, sand);
     } else {
       drawSea(ctx, sea, c0, r0);
       paintWaves(ctx, c, r, rng(c * 31 + r * 17));
@@ -352,9 +491,8 @@ function smoothCoast(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number, c
     ctx.restore();
     const [p, , q] = pts;
     if (p === undefined || q === undefined) continue;
-    const pier = (wet ? at(c + a[0], r + a[1]) : t) === '=';
-    ctx.strokeStyle = pier ? 'rgba(70,45,40,0.9)' : hex(0x7a7080);
-    ctx.lineWidth = pier ? 0.05 : 0.12;
+    ctx.strokeStyle = sand ? hex(CITY_WET_SAND) : hex(0x7a7080);
+    ctx.lineWidth = sand ? 0.075 : 0.12;
     ctx.beginPath();
     ctx.moveTo(p[0], p[1]);
     ctx.lineTo(q[0], q[1]);

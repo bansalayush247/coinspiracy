@@ -828,4 +828,11 @@ export const es: Messages = {
   'ferry.skip': 'Toca o pulsa E para saltar',
   'ferry.arrived': 'Bienvenido a {name}. El ferri de vuelta sale de este muelle.',
   'join.islandLocked': 'Esa isla aún no está abierta para ti.',
+  'finds.journal': 'Hallazgos',
+  'finds.title': 'Diario de pistas',
+  'finds.search': 'Buscar aquí (E)',
+  'finds.clue': 'Pista',
+  'finds.locked': 'Se desbloquea en el rango {rank}',
+  'finds.count': '{found} de {total} encontrados',
+  'finds.collected': 'Encontraste {name}',
 };

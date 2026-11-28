@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { tileAt, type CitadelMap } from '@byzantine-council/shared';
 import { SHOPS, colorNumber, getItem, isBeachShop, type BeachShopId } from '@byzantine-council/shared/economy';
-import { BEACH_MAP, HOME_HUT, SHOP_BOOTHS } from '@byzantine-council/shared/hub';
+import { BEACH_LANDMARKS, BEACH_MAP, HOME_HUT, SHOP_BOOTHS } from '@byzantine-council/shared/hub';
 import { hex, jitter, paintCliffs, paintPlanks, rng, softPatch, type Ctx } from '../game/groundPaint.js';
 import { ART_SCALE, TILE_H, TILE_W, mapScreenBounds } from '../game/iso.js';
 import { lit, mix, seatColors, shade } from '../game/palette.js';
@@ -16,6 +16,7 @@ const PAD_TOP = 40;
 const PAD_BOTTOM = 260;
 const SAND = 0xf2d9a6;
 const WET = 0xd6b27c;
+export const BEACH_SEA = 0x2f86b5;
 
 type G = Phaser.GameObjects.Graphics;
 interface Pt {
@@ -52,7 +53,9 @@ export interface ShoreStyle {
 }
 
 export function paintBeach(scene: Phaser.Scene, map: CitadelMap = BEACH_MAP, style: ShoreStyle = BEACH_STYLE): { key: string; x: number; y: number; scale: number } {
-  const bounds = mapScreenBounds(map.width, map.height);
+  const margin = style === BEACH_STYLE ? 5 : 0;
+  const bounds = mapScreenBounds(map.width + margin * 2, map.height + margin * 2);
+  const y = -PAD_TOP - margin * TILE_H;
   const w = bounds.width;
   const h = bounds.height + PAD_TOP + PAD_BOTTOM;
   const scale = Math.min(quality.current === 'low' ? 0.5 : 1, 4096 / Math.max(w, h));
@@ -63,14 +66,15 @@ export function paintBeach(scene: Phaser.Scene, map: CitadelMap = BEACH_MAP, sty
   if (ctx === null) throw new Error('no 2d canvas');
   const ox = -bounds.x;
   const at = (c: number, r: number): string => tileAt(map, c, r);
-  ctx.setTransform(scale, 0, 0, scale, ox * scale, PAD_TOP * scale);
-  paintCliffs(ctx, map, at);
-  ctx.setTransform((TILE_W / 2) * scale, (TILE_H / 2) * scale, (-TILE_W / 2) * scale, (TILE_H / 2) * scale, ox * scale, PAD_TOP * scale);
-  paintSandAndSea(ctx, map, at, style.deep, style.smooth === true);
+  ctx.setTransform(scale, 0, 0, scale, ox * scale, -y * scale);
+  if (margin === 0) paintCliffs(ctx, map, at);
+  ctx.setTransform((TILE_W / 2) * scale, (TILE_H / 2) * scale, (-TILE_W / 2) * scale, (TILE_H / 2) * scale, ox * scale, -y * scale);
+  if (margin > 0) paintShallows(ctx, map, margin);
+  paintSandAndSea(ctx, map, style === BEACH_STYLE ? beachTile : at, style.deep, style.smooth === true, margin);
   paintBeachShadows(ctx, map, at, style.heights);
   if (scene.textures.exists(style.key)) scene.textures.remove(style.key);
   scene.textures.addCanvas(style.key, canvas);
-  return { key: style.key, x: bounds.x, y: -PAD_TOP, scale };
+  return { key: style.key, x: bounds.x, y, scale };
 }
 
 function nearWater(at: (c: number, r: number) => string, c: number, r: number): number {
@@ -79,31 +83,33 @@ function nearWater(at: (c: number, r: number) => string, c: number, r: number): 
   return best;
 }
 
-function paintSandAndSea(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) => string, deep: (c: number, r: number) => number, smooth: boolean): void {
-  for (let r = 0; r < map.height; r++) {
-    for (let c = 0; c < map.width; c++) {
+function paintSandAndSea(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) => string, deep: (c: number, r: number) => number, smooth: boolean, margin: number): void {
+  for (let r = -margin; r < map.height + margin; r++) {
+    for (let c = -margin; c < map.width + margin; c++) {
       const t = at(c, r);
       if (t === '#') continue;
       const rand = rng(c * 811 + r * 977);
       if (t === '~') {
         // Shallow turquoise over the sand near the shore, deep blue further out.
         const clamp = (v: number): number => Math.min(1, Math.max(0, v));
-        if (smooth) {
+        if (margin === 0 && smooth) {
           for (let j = 0; j < 4; j++) {
             for (let i = 0; i < 4; i++) {
               ctx.fillStyle = hex(mix(0x7fdad2, 0x2f86b5, clamp(deep(c + (i + 0.5) / 4, r + (j + 0.5) / 4))));
               ctx.fillRect(c + i / 4 - 0.01, r + j / 4 - 0.01, 0.27, 0.27);
             }
           }
-        } else {
+        } else if (margin === 0) {
           const d = clamp(deep(c, r));
           const g = ctx.createLinearGradient(c, r, c, r + 1);
-          g.addColorStop(0, hex(mix(0x7fdad2, 0x2f86b5, d)));
-          g.addColorStop(1, hex(mix(0x7fdad2, 0x2f86b5, Math.min(1, d + 0.16))));
+          g.addColorStop(0, hex(mix(0x7fdad2, BEACH_SEA, d)));
+          g.addColorStop(1, hex(mix(0x7fdad2, BEACH_SEA, Math.min(1, d + 0.16))));
           ctx.fillStyle = g;
           ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
         }
-        ctx.strokeStyle = 'rgba(235,255,255,0.35)';
+        const rippleAlpha = margin > 0 ? 0.30 * (1 - clamp(deep(c, r))) : 0.35;
+        if (rippleAlpha === 0) continue;
+        ctx.strokeStyle = `rgba(235,255,255,${rippleAlpha})`;
         ctx.lineWidth = 0.02;
         for (let i = 0; i < 3; i++) {
           const y = r + rand();
@@ -116,11 +122,19 @@ function paintSandAndSea(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) =
       }
       // Sand darkens where waves keep it wet.
       const wet = nearWater(at, c, r) <= 1.01;
-      const base = wet ? WET : SAND;
+      const base = t === ',' ? 0xaac47d : t === 'd' ? 0xdcc6ac : wet ? WET : SAND;
       ctx.fillStyle = hex(jitter(base, rand, 0.03));
       ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
       if (t === '=') {
         paintPlanks(ctx, c, r, rand, at(c, r + 1) === '~' || at(c, r - 1) === '~');
+        continue;
+      }
+      if (t === 'd') {
+        ctx.strokeStyle = 'rgba(125,91,76,0.24)';
+        ctx.lineWidth = 0.018;
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 3; j++) ctx.strokeRect(c + i / 3, r + j / 3, 1 / 3, 1 / 3);
+        }
         continue;
       }
       // Grains, wind ripples and the odd shell.
@@ -150,19 +164,58 @@ function paintSandAndSea(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) =
   // Foam where the waves reach the sand.
   ctx.strokeStyle = 'rgba(255,255,255,0.8)';
   ctx.lineWidth = 0.05;
-  for (let c = 1; c < map.width - 1; c++) {
-    for (let r = 1; r < map.height - 1; r++) {
-      if (at(c, r) !== '~' || at(c, r - 1) === '~' || at(c, r - 1) === '=') continue;
-      ctx.beginPath();
-      ctx.moveTo(c, r + 0.08);
-      ctx.bezierCurveTo(c + 0.3, r + 0.22, c + 0.6, r - 0.02, c + 1, r + 0.1);
-      ctx.stroke();
+  for (let c = 0; c < map.width; c++) {
+    for (let r = 0; r < map.height; r++) {
+      if (at(c, r) !== '~') continue;
+      const shore = (x: number, y: number): boolean => !['~', '=', '#'].includes(at(x, y));
+      for (const [dc, dr] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+        if (!shore(c + dc, r + dr) || (margin === 0 && dr !== -1)) continue;
+        ctx.save();
+        ctx.translate(c + 0.5, r + 0.5);
+        ctx.rotate(Math.atan2(dc, -dr));
+        ctx.beginPath();
+        ctx.moveTo(-0.5, -0.4);
+        ctx.bezierCurveTo(-0.2, -0.28, 0.1, -0.52, 0.5, -0.4);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 }
 
-// Beach Town's sea deepens toward the south edge of the island.
-const BEACH_STYLE: ShoreStyle = { deep: (_c, r) => (r - 16) / 6, heights: { H: 96, T: 130, U: 70, R: 26 }, key: BEACH_GROUND };
+function beachTile(c: number, r: number): string {
+  const t = tileAt(BEACH_MAP, c, r);
+  return t === '#' ? '~' : t;
+}
+
+function beachDepth(c: number, r: number): number {
+  let distance = 4;
+  for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+    const t = beachTile(c + dx, r + dy);
+    if (t !== '~' && t !== '=') distance = Math.min(distance, Math.hypot(dx, dy));
+  }
+  return (distance - 1) / 3;
+}
+
+// One translucent sample per tile. Interpolating them lets the shallows blend into the open ocean.
+function paintShallows(ctx: Ctx, map: CitadelMap, margin: number): void {
+  const canvas = document.createElement('canvas');
+  canvas.width = map.width + margin * 2;
+  canvas.height = map.height + margin * 2;
+  const layer = canvas.getContext('2d');
+  if (layer === null) throw new Error('no 2d canvas');
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const depth = Math.max(0, beachDepth(x - margin, y - margin));
+      const alpha = 1 - depth * depth * (3 - 2 * depth);
+      layer.fillStyle = `rgba(127,218,210,${0.9 * alpha})`;
+      layer.fillRect(x, y, 1, 1);
+    }
+  }
+  ctx.drawImage(canvas, -margin, -margin, canvas.width, canvas.height);
+}
+
+const BEACH_STYLE: ShoreStyle = { deep: beachDepth, heights: { H: 96, T: 130, U: 70, R: 26 }, key: BEACH_GROUND };
 
 function paintBeachShadows(ctx: Ctx, map: CitadelMap, at: (c: number, r: number) => string, heights: Readonly<Record<string, number>>): void {
   ctx.save();
@@ -238,6 +291,13 @@ export function createBeachProps(scene: Phaser.Scene, layer: Phaser.GameObjects.
       .text(hutSign.x, hutSign.y, 'Your hut', { fontFamily: 'Georgia, serif', fontSize: '22px', fontStyle: '700', color: '#fff6e6', stroke: '#5a3a30', strokeThickness: 5 })
       .setOrigin(0.5, 1),
   );
+  for (const site of BEACH_LANDMARKS) {
+    add(site.col + site.row + site.width + site.depth, (g) => { drawBeachLandmark(g, site); });
+    const sign = P(site.col + site.width / 2, site.row + site.depth, site.id === 'tideglass' ? 174 : 102);
+    labels.add(scene.add.text(sign.x, sign.y, LANDMARK_NAMES[site.id], {
+      fontFamily: 'Georgia, serif', fontSize: '22px', fontStyle: '700', color: '#fff6e6', stroke: '#344e4a', strokeThickness: 5,
+    }).setOrigin(0.5, 1));
+  }
   for (let r = 0; r < map.height; r++) {
     for (let c = 0; c < map.width; c++) {
       const t = tileAt(map, c, r);
@@ -266,6 +326,45 @@ export function createBeachProps(scene: Phaser.Scene, layer: Phaser.GameObjects.
     }
   }
   return { swaying, keepers, hutDecor };
+}
+
+type BeachLandmark = (typeof BEACH_LANDMARKS)[number];
+const LANDMARK_NAMES: Record<BeachLandmark['id'], string> = {
+  gardens: 'Palm Gardens', promenade: 'East Promenade', tideglass: 'Tideglass Point',
+};
+
+export function drawBeachLandmark(g: G, { id, col: c, row: r, width }: BeachLandmark): void {
+  const timber = 0xa77756;
+  const cream = 0xf4dfbd;
+  prism(g, c, r, c + width, r + 2, 0, 9, timber, 0xe2ba89);
+  if (id === 'tideglass') {
+    prism(g, c + 0.92, r + 0.28, c + 2.08, r + 1.55, 9, 107, cream);
+    prism(g, c + 0.89, r + 0.25, c + 2.11, r + 1.58, 51, 18, 0x468f8b);
+    prism(g, c + 0.67, r + 0.06, c + 2.33, r + 1.78, 111, 8, 0x418b84, cream);
+    prism(g, c + 1.04, r + 0.41, c + 1.96, r + 1.4, 119, 30, 0x65aa9a, 0xffe093);
+    const lamp = P(c + 1.46, r + 1.4, 135);
+    g.fillStyle(0xffe7a4, 1).fillCircle(lamp.x, lamp.y, 7 * ART_SCALE);
+    prism(g, c + 0.85, r + 0.23, c + 2.15, r + 1.58, 149, 7, 0x29675e);
+    const top = P(c + 1.5, r + 0.9, 173);
+    fan(g, 0x498c80, [P(c + 0.85, r + 1.58, 156), P(c + 2.15, r + 1.58, 156), top]);
+    fan(g, 0x29675e, [P(c + 2.15, r + 1.58, 156), P(c + 2.15, r + 0.23, 156), top]);
+    return;
+  }
+  const color = id === 'gardens' ? 0x43877c : 0xc77857;
+  const fronts = id === 'gardens' ? [0.18, width - 0.28] : [0.18, 0.95, width - 0.28];
+  for (const x of fronts) {
+    for (const y of [0.13, 1.73]) prism(g, c + x, r + y, c + x + 0.12, r + y + 0.12, 9, 73, cream);
+  }
+  prism(g, c + 0.33, r + 0.18, c + width - 0.33, r + 0.58, 9, 18, timber, cream);
+  prism(g, c - 0.1, r - 0.08, c + width + 0.1, r + 2.02, 81, 8, color);
+  if (id === 'gardens') {
+    for (let i = 0; i < 7; i++) {
+      const x = c + 0.12 + i * 0.45;
+      prism(g, x, r - 0.18, x + 0.12, r + 2.12, 89, 5, 0x609f85);
+    }
+  } else {
+    prism(g, c + 0.16, r + 0.16, c + 1.84, r + 1.85, 89, 8, color, cream);
+  }
 }
 
 // A bamboo hut on stilts with a thatched hip roof and an open door facing the porch.

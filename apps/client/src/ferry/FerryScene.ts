@@ -66,6 +66,7 @@ interface Gull {
 }
 
 const ease = (k: number): number => k * k * (3 - 2 * k);
+const phase = (k: number, start: number, end: number): number => ease(Phaser.Math.Clamp((k - start) / (end - start), 0, 1));
 
 export class FerryScene extends Phaser.Scene {
   #trip: FerryTrip = { from: 'city', to: 'beach', look: null };
@@ -84,6 +85,7 @@ export class FerryScene extends Phaser.Scene {
   #ahead!: Phaser.GameObjects.Container;
   #card: HTMLElement | null = null;
   #hint: HTMLElement | null = null;
+  #progress: HTMLElement | null = null;
   #arrive: () => void = () => undefined;
   #gullCall = 0;
   #zoom = 1;
@@ -105,8 +107,8 @@ export class FerryScene extends Phaser.Scene {
     });
     this.cameras.main.setAlpha(1);
     this.#sea = this.add.graphics().setDepth(0);
-    this.#behind = buildCoast(this, this.#trip.from, 'behind').setDepth(1);
-    this.#ahead = buildCoast(this, this.#trip.to, 'ahead').setDepth(1);
+    this.#behind = buildCoast(this, this.#trip.from).setDepth(1);
+    this.#ahead = buildCoast(this, this.#trip.to).setDepth(1);
     this.#fx = this.add.graphics().setDepth(0.5);
     this.#sky = this.add.graphics().setDepth(4);
     this.#ship = this.#buildShip().setDepth(3);
@@ -137,6 +139,7 @@ export class FerryScene extends Phaser.Scene {
       this.#card?.remove();
       this.#card = null;
       this.#hint = null;
+      this.#progress = null;
     });
     if (import.meta.env.VITE_E2E === '1') Object.assign(window, { __bcFerry: () => (this.scene.isActive() ? { from: this.#trip.from, to: this.#trip.to, progress: this.#k, reduced: this.#reduced } : null) });
     audio.play('gull');
@@ -203,10 +206,16 @@ export class FerryScene extends Phaser.Scene {
     const hint = document.createElement('small');
     hint.textContent = t('ferry.skip');
     hint.hidden = true;
-    card.append(title, hint);
+    const track = document.createElement('span');
+    track.className = 'ferry-track';
+    track.setAttribute('aria-hidden', 'true');
+    const progress = document.createElement('span');
+    track.append(progress);
+    card.append(title, track, hint);
     ui.append(card);
     this.#card = card;
     this.#hint = hint;
+    this.#progress = progress;
   }
 
   #layout(): void {
@@ -223,16 +232,20 @@ export class FerryScene extends Phaser.Scene {
     const k = this.#k;
     const time = this.time.now / 1000;
     const still = this.#reduced;
-    const away = still ? 0.6 : ease(Math.min(1, k / 0.7));
-    const near = still ? 0.4 : ease(Math.max(0, (k - 0.25) / 0.75));
-    this.#place(this.#behind, -1, 1.45 + 1.4 * away, 1 - 0.7 * away, 1 - 0.85 * away);
-    this.#place(this.#ahead, 1, 2.9 - 1.3 * near, 0.3 + 0.7 * near, Math.min(1, near * 2.5));
-    this.cameras.main.setZoom(this.#zoom * (still ? 1 : 1 - 0.08 * Math.sin(Math.PI * k)));
-    const pan = still ? 0 : 0.35 * (2 * ease(k) - 1);
-    this.cameras.main.centerOn(pan * ALONG.x, pan * ALONG.y);
-    const bob = still ? 0 : Math.sin(time * 1.5) * 5 * ART_SCALE;
-    this.#ship.setPosition(0, bob).setRotation(still ? 0 : Math.sin(time * 1.1) * 0.012);
-    const flow = still ? 0 : SEA_SPEED * dt;
+    const away = still ? 1 : phase(k, 0, 0.51);
+    const near = still ? 0.67 : phase(k, 0.43, 1);
+    const swell = still ? 0 : phase(k, 0.07, 0.34) * (1 - phase(k, 0.65, 0.97));
+    this.#place(this.#behind, -1.9 * away, -0.12 - 2 * away, 1.18 - 0.87 * away, 1 - phase(away, 0.38, 1));
+    this.#place(this.#ahead, -2.1 * (1 - near), -2.8 * (1 - near), 0.25 + 0.93 * near, phase(near, 0, 0.63));
+    this.cameras.main.setZoom(this.#zoom * (1 - 0.12 * swell));
+    const pan = still ? 0 : 0.46 * (near - (1 - away));
+    this.cameras.main.centerOn(pan * ALONG.x, (pan - 0.18) * ALONG.y);
+    const bob = still ? 0 : Math.sin(time * 1.45) * (2 + 4 * swell) * ART_SCALE;
+    const shipSize = still ? 0.68 : 0.42 + 0.58 * swell;
+    this.#ship.setPosition(0, bob).setScale(shipSize).setRotation(still ? 0 : Math.sin(time * 1.1) * (0.006 + 0.012 * swell));
+    const speed = still ? 0 : SEA_SPEED * (0.22 + 0.78 * swell);
+    const flow = speed * dt;
+    if (this.#progress !== null) this.#progress.style.transform = `scaleX(${String(k)})`;
     const sea = this.#sea;
     sea.clear();
     const view = this.cameras.main.worldView;
@@ -252,31 +265,30 @@ export class FerryScene extends Phaser.Scene {
       sea.fillStyle(SEA, 0.25 * lift);
       sea.fillEllipse(x, y + 10 * lift + r * 0.4, r * 1.6, r * 0.35);
     }
-    this.#wake(dt, still);
+    this.#wake(dt, speed, swell, shipSize);
     this.#birds(dt, time);
   }
 
-  // A coast behind (-1) or ahead (+1), `reach` ship tiles from the ferry: the further off, the smaller and hazier.
-  #place(coast: Phaser.GameObjects.Container, side: 1 | -1, reach: number, size: number, alpha: number): void {
-    coast.setPosition(side * reach * ALONG.x, side * reach * ALONG.y).setScale(COAST_SCALE * size).setAlpha(Math.max(0, Math.min(1, alpha)));
+  #place(coast: Phaser.GameObjects.Container, distance: number, elevation: number, size: number, alpha: number): void {
+    coast.setPosition(distance * ALONG.x, elevation * ALONG.y).setScale(COAST_SCALE * size).setAlpha(alpha);
   }
 
   // Foam churned up at the stern, spreading and fading behind the ferry.
-  #wake(dt: number, still: boolean): void {
+  #wake(dt: number, speed: number, swell: number, shipSize: number): void {
     const fx = this.#fx;
     fx.clear();
-    if (!still && this.#puffs.length < 70) {
-      for (let i = 0; i < 2; i++) this.#puffs.push({ a: -1.35, b: (Math.random() - 0.5) * 0.3, age: 0, life: 1.4 + Math.random(), size: 0.4 + Math.random() * 0.5 });
+    if (dt > 0 && Math.random() < Math.min(1, speed * dt * 75) && this.#puffs.length < 70) {
+      this.#puffs.push({ a: -1.35 * shipSize, b: (Math.random() - 0.5) * 0.45 * shipSize, age: 0, life: 1.4 + Math.random(), size: (0.4 + Math.random() * 0.5) * shipSize });
     }
     this.#puffs = this.#puffs.filter((p) => p.age < p.life);
     for (const p of this.#puffs) {
       p.age += dt;
-      p.a -= SEA_SPEED * dt;
+      p.a -= speed * dt;
       p.b *= 1 + dt * 0.9;
       const fade = 1 - p.age / p.life;
       const x = p.a * ALONG.x + p.b * ACROSS.x;
       const y = p.a * ALONG.y + p.b * ACROSS.y + this.#ship.y;
-      fx.fillStyle(FOAM, 0.4 * fade);
+      fx.fillStyle(FOAM, (0.18 + 0.26 * swell) * fade);
       fx.fillEllipse(x, y, 22 * ART_SCALE * p.size * (1 + 0.6 * p.age), 9 * ART_SCALE * p.size * (1 + 0.6 * p.age));
     }
   }

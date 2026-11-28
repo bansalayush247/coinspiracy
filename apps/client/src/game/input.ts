@@ -83,6 +83,10 @@ export class PlayerInput {
     zone.addEventListener('lostpointercapture', release, { signal });
   }
 
+  get enabled(): boolean {
+    return this.#enabled;
+  }
+
   set enabled(on: boolean) {
     this.#enabled = on;
     this.zone.hidden = !on;

@@ -15,6 +15,8 @@ import {
   type PreviewIslandId,
 } from './islandObjectives.js';
 import { poseOf } from '../game/facing.js';
+import { findSparkle, islandFinds } from './findJournal.js';
+import { FIND_REACH, type IslandFind } from './islandFinds.js';
 
 export const ISLAND_SCENE_KEY = 'island-preview';
 export type { PreviewIslandId } from './islandObjectives.js';
@@ -79,17 +81,22 @@ export class IslandScene extends Phaser.Scene {
   #back = false;
   #objective: IslandObjective = ISLAND_OBJECTIVES.mint;
   #markers!: Phaser.GameObjects.Graphics;
+  #find!: Phaser.GameObjects.Graphics;
+  #rank = 1;
   readonly #completed = new Set<string>();
   #nearbyId: string | null = null;
   onProgress: (progress: IslandProgress) => void = () => undefined;
   onActivated: (complete: boolean) => void = () => undefined;
+  onFindNearby: (nearby: boolean) => void = () => undefined;
+  onFind: (find: IslandFind) => void = () => undefined;
 
   constructor() {
     super({ key: ISLAND_SCENE_KEY, active: false });
   }
 
-  init(data: { island?: PreviewIslandId }): void {
+  init(data: { island?: PreviewIslandId; rank?: number }): void {
     this.#island = data.island ?? 'mint';
+    this.#rank = data.rank ?? 1;
     this.#objective = ISLAND_OBJECTIVES[this.#island];
     this.#position = { x: 10, y: 12.5 };
     this.#completed.clear();
@@ -107,6 +114,7 @@ export class IslandScene extends Phaser.Scene {
     this.#drawLandmark(props, theme);
     this.#addDetails(props, theme);
     this.#markers = this.add.graphics().setDepth(14);
+    this.#find = this.add.graphics().setDepth(15);
     this.#drawMarkers();
 
     const shadow = new Phaser.GameObjects.Graphics(this);
@@ -117,6 +125,7 @@ export class IslandScene extends Phaser.Scene {
     this.add.existing(this.#avatar);
     this.#placeAvatar();
     this.#emitProgress();
+    this.#updateFind();
 
     const center = p(CENTER.x, CENTER.y);
     this.cameras.main.centerOn(center.x, center.y - 20);
@@ -137,6 +146,12 @@ export class IslandScene extends Phaser.Scene {
   }
 
   interact(): void {
+    const found = islandFinds.search(this.#island, this.#position, this.#rank);
+    if (found !== null) {
+      this.onFind(found);
+      this.#updateFind();
+      return;
+    }
     if (this.#completed.size >= this.#objective.target) return;
     const point = this.#nearbyPoint();
     if (point === null) {
@@ -166,6 +181,7 @@ export class IslandScene extends Phaser.Scene {
       drawGuardian(this.#body, seatColors(1), pose.facing, { hat: '', shades: '', outfit: '' }, pose.back);
     }
     this.#placeAvatar();
+    this.#updateFind();
     const nearby = this.#nearbyPoint()?.id ?? null;
     if (nearby !== this.#nearbyId) {
       this.#nearbyId = nearby;
@@ -175,6 +191,12 @@ export class IslandScene extends Phaser.Scene {
 
   #nearbyPoint(): InteractionPoint | null {
     return nearbyObjectivePoint(this.#objective, this.#completed, this.#position);
+  }
+
+  #updateFind(): void {
+    const found = islandFinds.nearby(this.#island, this.#position, this.#rank, 1.85);
+    findSparkle(this.#find, found);
+    this.onFindNearby(found !== null && Math.hypot(found.at.x - this.#position.x, found.at.y - this.#position.y) <= FIND_REACH);
   }
 
   #emitProgress(): void {

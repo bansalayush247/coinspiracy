@@ -29,7 +29,8 @@ import { drawModernCar } from './carArt.js';
 import { CarPredictor, type DriveInput, type NumberedDrive } from './carPrediction.js';
 import { CAR_COLORS, Traffic } from './traffic.js';
 import { drawFerryDock } from '../ferry/ferryDock.js';
-import { buildingFront, drawBuilding, drawContainer, drawEntranceMarker, drawMound, drawStreetLamp, drawStreetTree, makeCoinTexture, paintChunk } from './cityArt.js';
+import { CITY_SEA, buildingFront, cityOverview, drawBuilding, drawContainer, drawEntranceMarker, drawMound, drawStreetLamp, drawStreetTree, makeCoinTexture, paintChunk } from './cityArt.js';
+import { addOcean, fitOcean } from '../game/ocean.js';
 import { shadowScale, startJump, stepHop } from '../game/jump.js';
 
 export const CITY_SCENE_KEY = 'city';
@@ -203,6 +204,7 @@ export class CityScene extends Phaser.Scene {
   readonly #tagBox = new Phaser.Geom.Rectangle();
   readonly #signBox = new Phaser.Geom.Rectangle();
   #ground!: Phaser.GameObjects.Layer;
+  #ocean!: Phaser.GameObjects.TileSprite;
   #physics!: PhysicsFx;
   #effects!: Effects;
   #townsfolk: Townsfolk | null = null;
@@ -239,7 +241,8 @@ export class CityScene extends Phaser.Scene {
 
   create(data?: { mission?: boolean }): void {
     this.#reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    this.cameras.main.setBackgroundColor('#1d4a66');
+    this.#ocean = addOcean(this, 'city-ocean', CITY_SEA);
+    cityOverview(this);
     this.#ground = this.add.layer().setDepth(0);
     this.#entities = this.add.layer().setDepth(10);
     this.#names = this.add.layer().setDepth(20);
@@ -273,6 +276,7 @@ export class CityScene extends Phaser.Scene {
     const center = worldToScreen(start.x, start.y);
     this.cameras.main.centerOn(center.x, center.y);
     this.#applyZoom();
+    fitOcean(this.#ocean, this.cameras.main);
     this.#stream(true);
     const onResize = (): void => {
       this.#applyZoom();
@@ -662,6 +666,7 @@ export class CityScene extends Phaser.Scene {
   }
 
   override update(time: number, delta: number): void {
+    fitOcean(this.#ocean, this.cameras.main);
     this.#stepLocal(delta);
     this.#physics.update(delta);
     this.#townsfolk?.update(time, delta, this.#reduced);
@@ -802,14 +807,16 @@ export class CityScene extends Phaser.Scene {
   #stream(now: boolean): void {
     const cam = this.cameras.main;
     const mid = screenToWorld(cam.midPoint.x, cam.midPoint.y);
-    const want = chunksAround(mid, LOAD, CITY_WIDTH, CITY_HEIGHT);
+    const reach = (cam.width / TILE_W + cam.height / TILE_H) / (2 * cam.zoom);
+    const radius = Math.max(LOAD, Math.ceil((reach + 4) / CHUNK));
+    const want = chunksAround(mid, radius, CITY_WIDTH, CITY_HEIGHT);
     this.#queue = want.filter((k) => !this.#chunks.has(k));
     if (now) for (const k of this.#queue.splice(0, 9)) this.#load(k);
     const cx = Math.floor(mid.x / CHUNK);
     const cy = Math.floor(mid.y / CHUNK);
     for (const key of [...this.#chunks.keys()]) {
       const [x = 0, y = 0] = key.split(',').map(Number);
-      if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) > KEEP) this.#unload(key);
+      if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) > Math.max(KEEP, radius + 1)) this.#unload(key);
     }
   }
 
@@ -1049,6 +1056,7 @@ export class CityScene extends Phaser.Scene {
     this.#room?.destroy();
     this.#room = null;
     const door = p.inside === 0 ? null : doorBySeed(p.inside);
+    this.#ocean.setVisible(door === null);
     const predictor = this.#predictor;
     if (door !== null) {
       const layout = layoutFor(door.room, door.building.seed);
@@ -1070,7 +1078,7 @@ export class CityScene extends Phaser.Scene {
         predictor.solidFrom = this.#carsAround;
       }
       this.#roomBox = null;
-      this.cameras.main.setBackgroundColor('#1d4a66');
+      this.cameras.main.setBackgroundColor(CITY_SEA);
     }
     this.#applyZoom();
     predictor?.reset({ x: p.x, y: p.y });

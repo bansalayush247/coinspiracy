@@ -140,7 +140,10 @@
             <h2 id="island-hud-title"></h2>
             <p id="island-hud-concept"></p>
           </div>
-          <button id="island-back" type="button" data-i18n="island.back">Back to map</button>
+          <div class="island-nav">
+            <button id="island-finds" type="button" data-i18n="finds.journal">Finds</button>
+            <button id="island-back" type="button" data-i18n="island.back">Back to map</button>
+          </div>
           <div class="island-objective">
             <b id="island-objective"></b>
             <span id="island-objective-progress"></span>
@@ -149,6 +152,7 @@
           <div class="island-actions">
             <span class="island-controls" data-i18n="island.controls">Walk with WASD or arrows (they follow the paths) · interact with E</span>
             <button id="island-action" type="button" class="cta" disabled>Interact (E)</button>
+            <button id="island-search" type="button" class="cta find-search" aria-keyshortcuts="E" data-i18n="finds.search" hidden>Search here (E)</button>
           </div>
         </section>
 
@@ -234,11 +238,13 @@
           <div class="panel beach-bar">
             <div><span class="eyebrow">Beach Town</span><b id="beach-wallet" class="beach-wallet"></b></div>
             <p id="beach-job" class="beach-job"></p>
+            <button id="beach-finds" type="button" data-i18n="finds.journal">Finds</button>
             <button id="beach-wardrobe" type="button" data-i18n="tile.wardrobe">Wardrobe</button>
             <button id="beach-leave" type="button" data-i18n="common.backToMap">Back to the map</button>
           </div>
           <div id="beach-emotes" class="beach-emotes" role="group" aria-label="Emotes" data-i18n-aria-label="common.emotes"></div>
           <button id="beach-ferry" class="city-ride city-ferry beach-ferry" type="button" aria-keyshortcuts="E" hidden>Ferry to Port Concord<small>E · board</small></button>
+          <button id="beach-search" class="city-ride find-search" type="button" aria-keyshortcuts="E" data-i18n="finds.search" hidden>Search here (E)</button>
           <div id="beach-prompt" class="panel beach-prompt" hidden>
             <span id="beach-prompt-text"></span>
             <div class="beach-prompt-actions">
@@ -247,6 +253,13 @@
             </div>
           </div>
         </section>
+        <dialog id="finds-journal" class="panel find-journal" aria-labelledby="finds-title">
+          <header>
+            <div><h2 id="finds-title" data-i18n="finds.title">Clue journal</h2><p id="finds-count"></p></div>
+            <form method="dialog"><button type="submit" autofocus data-i18n="common.close">Close</button></form>
+          </header>
+          <ol id="finds-list"></ol>
+        </dialog>
         <section id="shop" class="panel modal shop" role="dialog" aria-modal="true" aria-labelledby="shop-title" tabindex="-1" hidden>
           <h2 id="shop-title"></h2>
           <p id="shop-sells" class="hint"></p>

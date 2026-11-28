@@ -30,6 +30,7 @@ import type { ActId } from '@byzantine-council/shared/city';
 import { beachUnlock, ferryDestination, ferryOpenTo, type FerryIsland } from '@byzantine-council/shared/city';
 import { FERRY_NAMES, FERRY_SCENE_KEY, FerryScene } from './ferry/FerryScene.js';
 import { ISLAND_SCENE_KEY, IslandScene, type PreviewIslandId } from './explore/IslandScene.js';
+import { findJournalOpen, openFindJournal } from './explore/findJournal.js';
 import { Wardrobe } from './profile/wardrobe.js';
 import { startPlatform, type Platform } from './platform/index.js';
 import { registerServiceWorker } from './pwa/register.js';
@@ -326,10 +327,12 @@ class Controller {
       this.#leaveIsland();
     });
     const interactIsland = (): void => {
+      if (findJournalOpen()) return;
       const preview = this.scene.scene.get(ISLAND_SCENE_KEY);
       if (preview instanceof IslandScene && preview.scene.isActive()) preview.interact();
     };
     el('island-action', HTMLButtonElement).addEventListener('click', interactIsland);
+    el('island-search', HTMLButtonElement).addEventListener('click', interactIsland);
     window.addEventListener('keydown', (e) => {
       if (e.code !== 'KeyE' || e.repeat || el('island-hud', HTMLElement).hidden) return;
       e.preventDefault();
@@ -447,6 +450,12 @@ class Controller {
     const preview = this.scene.scene.get(ISLAND_SCENE_KEY);
     if (!(preview instanceof IslandScene)) return;
     const action = el('island-action', HTMLButtonElement);
+    const search = el('island-search', HTMLButtonElement);
+    const rank = this.#lastProfile?.progress.rank ?? 1;
+    el('island-finds', HTMLButtonElement).onclick = () => {
+      this.#input.enabled = false;
+      openFindJournal(islandId, rank, () => { this.#input.enabled = preview.scene.isActive(); });
+    };
     preview.onProgress = (progress) => {
       el('island-objective', HTMLElement).textContent = progress.objective;
       el('island-objective-progress', HTMLElement).textContent = `${String(progress.progress)}/${String(progress.total)}`;
@@ -457,10 +466,18 @@ class Controller {
     preview.onActivated = (complete) => {
       audio.play(complete ? 'rankUp' : 'sign');
     };
+    preview.onFindNearby = (nearby) => {
+      action.hidden = nearby;
+      search.hidden = !nearby;
+    };
+    preview.onFind = (find) => {
+      audio.play('coin');
+      this.#hud.toast(t('finds.collected', { name: find.name }));
+    };
     preview.events.once(Phaser.Scenes.Events.CREATE, () => {
       preview.attach(this.#input);
     });
-    this.scene.scene.launch(ISLAND_SCENE_KEY, { island: islandId });
+    this.scene.scene.launch(ISLAND_SCENE_KEY, { island: islandId, rank });
     this.scene.scene.sleep();
     audio.setMood(island.mood);
   }

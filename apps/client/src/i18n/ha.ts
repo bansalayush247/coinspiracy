@@ -828,4 +828,11 @@ export const ha: Messages = {
   'ferry.skip': 'Taɓa ko danna E don tsallakewa',
   'ferry.arrived': 'Barka da zuwa {name}. Jirgin ruwan dawowa yana tashi daga wannan gaɓa.',
   'join.islandLocked': 'Wannan tsibirin bai buɗe maka ba tukuna.',
+  'finds.journal': 'Abubuwan da aka gano',
+  'finds.title': 'Kundin alamu',
+  'finds.search': 'Nema a nan (E)',
+  'finds.clue': 'Alama',
+  'finds.locked': 'Yana buɗewa a mataki na {rank}',
+  'finds.count': 'An gano {found} daga cikin {total}',
+  'finds.collected': 'An gano {name}',
 };
