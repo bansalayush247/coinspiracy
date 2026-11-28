@@ -20,7 +20,8 @@
     "arcade": "arcade",
     "fishMarket": "fishMarket",
     "office": "office",
-    "temple": "temple"
+    "temple": "temple",
+    "mandir": "mandir"
   },
   "layouts": {
     "shop": [
@@ -198,6 +199,21 @@
         ],
         "spots": [{ "kind": "bell", "c": 2, "r": 2 }, { "kind": "cushion", "c": 5, "r": 2 }, { "kind": "cushion", "c": 7, "r": 2 }]
       }
+    ],
+    "mandir": [
+      {
+        "w": 9, "d": 9, "floor": "marble", "wall": "stone",
+        "furniture": [
+          { "piece": "sanctum", "c": 3, "r": 1, "w": 3, "d": 1 },
+          { "piece": "bell", "c": 1, "r": 3, "w": 1, "d": 1 },
+          { "piece": "lamp", "c": 1, "r": 1, "w": 1, "d": 1 },
+          { "piece": "plant", "c": 7, "r": 1, "w": 1, "d": 1 },
+          { "piece": "rangoli", "c": 4, "r": 4, "w": 2, "d": 2 },
+          { "piece": "column", "c": 2, "r": 5, "w": 1, "d": 1 },
+          { "piece": "column", "c": 6, "r": 5, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "diya", "c": 4, "r": 2 }, { "kind": "bell", "c": 2, "r": 3 }]
+      }
     ]
   },
   "recipes": {
@@ -294,6 +310,14 @@
       "floors": ["marble", "planks", "tile"], "walls": ["stone", "plaster", "panel"],
       "pieces": [
         { "piece": "bell", "min": 1, "max": 1 }, { "piece": "cushion", "min": 2, "max": 3 }, { "piece": "pool", "min": 0, "max": 1 },
+        { "piece": "column", "min": 2, "max": 4 }, { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 1, "max": 2 }
+      ]
+    },
+    "mandir": {
+      "w": [8, 11], "d": [8, 10],
+      "floors": ["marble", "tile"], "walls": ["stone", "plaster"],
+      "pieces": [
+        { "piece": "sanctum", "min": 1, "max": 1 }, { "piece": "bell", "min": 1, "max": 2 }, { "piece": "rangoli", "min": 0, "max": 1 },
         { "piece": "column", "min": 2, "max": 4 }, { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 1, "max": 2 }
       ]
     }

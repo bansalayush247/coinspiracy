@@ -119,6 +119,8 @@ async function main(): Promise<void> {
         ['fishMarket', 'fish-hall', BUILDING_DOORS.find((d) => d.room === 'fishMarket')],
         ['office', 'office', BUILDING_DOORS.find((d) => d.room === 'office')],
         ['temple', 'temple', BUILDING_DOORS.find((d) => d.room === 'temple')],
+        ['mandir', 'mandir', BUILDING_DOORS.find((d) => d.room === 'mandir' && d.building.district === 'signet')],
+        ['mandir', 'mandir-shore', BUILDING_DOORS.find((d) => d.room === 'mandir' && d.building.district === 'shallows')],
       ] as const;
       for (const [kind, name, door] of visits) {
         if (door === undefined) continue;
@@ -191,6 +193,22 @@ async function main(): Promise<void> {
           check(await rook.waitForSelector(`#${id}`, { state: 'hidden', timeout: 3000 }).then(() => true).catch(() => false), `Escape closes ${label}`);
           await rook.waitForTimeout(300);
         };
+        const board = async (label: string, shot: string): Promise<void> => {
+          await rook.keyboard.press('e');
+          const options = await rook.waitForSelector('#pick .pick-option', { timeout: 5000 }).then(() => rook.$$('#pick .pick-option')).catch(() => []);
+          check(options.length >= 4, `${label} pins up notices beside today’s quests (${String(options.length - 1)} notices)`);
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}${shot}.png` });
+          await options[1]?.click();
+          check(((await rook.textContent('#pick-page')) ?? '').length > 40, `a notice on ${label} opens to read`);
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}${shot}-notice.png` });
+          await rook.click('#pick-shelf');
+          await rook.click('#pick .pick-option');
+          const quests = await rook.waitForSelector('#progress:not([hidden])', { timeout: 5000 }).then(() => true).catch(() => false);
+          check(quests, `today’s quests open from ${label}`);
+          await rook.keyboard.press('Escape');
+          check(await rook.waitForSelector('#progress', { state: 'hidden', timeout: 3000 }).then(() => true).catch(() => false), `Escape closes the quests from ${label}`);
+          await rook.waitForTimeout(300);
+        };
         if (name === 'flat') {
           check((await standOn('bed')).startsWith('Rest'), 'the bed offers a rest');
           await rook.screenshot({ path: `${INTERIOR_SHOTS}flat-bed.png` });
@@ -235,7 +253,7 @@ async function main(): Promise<void> {
         }
         if (name === 'mint-hall') {
           check((await standOn('board')).startsWith('Notice'), 'the notice board offers today’s quests');
-          await panel('progress', 'the notice board', 'mint-board');
+          await board('the Mint Hall board', 'mint-board');
           walker.pocket = 25;
           await standOn('counter');
           check(await rook.isVisible('#city-deposit'), 'the Mint Hall counter takes deposits');
@@ -250,7 +268,7 @@ async function main(): Promise<void> {
         }
         if (name === 'city-hall' || name === 'office') {
           check((await standOn('board')).startsWith('Notice'), `the ${kind} notice board offers today’s quests`);
-          await panel('progress', `the ${kind} notice board`, `${name}-board`);
+          await board(`the ${kind} notice board`, `${name}-board`);
           check((await standOn('books')).startsWith('Browse'), `the ${kind} has a shelf to read from`);
         }
         if (name === 'chapel') {
@@ -258,6 +276,16 @@ async function main(): Promise<void> {
           await rook.keyboard.press('e');
           check(await toasted('You light a candle'), 'lighting a candle says so');
           await rook.screenshot({ path: `${INTERIOR_SHOTS}chapel-candles.png` });
+        }
+        if (name === 'mandir' || name === 'mandir-shore') {
+          check((await standOn('diya')).startsWith('Light a diya'), `${buildingName(door.building.seed)} offers a diya to light`);
+          await rook.keyboard.press('e');
+          check(await toasted('You light a diya'), 'lighting a diya says so');
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}${name}-diya.png` });
+          await rook.waitForTimeout(DOOR_TUNING.restGapMs);
+          check((await standOn('bell')).startsWith('Ring'), 'the mandir bell can be rung');
+          await rook.keyboard.press('e');
+          check(await toasted('The brass bell rings'), 'the mandir bell rings bright');
         }
         if (name === 'temple') {
           check((await standOn('bell')).startsWith('Ring'), 'the temple offers its bell to ring');

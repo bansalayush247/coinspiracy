@@ -630,6 +630,10 @@ export function drawBuilding(g: G, b: CityBuilding): void {
     case 'temple':
       drawTemple(g, x0, y0, x1, y1);
       return;
+    case 'mandir':
+      if (x1 - x0 > 6) drawGrandMandir(g, x0, y0, x1, y1, b.seed);
+      else drawShoreMandir(g, x0, y0, x1, y1, b.seed);
+      return;
     case 'lighthouse': {
       const cx = (x0 + x1) / 2;
       const cy = (y0 + y1) / 2;
@@ -977,6 +981,438 @@ function drawTemple(g: G, x0: number, y0: number, x1: number, y1: number): void 
   g.fillCircle(ball.x - 1.2 * s, ball.y - 1.2 * s, 8 * s);
   g.fillStyle(lit(copper, 0.55), 1);
   g.fillCircle(ball.x - 3.4 * s, ball.y - 3.4 * s, 3 * s);
+}
+
+// ---------- Mandirs ----------
+
+const MANDIR = { sand: 0xe4c690, white: 0xf6efe0, red: 0xb83a2e, saffron: 0xf08a24, gold: 0xe8b84a, brass: 0xd9a440, glow: 0xffd890, deep: 0x3a1a10, mango: 0x4a8a3a, lotus: 0xe8708a } as const;
+const MARIGOLD = [0xf08a1e, 0xf8b828] as const;
+const SHOES = [0x6a4a34, 0x2a2a30, 0xb8323a, 0x3f5a8a, 0xc8a070, 0x8a5a3a, 0x4a6a4a] as const;
+const ROUND_X = (TILE_W / 2) * Math.SQRT2;
+const ROUND_Y = (TILE_H / 2) * Math.SQRT2;
+
+// A standing drum or cone, shaded strip by strip from the lit west side round to the shaded east.
+function drum(g: G, x: number, y: number, r0: number, r1: number, z0: number, h: number, col: number, top: number | null = lit(col, 0.3), strips = 12, ribs = false): void {
+  const base = P(x, y, z0);
+  const lift = h * ART_SCALE;
+  for (let i = 0; i < strips; i++) {
+    const u0 = -1 + (2 * i) / strips;
+    const u1 = -1 + (2 * (i + 1)) / strips;
+    const t = (u0 + u1 + 2) / 4;
+    let c = t < 0.3 ? mix(lit(col, 0.2), col, t / 0.3) : mix(col, shade(col, 0.45), (t - 0.3) / 0.7);
+    if (ribs && i % 2 === 1) c = shade(c, 0.12);
+    const d0 = Math.sqrt(Math.max(0, 1 - u0 * u0));
+    const d1 = Math.sqrt(Math.max(0, 1 - u1 * u1));
+    fan(g, c, [
+      { x: base.x + u0 * r0 * ROUND_X, y: base.y + d0 * r0 * ROUND_Y },
+      { x: base.x + u1 * r0 * ROUND_X, y: base.y + d1 * r0 * ROUND_Y },
+      { x: base.x + u1 * r1 * ROUND_X, y: base.y - lift + d1 * r1 * ROUND_Y },
+      { x: base.x + u0 * r1 * ROUND_X, y: base.y - lift + d0 * r1 * ROUND_Y },
+    ]);
+  }
+  if (top !== null) {
+    g.fillStyle(top, 1);
+    g.fillEllipse(base.x, base.y - lift, 2 * r1 * ROUND_X, 2 * r1 * ROUND_Y, 20);
+  }
+}
+
+// A square block with each face stepped out twice at its middle, the way a nagara wall and tower are offset: back offsets, core, then front offsets.
+function offsetBlock(g: G, cx: number, cy: number, hw: number, z: number, h: number, col: number, top: number, out = 0.1): void {
+  const w1 = hw * 0.62;
+  const w2 = hw * 0.3;
+  const p1 = hw * out;
+  const p2 = hw * out * 2;
+  const c1 = lit(col, 0.04);
+  const c2 = lit(col, 0.09);
+  const t1 = lit(top, 0.04);
+  prism(g, cx - hw - p2, cy - w2, cx - hw - p1, cy + w2, z, h, c2, t1);
+  prism(g, cx - w2, cy - hw - p2, cx + w2, cy - hw - p1, z, h, c2, t1);
+  prism(g, cx - hw - p1, cy - w1, cx - hw, cy + w1, z, h, c1, t1);
+  prism(g, cx - w1, cy - hw - p1, cx + w1, cy - hw, z, h, c1, t1);
+  prism(g, cx - hw, cy - hw, cx + hw, cy + hw, z, h, col, top);
+  prism(g, cx + hw, cy - w1, cx + hw + p1, cy + w1, z, h, c1, t1);
+  prism(g, cx - w1, cy + hw, cx + w1, cy + hw + p1, z, h, c1, t1);
+  prism(g, cx + hw + p1, cy - w2, cx + hw + p2, cy + w2, z, h, c2, t1);
+  prism(g, cx - w2, cy + hw + p1, cx + w2, cy + hw + p2, z, h, c2, t1);
+}
+
+// Horizontal bands round an offset block's visible faces, following each step of its offsets.
+function offsetBands(g: G, cx: number, cy: number, hw: number, out: number, zs: readonly number[], h: number, col: number): void {
+  const w1 = hw * 0.62;
+  const w2 = hw * 0.3;
+  const p1 = hw * out;
+  const p2 = hw * out * 2;
+  for (const z of zs) {
+    const sf = (a: number, b: number, y: number): void => {
+      fan(g, col, southFace(a, b, y + 0.003, z, z + h));
+    };
+    const ef = (x: number, a: number, b: number): void => {
+      fan(g, shade(col, 0.3), eastFace(x + 0.003, a, b, z, z + h));
+    };
+    sf(cx - hw, cx - w1, cy + hw);
+    sf(cx + w1, cx + hw, cy + hw);
+    sf(cx - w1, cx - w2, cy + hw + p1);
+    sf(cx + w2, cx + w1, cy + hw + p1);
+    sf(cx - w2, cx + w2, cy + hw + p2);
+    ef(cx + hw, cy - hw, cy - w1);
+    ef(cx + hw, cy + w1, cy + hw);
+    ef(cx + hw + p1, cy - w1, cy - w2);
+    ef(cx + hw + p1, cy + w2, cy + w1);
+    ef(cx + hw + p2, cy - w2, cy + w2);
+    ef(cx + w1, cy + hw, cy + hw + p1);
+    ef(cx + w2, cy + hw + p1, cy + hw + p2);
+    sf(cx + hw, cx + hw + p1, cy + w1);
+    sf(cx + hw + p1, cx + hw + p2, cy + w2);
+  }
+}
+
+// A nagara shikhara: ribbed courses curving in to the top in storeys, crowned by a ribbed amalaka and a golden kalash; returns the crown's height.
+function shikhara(g: G, cx: number, cy: number, hw0: number, z0: number, height: number, stone: number, course = 4): number {
+  const levels = Math.max(6, Math.round(height / course));
+  const dz = height / levels;
+  for (let i = 0; i < levels; i++) {
+    const t = i / (levels - 1);
+    const storey = i % 6 === 5;
+    const hw = hw0 * (1 - 0.7 * Math.pow(t, 2.1)) + (storey ? hw0 * 0.03 : 0);
+    const col = storey ? shade(stone, 0.14) : i % 2 === 0 ? stone : shade(stone, 0.05);
+    offsetBlock(g, cx, cy, hw, z0 + i * dz, dz, col, lit(col, 0.35));
+  }
+  const top = z0 + height;
+  const r = hw0 * 0.3 * 1.25;
+  drum(g, cx, cy, r * 0.7, r * 0.9, top, 2, shade(stone, 0.1), null, 16);
+  drum(g, cx, cy, r * 0.9, r * 1.12, top + 2, 2.5, stone, null, 20);
+  drum(g, cx, cy, r * 1.12, r * 1.12, top + 4.5, 6, stone, null, 24, true);
+  drum(g, cx, cy, r * 1.12, r * 0.6, top + 10.5, 3, stone, lit(stone, 0.3), 20);
+  const k = Math.max(0.6, hw0 / 1.9);
+  drum(g, cx, cy, 0.1 * k, 0.2 * k, top + 13.5, 5 * k, MANDIR.gold, null, 12);
+  drum(g, cx, cy, 0.2 * k, 0.12 * k, top + 13.5 + 5 * k, 5 * k, MANDIR.gold, null, 12);
+  drum(g, cx, cy, 0.06 * k, 0.06 * k, top + 13.5 + 10 * k, 3 * k, MANDIR.gold, lit(MANDIR.gold, 0.3), 8);
+  drum(g, cx, cy, 0.05 * k, 0, top + 13.5 + 13 * k, 12 * k, MANDIR.gold, null, 8);
+  return top + 13.5 + 25 * k;
+}
+
+// A saffron dhvaja on a slim pole beside the kalash, its long triangle streaming east in the sea wind.
+function dhvaja(g: G, x: number, y: number, z: number, size: number): void {
+  const s = ART_SCALE * size;
+  const foot = P(x, y, z);
+  const head = P(x, y, z + 62 * size);
+  g.lineStyle(1.8 * s, 0x6a4a34, 1);
+  g.lineBetween(foot.x, foot.y, head.x, head.y);
+  const pts = [
+    { x: head.x, y: head.y + 1 * s },
+    { x: head.x + 14 * s, y: head.y + 1 * s },
+    { x: head.x + 30 * s, y: head.y + 7 * s },
+    { x: head.x + 46 * s, y: head.y + 11 * s },
+    { x: head.x + 26 * s, y: head.y + 14 * s },
+    { x: head.x + 12 * s, y: head.y + 20 * s },
+    { x: head.x, y: head.y + 24 * s },
+  ];
+  fan(g, shade(MANDIR.saffron, 0.12), pts.map((p) => ({ x: p.x + 1.5 * s, y: p.y + 2 * s })), 0.4);
+  fan(g, MANDIR.saffron, pts);
+  fan(g, lit(MANDIR.saffron, 0.25), [pts[0] ?? head, pts[1] ?? head, pts[2] ?? head, pts[5] ?? head, pts[6] ?? head], 0.55);
+  g.lineStyle(1.4 * s, MANDIR.red, 0.9);
+  g.beginPath();
+  pts.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)));
+  g.strokePath();
+  g.fillStyle(MANDIR.gold, 1);
+  g.fillCircle(head.x, head.y - 1.5 * s, 2.2 * s);
+}
+
+function bead(g: G, x: number, y: number, r: number, col: number): void {
+  g.fillStyle(shade(col, 0.35), 1);
+  g.fillCircle(x + 0.3 * r, y + 0.4 * r, r);
+  g.fillStyle(col, 1);
+  g.fillCircle(x, y, r * 0.86);
+  g.fillStyle(lit(col, 0.45), 0.9);
+  g.fillCircle(x - 0.3 * r, y - 0.3 * r, r * 0.36);
+}
+
+// A toran: a marigold swag between two screen points with mango leaves hanging along it and a drop at each end.
+function toran(g: G, a: { x: number; y: number }, b: { x: number; y: number }, sag: number, size: number): void {
+  const s = ART_SCALE * size;
+  const r = 2.1 * s;
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  const n = Math.max(4, Math.round(len / (r * 1.45)));
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = a.x + (b.x - a.x) * t;
+    const y = a.y + (b.y - a.y) * t + sag * s * 4 * t * (1 - t);
+    if (i % 3 === 1 && i < n - 1) {
+      fan(g, MANDIR.mango, [{ x: x - 2 * s, y: y + 1 * s }, { x: x + 2 * s, y: y + 1 * s }, { x: x, y: y + 9 * s }]);
+      fan(g, lit(MANDIR.mango, 0.25), [{ x: x - 2 * s, y: y + 1 * s }, { x: x, y: y + 1 * s }, { x: x, y: y + 9 * s }]);
+    }
+    bead(g, x, y, r, MARIGOLD[Math.floor(i / 3) % 2] ?? MANDIR.saffron);
+  }
+  for (const p of [a, b]) {
+    for (let k = 1; k < 5; k++) bead(g, p.x, p.y + k * r * 1.4, r * 0.9, MARIGOLD[k % 2] ?? MANDIR.saffron);
+    g.fillStyle(MANDIR.red, 1);
+    g.fillCircle(p.x, p.y + 6.6 * r, r * 0.8);
+  }
+}
+
+// A small brass temple bell hanging on a chain from a screen point.
+function hangingBell(g: G, at: { x: number; y: number }, drop: number, size: number): void {
+  const s = ART_SCALE * size;
+  g.lineStyle(1 * s, shade(MANDIR.brass, 0.3), 1);
+  g.lineBetween(at.x, at.y, at.x, at.y + drop * s);
+  const y = at.y + drop * s;
+  g.fillStyle(shade(MANDIR.brass, 0.25), 1);
+  g.fillEllipse(at.x, y + 7 * s, 9 * s, 3 * s, 12);
+  fan(g, MANDIR.brass, [{ x: at.x - 2 * s, y }, { x: at.x + 2 * s, y }, { x: at.x + 3.6 * s, y: y + 4 * s }, { x: at.x + 4.5 * s, y: y + 7 * s }, { x: at.x - 4.5 * s, y: y + 7 * s }, { x: at.x - 3.6 * s, y: y + 4 * s }]);
+  fan(g, lit(MANDIR.brass, 0.4), [{ x: at.x - 2 * s, y }, { x: at.x - 0.5 * s, y }, { x: at.x - 1.6 * s, y: y + 6 * s }, { x: at.x - 3.6 * s, y: y + 6 * s }], 0.8);
+  g.fillStyle(shade(MANDIR.brass, 0.4), 1);
+  g.fillCircle(at.x, y + 8.6 * s, 1.4 * s);
+}
+
+// A pair of sandals left neatly on the ground, toes to the street.
+function sandals(g: G, x: number, y: number, col: number): void {
+  for (const dx of [0, 0.13]) {
+    const sx = x + dx;
+    fan(g, 0x24183c, [P(sx + 0.02, y - 0.1), P(sx + 0.11, y - 0.1), P(sx + 0.12, y + 0.12), P(sx + 0.03, y + 0.12)], 0.2);
+    fan(g, col, [P(sx, y - 0.12, 0.8), P(sx + 0.09, y - 0.12, 0.8), P(sx + 0.1, y + 0.1, 0.8), P(sx + 0.05, y + 0.13, 0.8), P(sx, y + 0.1, 0.8)]);
+    fan(g, lit(col, 0.3), [P(sx + 0.01, y + 0.02, 1.6), P(sx + 0.09, y + 0.02, 1.6), P(sx + 0.09, y + 0.05, 1.6), P(sx + 0.01, y + 0.05, 1.6)]);
+  }
+}
+
+// A carved pillar: a moulded base, a square shaft with a red band and a lotus-pot capital under a bracket.
+function mandirPillar(g: G, x: number, y: number, z0: number, h: number, stone: number, w = 0.09): void {
+  prism(g, x - w * 1.6, y - w * 1.6, x + w * 1.6, y + w * 1.6, z0, 5, shade(stone, 0.06), lit(stone, 0.2));
+  prism(g, x - w, y - w, x + w, y + w, z0 + 5, h - 15, stone, lit(stone, 0.25));
+  for (const k of [0.32, 0.62]) prism(g, x - w * 1.25, y - w * 1.25, x + w * 1.25, y + w * 1.25, z0 + 5 + (h - 15) * k, 3, lit(stone, 0.1), lit(stone, 0.3));
+  fan(g, MANDIR.red, [P(x - w * 1.25, y + w * 1.25 + 0.002, z0 + 5 + (h - 15) * 0.32 + 1), P(x + w * 1.25, y + w * 1.25 + 0.002, z0 + 5 + (h - 15) * 0.32 + 1), P(x + w * 1.25, y + w * 1.25 + 0.002, z0 + 5 + (h - 15) * 0.32 + 2), P(x - w * 1.25, y + w * 1.25 + 0.002, z0 + 5 + (h - 15) * 0.32 + 2)]);
+  drum(g, x, y, w * 1.1, w * 1.8, z0 + h - 10, 5, stone, null, 10);
+  prism(g, x - w * 1.6, y - w * 1.6, x + w * 1.6, y + w * 1.6, z0 + h - 5, 2, lit(stone, 0.05), lit(stone, 0.3));
+  prism(g, x - w * 2.6, y - w * 0.8, x + w * 2.6, y + w * 0.8, z0 + h - 3, 3, stone, lit(stone, 0.3));
+}
+
+// The carved stone frame of a mandir doorway on a south face, open on a warm glow, with a toran and bells; z0 is the threshold.
+function mandirDoor(g: G, mx: number, y: number, z0: number, hw: number, h: number, size: number, stone: number): void {
+  const s = ART_SCALE * size;
+  const lt = 12 * size;
+  fan(g, shade(stone, 0.22), southFace(mx - hw - 0.12, mx + hw + 0.12, y, z0, z0 + h + lt));
+  fan(g, lit(stone, 0.12), southFace(mx - hw - 0.09, mx + hw + 0.09, y + 0.001, z0, z0 + h + lt * 0.75));
+  fan(g, MANDIR.red, southFace(mx - hw - 0.05, mx + hw + 0.05, y + 0.002, z0, z0 + h + 5));
+  fan(g, MANDIR.gold, southFace(mx - hw - 0.015, mx + hw + 0.015, y + 0.003, z0, z0 + h + 1.5));
+  fan(g, MANDIR.deep, southFace(mx - hw, mx + hw, y + 0.004, z0, z0 + h));
+  fan(g, 0xe07a2a, southFace(mx - hw * 0.8, mx + hw * 0.8, y + 0.005, z0, z0 + h * 0.9), 0.55);
+  fan(g, MANDIR.glow, southFace(mx - hw * 0.5, mx + hw * 0.5, y + 0.006, z0, z0 + h * 0.75), 0.7);
+  fan(g, 0xfff0c8, southFace(mx - hw * 0.22, mx + hw * 0.22, y + 0.007, z0, z0 + h * 0.55), 0.7);
+  for (const dir of [-1, 1]) {
+    const e = mx + dir * hw;
+    const i = mx + dir * hw * 0.72;
+    fan(g, 0x8a2a24, [P(e, y + 0.008, z0), P(i, y + 0.008, z0), P(i, y + 0.008, z0 + h * 0.9), P(e, y + 0.008, z0 + h)]);
+    fan(g, shade(0x8a2a24, 0.3), [P(i, y + 0.009, z0), P(i + dir * 0.02, y + 0.009, z0), P(i + dir * 0.02, y + 0.009, z0 + h * 0.9), P(i, y + 0.009, z0 + h * 0.9)]);
+  }
+  fan(g, lit(stone, 0.3), southFace(mx - hw - 0.12, mx + hw + 0.12, y + 0.01, z0, z0 + 2.5));
+  fan(g, lit(stone, 0.05), southFace(mx - hw - 0.16, mx + hw + 0.16, y + 0.01, z0 + h + lt, z0 + h + lt * 1.6));
+  fan(g, MANDIR.gold, southFace(mx - 0.08 * size, mx + 0.08 * size, y + 0.011, z0 + h + lt + 0.5, z0 + h + lt * 1.6 - 0.5));
+  const lotus = P(mx, y + 0.012, z0 + h + lt + 1.2);
+  for (const [ang, len] of [[-2.7, 4], [-0.44, 4], [-1.57, 5.2], [-2.1, 4.6], [-1.04, 4.6]] as const) {
+    fan(g, MANDIR.lotus, [{ x: lotus.x, y: lotus.y }, { x: lotus.x + Math.cos(ang - 0.35) * len * 0.55 * s, y: lotus.y + Math.sin(ang - 0.35) * len * 0.55 * s }, { x: lotus.x + Math.cos(ang) * len * s, y: lotus.y + Math.sin(ang) * len * s }, { x: lotus.x + Math.cos(ang + 0.35) * len * 0.55 * s, y: lotus.y + Math.sin(ang + 0.35) * len * 0.55 * s }]);
+  }
+  toran(g, P(mx - hw - 0.04, y + 0.014, z0 + h + 4), P(mx + hw + 0.04, y + 0.014, z0 + h + 4), 7, size);
+}
+
+// Two neat rows of sandals on the ground before the steps, colours and gaps from the seed.
+function shoeRows(g: G, x0: number, x1: number, y: number, seed: number): void {
+  const rand = rng(seed * 17 + 3);
+  for (let x = x0; x < x1 - 0.2; x += 0.36 + rand() * 0.12) {
+    if (rand() < 0.2) continue;
+    sandals(g, x, y + (rand() - 0.5) * 0.06, pick(SHOES, Math.floor(rand() * 97)));
+  }
+}
+
+// Stairs up the middle of a south front from the street to a plinth `top` high, in `n` steps over `depth` tiles.
+function frontSteps(g: G, mx: number, hw: number, y1: number, depth: number, top: number, n: number, stone: number): void {
+  for (let k = n - 1; k >= 0; k--) {
+    const fy = y1 - (depth / n) * (k + 1);
+    prism(g, mx - hw, fy, mx + hw, fy + depth / n + 0.02, 0, (top * (k + 1)) / n, stone, lit(stone, 0.22));
+    fan(g, MANDIR.saffron, southFace(mx - hw, mx + hw, fy + depth / n + 0.021, (top * (k + 1)) / n - 1.2, (top * (k + 1)) / n), 0.5);
+  }
+}
+
+// A carved base course: a red line and a pale moulding round the two faces you see.
+function bands(g: G, r: Rect, zs: readonly number[], col: number): void {
+  for (const z of zs) {
+    fan(g, col, southFace(r.x0, r.x1, r.y1 + 0.003, z, z + 1.6));
+    fan(g, shade(col, 0.3), eastFace(r.x1 + 0.003, r.y0, r.y1, z, z + 1.6));
+  }
+}
+
+// A stepped pyramid roof of stone slabs over a mandapa, each tier lined in red and pulled in, under a bell-shaped crown and kalash.
+function phamsana(g: G, r: Rect, z: number, tiers: number, stone: number): void {
+  let cur = r;
+  let zz = z;
+  for (let k = 0; k < tiers; k++) {
+    prism(g, cur.x0, cur.y0, cur.x1, cur.y1, zz, 5, stone, lit(stone, 0.3));
+    fan(g, MANDIR.red, southFace(cur.x0, cur.x1, cur.y1 + 0.003, zz + 1.5, zz + 2.8), 0.85);
+    fan(g, shade(MANDIR.red, 0.3), eastFace(cur.x1 + 0.003, cur.y0, cur.y1, zz + 1.5, zz + 2.8), 0.85);
+    zz += 5;
+    const inner = inset(cur, 0.14);
+    prism(g, inner.x0, inner.y0, inner.x1, inner.y1, zz, 3, shade(stone, 0.18), lit(stone, 0.2));
+    zz += 3;
+    cur = inset(cur, Math.min(0.32, (cur.x1 - cur.x0) / (2 * (tiers - k + 1))));
+  }
+  const cx = (r.x0 + r.x1) / 2;
+  const cy = (r.y0 + r.y1) / 2;
+  const w = Math.min(0.42, (cur.x1 - cur.x0) / 2);
+  drum(g, cx, cy, w * 0.8, w * 0.95, zz, 4, stone, null, 16);
+  drum(g, cx, cy, w * 0.95, w * 0.95, zz + 4, 4, stone, null, 16, true);
+  drum(g, cx, cy, w * 0.95, w * 0.25, zz + 8, 6, stone, lit(stone, 0.2), 16);
+  drum(g, cx, cy, 0.06, 0.11, zz + 14, 3.5, MANDIR.gold, null, 10);
+  drum(g, cx, cy, 0.11, 0.05, zz + 17.5, 3.5, MANDIR.gold, null, 10);
+  drum(g, cx, cy, 0.035, 0, zz + 21, 7, MANDIR.gold, null, 8);
+}
+
+// A pierced jali window on a face: a glowing arch crossed by a stone lattice.
+function jaliSouth(g: G, a: number, b: number, y: number, z0: number, z1: number, stone: number): void {
+  fan(g, shade(stone, 0.25), southFace(a - 0.06, b + 0.06, y, z0 - 3, z1 + 3));
+  fan(g, MANDIR.glow, southFace(a, b, y + 0.001, z0, z1));
+  g.lineStyle(1.2 * ART_SCALE, lit(stone, 0.05), 1);
+  const n = Math.max(2, Math.round((b - a) / 0.12));
+  for (let i = 0; i <= n; i++) {
+    const p = P(a + ((b - a) * i) / n, y + 0.002, z0);
+    const q = P(a + ((b - a) * i) / n, y + 0.002, z1);
+    g.lineBetween(p.x, p.y, q.x, q.y);
+  }
+  for (let z = z0 + 4; z < z1; z += 4) {
+    const p = P(a, y + 0.002, z);
+    const q = P(b, y + 0.002, z);
+    g.lineBetween(p.x, p.y, q.x, q.y);
+  }
+}
+
+function jaliEast(g: G, x: number, a: number, b: number, z0: number, z1: number, stone: number): void {
+  fan(g, shade(stone, 0.45), eastFace(x, a - 0.06, b + 0.06, z0 - 3, z1 + 3));
+  fan(g, shade(MANDIR.glow, 0.12), eastFace(x + 0.001, a, b, z0, z1));
+  g.lineStyle(1.2 * ART_SCALE, shade(stone, 0.3), 1);
+  const n = Math.max(2, Math.round((b - a) / 0.12));
+  for (let i = 0; i <= n; i++) {
+    const p = P(x + 0.002, a + ((b - a) * i) / n, z0);
+    const q = P(x + 0.002, a + ((b - a) * i) / n, z1);
+    g.lineBetween(p.x, p.y, q.x, q.y);
+  }
+  for (let z = z0 + 4; z < z1; z += 4) {
+    const p = P(x + 0.002, a, z);
+    const q = P(x + 0.002, b, z);
+    g.lineBetween(p.x, p.y, q.x, q.y);
+  }
+}
+
+// Shri Samudra Mandir: a sandstone temple on a two-tier jagati. A tall nagara shikhara with clustered lesser spires rises over
+// the sanctum at the back; in front, a mandapa under a stepped stone roof and an entrance porch on carved pillars, whose
+// doorway stands in the middle of the south front where the street door is, up a flight of steps with sandals left below.
+function drawGrandMandir(g: G, x0: number, y0: number, x1: number, y1: number, seed: number): void {
+  const s = ART_SCALE;
+  const stone = MANDIR.sand;
+  const mx = (x0 + x1) / 2;
+  const deck = 16;
+  const front = y1 - 1;
+  const base: Rect = { x0, y0, x1, y1: front };
+  prism(g, base.x0, base.y0, base.x1, base.y1, 0, 9, shade(stone, 0.1), lit(stone, 0.18));
+  const upper = inset(base, 0.25);
+  prism(g, upper.x0, upper.y0, upper.x1, front - 0.05, 9, deck - 9, stone, lit(MANDIR.white, 0.1));
+  bands(g, { ...base }, [3], MANDIR.red);
+  bands(g, { x0: upper.x0, y0: upper.y0, x1: upper.x1, y1: front - 0.05 }, [12.5], MANDIR.red);
+  for (let x = base.x0 + 0.35; x < base.x1 - 0.2; x += 0.7) fan(g, shade(stone, 0.25), southFace(x, x + 0.012, front + 0.004, 0.5, 8.5), 0.6);
+  shoeRows(g, x0 + 0.25, mx - 1.4, y1 - 0.5, seed);
+  shoeRows(g, mx + 1.5, x1 - 0.3, y1 - 0.5, seed + 1);
+  frontSteps(g, mx, 1.05, y1 - 0.02, 1.0, deck, 4, lit(stone, 0.12));
+  for (const dir of [-1, 1]) {
+    const px = mx + dir * 1.2;
+    prism(g, px - 0.15, y1 - 0.95, px + 0.15, y1 - 0.2, 0, deck + 6, stone, lit(stone, 0.25));
+    drum(g, px, y1 - 0.58, 0.05, 0.12, deck + 6, 3, MANDIR.brass, null, 10);
+    const flame = P(px, y1 - 0.58, deck + 10);
+    g.fillStyle(0xffd890, 0.25);
+    g.fillCircle(flame.x, flame.y, 9 * s);
+    g.fillStyle(0xffc860, 1);
+    g.fillEllipse(flame.x, flame.y - 2 * s, 3 * s, 7 * s, 10);
+  }
+
+  const sx = 1.8;
+  const scy = y0 + 0.4 + sx + 0.25;
+  const wall = 54;
+  fan(g, 0x24183c, [P(mx - sx, scy + sx, deck), P(mx + sx + 1.2, scy + sx, deck), P(mx + sx + 1.2, scy + sx + 0.6, deck), P(mx - sx + 0.3, scy + sx + 0.6, deck)], 0.12);
+  offsetBlock(g, mx, scy, sx, deck, wall, stone, lit(stone, 0.2), 0.08);
+  offsetBands(g, mx, scy, sx, 0.08, [deck + 4, deck + wall - 8], 3, lit(stone, 0.22));
+  offsetBands(g, mx, scy, sx, 0.08, [deck + 7, deck + wall - 5], 1.4, MANDIR.red);
+  const nx = mx + sx + sx * 0.16 + 0.006;
+  fan(g, shade(stone, 0.5), eastFace(nx, scy - 0.22, scy + 0.22, deck + 12, deck + 28));
+  fan(g, shade(MANDIR.glow, 0.25), eastFace(nx + 0.001, scy - 0.15, scy + 0.15, deck + 13, deck + 24), 0.8);
+  const crown = shikhara(g, mx, scy, sx * 0.95, deck + wall, 205, stone, 4);
+  shikhara(g, mx + sx * 0.9, scy, sx * 0.4, deck + wall, 80, stone, 4);
+  dhvaja(g, mx + 0.06, scy + 0.06, crown - 6, 1);
+
+  const my0 = scy + sx;
+  const md: Rect = { x0: mx - 2.5, y0: my0, x1: mx + 2.5, y1: front - 0.75 };
+  const mwall = 44;
+  prism(g, md.x0, md.y0, md.x1, md.y1, deck, mwall, stone, lit(stone, 0.2));
+  bands(g, md, [deck + 4, deck + mwall - 5], MANDIR.red);
+  for (const z of [deck + 2, deck + mwall - 3]) {
+    fan(g, lit(stone, 0.25), southFace(md.x0, md.x1, md.y1 + 0.004, z - 2, z));
+    fan(g, lit(stone, 0.05), eastFace(md.x1 + 0.004, md.y0, md.y1, z - 2, z));
+  }
+  jaliSouth(g, md.x0 + 0.35, md.x0 + 1.05, md.y1 + 0.005, deck + 14, deck + 34, stone);
+  jaliSouth(g, md.x1 - 1.05, md.x1 - 0.35, md.y1 + 0.005, deck + 14, deck + 34, stone);
+  jaliEast(g, md.x1 + 0.005, md.y0 + 0.35, md.y1 - 0.35, deck + 14, deck + 34, stone);
+  const roof = inset(md, -0.18);
+  prism(g, roof.x0, roof.y0, roof.x1, roof.y1, deck + mwall, 4, shade(stone, 0.05), lit(stone, 0.3));
+  phamsana(g, inset(roof, 0.1), deck + mwall + 4, 5, stone);
+
+  const porch: Rect = { x0: mx - 1.2, y0: md.y1, x1: mx + 1.2, y1: front - 0.1 };
+  const ph = 46;
+  mandirDoor(g, mx, md.y1 + 0.006, deck, 0.48, 28, 1, stone);
+  for (const dir of [-1, 1]) hangingBell(g, P(mx + dir * 0.78, porch.y1 - 0.14, deck + ph - 2), 9, 1);
+  for (const dir of [-1, 1]) mandirPillar(g, mx + dir * 1.02, porch.y1 - 0.14, deck, ph, stone);
+  prism(g, porch.x0, porch.y0, porch.x1, porch.y1, deck + ph, 5, stone, lit(stone, 0.3));
+  fan(g, MANDIR.red, southFace(porch.x0, porch.x1, porch.y1 + 0.003, deck + ph + 1.5, deck + ph + 2.8));
+  phamsana(g, inset(porch, 0.06), deck + ph + 5, 3, stone);
+}
+
+// Sagar Tat Mandir: a small whitewashed shore shrine on a low plinth, a little shikhara over its sanctum, saffron and red
+// trim, and a pillared porch facing south over the water, its door where the street door is, a bell at the door and sandals below.
+function drawShoreMandir(g: G, x0: number, y0: number, x1: number, y1: number, seed: number): void {
+  const s = ART_SCALE;
+  const stone = MANDIR.white;
+  const mx = (x0 + x1) / 2;
+  const deck = 8;
+  const front = y1 - 0.55;
+  prism(g, x0 + 0.1, y0 + 0.1, x1 - 0.1, front, 0, deck, shade(MANDIR.sand, 0.04), lit(MANDIR.sand, 0.2));
+  bands(g, { x0: x0 + 0.1, y0: y0 + 0.1, x1: x1 - 0.1, y1: front }, [3.5], MANDIR.red);
+  shoeRows(g, x0 + 0.2, mx - 0.7, y1 - 0.3, seed);
+  shoeRows(g, mx + 0.75, x1 - 0.2, y1 - 0.3, seed + 1);
+  frontSteps(g, mx, 0.55, y1 - 0.02, 0.55, deck, 2, lit(MANDIR.sand, 0.1));
+
+  const sx = 0.9;
+  const scy = y0 + 0.35 + sx;
+  const wall = 40;
+  offsetBlock(g, mx, scy, sx, deck, wall, stone, lit(stone, 0.2), 0.08);
+  offsetBands(g, mx, scy, sx, 0.08, [deck + 2, deck + wall - 6], 1.6, MANDIR.saffron);
+  offsetBands(g, mx, scy, sx, 0.08, [deck + 4, deck + wall - 4], 1.6, MANDIR.red);
+  const crown = shikhara(g, mx, scy, sx * 0.95, deck + wall, 96, stone, 3.4);
+  dhvaja(g, mx + 0.04, scy + 0.04, crown - 4, 0.75);
+
+  const py0 = scy + sx + sx * 0.16;
+  const ph = 44;
+  mandirDoor(g, mx, py0 + 0.004, deck, 0.27, 20, 0.85, stone);
+  const porch: Rect = { x0: mx - 0.85, y0: py0 - 0.05, x1: mx + 0.85, y1: py0 + 0.5 };
+  fan(g, 0x24183c, southFace(porch.x0 + 0.1, porch.x1 - 0.1, py0 + 0.02, deck + ph - 6, deck + ph), 0.16);
+  hangingBell(g, P(mx + 0.42, porch.y1 - 0.12, deck + ph - 2), 8, 0.85);
+  for (const dir of [-1, 1]) mandirPillar(g, mx + dir * 0.72, porch.y1 - 0.12, deck, ph, stone, 0.07);
+  prism(g, porch.x0, porch.y0, porch.x1, porch.y1, deck + ph, 4, stone, lit(stone, 0.3));
+  fan(g, MANDIR.red, southFace(porch.x0, porch.x1, porch.y1 + 0.003, deck + ph + 1, deck + ph + 2.2));
+  fan(g, MANDIR.saffron, eastFace(porch.x1 + 0.003, porch.y0, porch.y1, deck + ph + 1, deck + ph + 2.2));
+  toran(g, P(porch.x0 + 0.18, porch.y1 + 0.004, deck + ph), P(porch.x1 - 0.18, porch.y1 + 0.004, deck + ph), 6, 0.85);
+  phamsana(g, inset(porch, 0.04), deck + ph + 4, 2, stone);
+  for (const cx of [x0 + 0.3, x1 - 0.3]) {
+    const p = P(cx, front - 0.2, deck);
+    g.fillStyle(0xffd890, 0.25);
+    g.fillCircle(p.x, p.y - 4 * s, 9 * s);
+    g.fillStyle(0xa8522e, 1);
+    g.fillEllipse(p.x, p.y - 1.5 * s, 8 * s, 3.4 * s, 12);
+    g.fillStyle(0xffc860, 1);
+    g.fillEllipse(p.x + 2 * s, p.y - 5 * s, 2.6 * s, 6 * s, 10);
+  }
 }
 
 // ---------- Props ----------

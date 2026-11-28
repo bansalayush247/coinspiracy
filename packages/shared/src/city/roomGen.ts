@@ -122,6 +122,15 @@ function place(plan: Plan, piece: Piece): boolean {
       return plan.alongWall(piece, 1, 'cushion');
     case 'pool':
       return plan.onFloor(piece, 2, 2);
+    case 'rangoli':
+      return plan.onFloor(piece, 2, 2);
+    case 'sanctum': {
+      const c = Math.floor(plan.w / 2) - 1;
+      if (!plan.fits(c + 1, 2, 1, 1) || !plan.put(piece, c, 1, 3, 1)) return false;
+      for (let r = 2; r <= 3; r++) for (let x = c; x <= c + 2; x++) plan.keepClear(x, r);
+      plan.spots.push({ kind: 'diya', c: c + 1, r: 2 });
+      return true;
+    }
     case 'bench':
       return plan.onFloor(piece, 2, 1) || plan.alongWall(piece, 2);
     case 'desk':
@@ -226,7 +235,7 @@ function attempt(room: GeneratedRoom, seed: number, rand: Rand): RoomLayout | nu
 }
 
 const ATTEMPTS = 80;
-const SALT: Readonly<Record<GeneratedRoom, number>> = { shop: 0x5eed5, flat: 0xf1a7, cityHall: 0xc17a1, chapel: 0xc4a9e, arcade: 0xa4cade, fishMarket: 0xf15b, office: 0x0ff1ce, temple: 0x7e3b1e };
+const SALT: Readonly<Record<GeneratedRoom, number>> = { shop: 0x5eed5, flat: 0xf1a7, cityHall: 0xc17a1, chapel: 0xc4a9e, arcade: 0xa4cade, fishMarket: 0xf15b, office: 0x0ff1ce, temple: 0x7e3b1e, mandir: 0x3a4d1 };
 
 /** A room furnished from its building's seed by its recipe, the same every time; a hand-made layout if none comes out right. */
 export function generateLayout(room: GeneratedRoom, seed: number): RoomLayout {

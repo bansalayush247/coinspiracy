@@ -1,0 +1,182 @@
+{
+  "councilMeetings": {
+    "board": "cityHall",
+    "title": "Council Meets on Thursdays",
+    "body": "The Council of Port Concord meets every Thursday at 7 pm in the Chamber, first floor, City Hall. All citizens welcome. Public questions are taken in the first half hour, three minutes each, timed by the official egg-timer. Please note the chamber clock runs four minutes fast. Arrive early, or at least on time by the clock.",
+    "from": "Prudence Ogilvy, Clerk to the Council"
+  },
+  "regattaClosure": {
+    "board": "cityHall",
+    "title": "Road Closure: Regatta Saturday",
+    "body": "Harbour Parade will be closed to carts and wagons from 6 am to 8 pm on Regatta Saturday, from the Reef Docks to the Saltmarket fish hall. Spectators please use the Low Tide steps. Bathtubs, rafts and anything else that is not a boat will be turned away at the slipway. The committee means it this year.",
+    "from": "The Regatta Committee"
+  },
+  "lostAndFound": {
+    "board": "cityHall",
+    "title": "Lost & Found Desk",
+    "body": "Waiting to be claimed at the front desk: one striped umbrella, three single gloves (all left hands), a brass compass, a library book about knots, a set of house keys on a lighthouse keyring, and a ferry ticket to the Shallows dated last Thursday. Anything unclaimed after 30 days goes to the charity stall in Saltmarket.",
+    "from": "Front Desk, City Hall"
+  },
+  "libraryHours": {
+    "board": "cityHall",
+    "title": "Harbour Library Opening Hours",
+    "body": "Monday to Friday, 9 am to 7 pm. Saturday, 10 am to 4 pm. Closed Sundays. Story hour for little ones every Saturday at 11 in the reading room. Books may be borrowed for three weeks. Overdue fines are waived if you return the book with a short review. Please do not dry wet books on the radiators; they curl up and sulk.",
+    "from": "The Harbour Library"
+  },
+  "beachClean": {
+    "board": "cityHall",
+    "title": "Volunteers Wanted: Beach Clean",
+    "body": "Join us on the sands below Gullmoor this Sunday, 9 am till noon. Gloves, bags and litter-pickers provided, plus tea and buns from Ravi's bakery. Last time we filled 41 bags and found a shopping cart and a very surprised crab, who was returned. Children welcome with a grown-up. Wear boots; the tide waits for no one.",
+    "from": "Friends of the Foreshore"
+  },
+  "festivalSeason": {
+    "board": "cityHall",
+    "title": "Autumn Festivals: Diwali and Lantern Night",
+    "body": "Diwali: diyas lit along the steps of Shri Samudra Mandir at dusk, with rangoli, music and sweets after the evening aarti. All welcome; shoes at the rack. Harbour Lantern Night: on the full moon, float a lantern from the Reef Docks on the evening tide (paper and candle only, please). Free lantern-making for children at Pixel Pier Arcade from 4 pm.",
+    "from": "Port Concord Festivals Office"
+  },
+  "dogLicence": {
+    "board": "cityHall",
+    "title": "Reminder: Dog Licences Due",
+    "body": "Every dog in Port Concord needs its licence renewed each spring at the City Hall front desk. Bring your dog's name, age and description; the dog itself is optional but very popular with staff. Licensed dogs get a brass tag. Please clean up after your dog on Harbour Parade. Cats need no licence, as nobody has ever made one wear a tag.",
+    "from": "Licensing Office, City Hall"
+  },
+  "pierConsultation": {
+    "board": "cityHall",
+    "title": "Public Consultation: The New Pier",
+    "body": "The council proposes a new pier off Saltmarket for ferries to the Shallows. Plans are on display in the City Hall foyer until the end of the month. Tell us what you think on a comment card, or come to the open evening on Wednesday at 6. Questions so far: “Will it have benches?” (yes) and “Will it wobble?” (no).",
+    "from": "Harbour Works Department"
+  },
+  "lostCat": {
+    "board": "cityHall",
+    "title": "LOST CAT: Admiral",
+    "body": "Big ginger tom, white socks, one ear a bit folded. Answers to Admiral or the sound of a tin opening. Last seen Tuesday near the fish hall looking pleased with himself. Very friendly but WILL steal your sardines. If you see him please don't chase him, just come and tell us at 14 Lantern Lane, Low Tide. Reward: a fresh loaf and a big hug!!",
+    "from": "Maisie, aged 9 (and her mum)"
+  },
+  "recyclingDays": {
+    "board": "cityHall",
+    "title": "Recycling Days by District",
+    "body": "Glass and tins: Mondays in Low Tide and Saltmarket, Tuesdays in The Heights and Signet Row. Paper and card: Wednesdays, citywide. Fish boxes and old nets go in the Reef Docks skip only, never the street bins. Please rinse your jars. The gulls have learned to read the calendar, so put bins out on the morning, not the night before.",
+    "from": "Department of Bins & Brooms"
+  },
+  "courierWanted": {
+    "board": "office",
+    "title": "WANTED: Courier, Quick on Their Feet",
+    "body": "Vance & Daughters Shipping need a courier to carry letters and parcels between Council Hill, Signet Row and the Reef Docks. Must know the city, keep things dry and never read other people's post. Bicycle provided; the bell may be rung freely. Mornings, Monday to Saturday. Apply at Office 3B with a note saying which way you'd take to Gullmoor.",
+    "from": "Vance & Daughters Shipping, Office 3B"
+  },
+  "juniorClerk": {
+    "board": "office",
+    "title": "Junior Clerk Wanted",
+    "body": "The Harbour Accounts Office seeks a junior clerk. Neat handwriting, steady arithmetic and a love of tidy columns are essential. You will learn double entry, reconciling and the noble art of filing. No experience needed; patience required. Tea provided, biscuits rationed. Apply in writing to Mrs E. Rook, Chief Clerk, by the end of the month.",
+    "from": "Harbour Accounts Office"
+  },
+  "nightWatch": {
+    "board": "office",
+    "title": "Night Watch Needed at the Reef Docks",
+    "body": "The Reef Docks Company is hiring a night watch, 10 pm to 6 am, four nights a week. Duties: walk the quays, check the warehouse locks, log every ship in and out, and ring the bell if anything is amiss. Must be calm, awake and not afraid of the dark or of gulls. Lamp, flask and a very warm coat provided. Ask for Foreman Duda at Shed 7.",
+    "from": "Reef Docks Company"
+  },
+  "kettleRota": {
+    "board": "office",
+    "title": "THE KETTLE ROTA (please actually read this)",
+    "body": "Mon: Accounts. Tue: Shipping. Wed: Legal. Thu: Accounts again (you know why). Fri: whoever finished the milk on Thursday. Rinse your mug. Descale on Fridays. The kettle is not a soup pan, Derek. Whoever is on rota also refills the biscuit tin, which is a privilege, not a burden.",
+    "from": "Facilities, 2nd floor"
+  },
+  "brokenLift": {
+    "board": "office",
+    "title": "Lift Out of Order",
+    "body": "The lift is broken again, stuck between the second and third floors. Nobody is inside; that was the cheese plant from Legal, and it is fine. The engineer comes on Thursday. Until then please use the stairs and carry heavy parcels in pairs. A chair has been placed on the third-floor landing for anyone who needs a sit.",
+    "from": "Building Management"
+  },
+  "roomToLet": {
+    "board": "office",
+    "title": "Room to Let, Signet Row",
+    "body": "Bright single room in a quiet flat above the stationer's, five minutes from the hospital. Shared kitchen, own window box, and a view of the Gate Tower if you lean. Would suit a clerk, nurse or other tidy person. No drums, no parrots. Rent paid monthly at the Mint Hall counter. Ask at Flat 4 any evening after six.",
+    "from": "Mr & Mrs Okafor, Flat 4"
+  },
+  "shippingNotice": {
+    "board": "office",
+    "title": "Shipping Notice: Arrivals This Week",
+    "body": "Due at the Reef Docks: the Gannet (spices, Thursday's high water), the Marlinspike (fish, daily, weather allowing) and the Patient Heron (timber, delayed by fog). Consignees must collect within three days or pay storage. Spring tides this weekend: berths 5 to 8 will dry at low water, so plan your unloading for the flood.",
+    "from": "Harbourmaster's Office"
+  },
+  "chessClub": {
+    "board": "office",
+    "title": "Lunchtime Chess Club",
+    "body": "Every Wednesday, 12:30 to 1:30, in Meeting Room B. All levels welcome, from grandmasters to people who think the horse moves in a circle. Boards provided. Bring your lunch, but no soup near the pieces. This month's challenge: beat old Mr Hargreaves from Legal, who has not lost a game since he was a junior clerk.",
+    "from": "The Chess Club (ask for Nadia)"
+  },
+  "fileReceipts": {
+    "board": "office",
+    "title": "Friendly Reminder: File Your Receipts",
+    "body": "Expense claims without receipts will not be paid. Not even the small ones. Especially not the small ones. Staple each receipt to its form, write the date and what it was for, and hand it in by the 25th. A receipt that just says “lunch” is not a receipt, it is a mood. Thank you!",
+    "from": "Accounts Office"
+  },
+  "fireDrill": {
+    "board": "office",
+    "title": "Fire Drill on Tuesday",
+    "body": "A fire drill will take place on Tuesday at 11 am. When the bell rings, leave by the nearest stairs (not the lift, which is broken anyway) and gather at the fountain on Council Hill. Leave your tea. Leave your papers. Leave the cheese plant. Wardens in yellow sashes will count heads; please stand still and be counted.",
+    "from": "Fire Warden, 2nd floor"
+  },
+  "signingRota": {
+    "board": "mintHall",
+    "title": "Guardian Rota: Signing Duty",
+    "body": "Signing desk this week: Monday and Tuesday, Guardians Ada and Bram; Wednesday and Thursday, Chen and Dela; Friday, all hands for the monthly audit. The desk keeps watch; it does not decide. Every note still needs a threshold of guardians to agree. Swapping a shift? Write it on this sheet. Never sign on anyone else's behalf.",
+    "from": "Senior Guardian, Signing Room"
+  },
+  "neverShareKeys": {
+    "board": "mintHall",
+    "title": "Never Share Your Keys",
+    "body": "Your guardian key share and your wallet's backup words are yours alone. No real guardian, clerk or council officer will ever ask for them: not by letter, not at the counter, not in a very nice hat. Write your backup words on paper and keep them somewhere safe and dry. Never type them into anything that asks. If anyone asks, say no and tell the duty guardian.",
+    "from": "The Guardians of the Mint"
+  },
+  "checkBeforeAccepting": {
+    "board": "mintHall",
+    "title": "Check the Note Before You Accept It",
+    "body": "A note is only good if the federation says so. Before you hand over goods, let your wallet check the notes with the Mint and wait until it says the payment is confirmed. A picture of a note, a promise of a note, or a note someone swears is “definitely fine” is not payment. Redeem notes you receive straight away, so nobody can spend a copy first.",
+    "from": "Duty Guardian"
+  },
+  "mintHours": {
+    "board": "mintHall",
+    "title": "Mint Hall Opening Hours",
+    "body": "Counter: Monday to Friday, 9 am to 5 pm; Saturday, 9 am to 1 pm. Vault viewing gallery: Saturdays only, guided tours. Closed Sundays and festival days. The federation itself never sleeps: guardians keep their servers running day and night, so your wallet works even when the doors are shut. Please wipe your boots; the marble is new.",
+    "from": "Mint Hall Front Desk"
+  },
+  "depositsAtCounter": {
+    "board": "mintHall",
+    "title": "How Deposits Work at the Counter",
+    "body": "1. Take a ticket and join the queue. 2. Tell the clerk how many sats you are depositing. 3. Your wallet makes blinded notes and the guardians sign them together, so nobody at the counter can see which notes are yours. 4. Check that your wallet shows the new balance before you step away. 5. Keep your receipt. Questions? Ask any robed guardian.",
+    "from": "Counter Services"
+  },
+  "forgedNote": {
+    "board": "mintHall",
+    "title": "WARNING: Forged Note Found",
+    "body": "A forged 64-sat note was refused at a Saltmarket stall this week. The signs: its signature did not check out against the federation's key, the same note had already been spent, and the seller wanted a quick swap “before the Mint opens”. Hurry and pressure are the biggest clue. Let your wallet verify every note. If it refuses one, so should you.",
+    "from": "Mint Hall Security"
+  },
+  "newGuardians": {
+    "board": "mintHall",
+    "title": "Welcome, New Guardians!",
+    "body": "Please welcome Guardians Rosa, Kwame and Tobiah, sworn in on Saturday before the council and a respectable crowd. Each now holds a key share, and none can sign alone. Their oath, as ever: keep the server running, check every proposal, refuse to sign what you cannot verify. Cake was served. One gull attended and was politely sworn out.",
+    "from": "The Federation of Port Concord"
+  },
+  "federationThanks": {
+    "board": "mintHall",
+    "title": "A Thank-You from the Federation",
+    "body": "To everyone who queued patiently through last month's audit, who reported a strange note instead of spending it, and who brought tea to the guardians on the long night shift: thank you. A federation is only as strong as the people who keep it honest, and this month that was all of you. The books balance to the last sat.",
+    "from": "The Guardians of the Mint"
+  },
+  "vaultQueueRules": {
+    "board": "mintHall",
+    "title": "Rules of the Vault Queue",
+    "body": "1. One queue. It snakes; follow the brass rope. 2. Have your ticket ready. 3. No saving places for cousins, friends or very large dogs. 4. Stand back while the person ahead is served; their business is theirs. 5. No running, shouting or haggling with the clerk. 6. The queue is not the place to ask strangers for their backup words. Or anyone, ever.",
+    "from": "Head Usher, Mint Hall"
+  },
+  "fakeGuardians": {
+    "board": "mintHall",
+    "title": "Beware of Fake Guardians",
+    "body": "Someone in a borrowed robe has been offering to “double your notes” outside the Mint Hall. No guardian will ever offer to double, mind or upgrade your money. Real guardians wear a numbered badge, work inside the Hall and never ask you to hand over notes or backup words. If an offer sounds too good to be true, it is. Report it at the counter.",
+    "from": "Mint Hall Security"
+  }
+}

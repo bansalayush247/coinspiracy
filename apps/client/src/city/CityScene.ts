@@ -33,8 +33,8 @@ import { shadowScale, startJump, stepHop } from '../game/jump.js';
 export const CITY_SCENE_KEY = 'city';
 const STEP_MS = TICK_SECONDS * 1000;
 const BASE_ZOOM = 0.72;
-// Indoors: how much closer the camera may come than on the street, and the room's wall height kept in view above its floor.
-const ROOM_ZOOM_MAX = 2.6;
+// Indoors: how far the player may zoom in past a room that fills the view, and the room's wall height kept in view above its floor.
+const ROOM_ZOOM_IN_MAX = 1.6;
 const ROOM_WALL_PX = 120 * ART_SCALE;
 // Name boards hang over doors within this many tiles of the guardian, refreshed this often.
 const SIGN_RANGE = 9;
@@ -208,6 +208,7 @@ export class CityScene extends Phaser.Scene {
   #inside = 0;
   #room: InteriorView | null = null;
   #userZoom = 1;
+  #roomZoom = 1;
   #roomBox: Phaser.Geom.Rectangle | null = null;
   readonly #tmp = { x: 0, y: 0 };
 
@@ -610,8 +611,10 @@ export class CityScene extends Phaser.Scene {
     startJump(a);
   }
 
+  /** Zooms the camera; indoors the room always fills the view, so it only zooms in from there. */
   zoomBy(factor: number): void {
-    this.#userZoom = Phaser.Math.Clamp(this.#userZoom * factor, 0.45, 1.8);
+    if (this.#roomBox === null) this.#userZoom = Phaser.Math.Clamp(this.#userZoom * factor, 0.45, 1.8);
+    else this.#roomZoom = Phaser.Math.Clamp(this.#roomZoom * factor, 1, ROOM_ZOOM_IN_MAX);
     this.#applyZoom();
   }
 
@@ -927,6 +930,7 @@ export class CityScene extends Phaser.Scene {
       }
       const at = worldToScreen(INTERIOR_ORIGIN.x, INTERIOR_ORIGIN.y);
       const span = layout.w + layout.d;
+      this.#roomZoom = 1;
       this.#roomBox = new Phaser.Geom.Rectangle(at.x - layout.d * (TILE_W / 2), at.y - ROOM_WALL_PX, span * (TILE_W / 2), span * (TILE_H / 2) + ROOM_WALL_PX);
       this.cameras.main.setBackgroundColor(roomBackdrop(layout, door.room));
     } else {
@@ -969,8 +973,7 @@ export class CityScene extends Phaser.Scene {
     const cam = this.cameras.main;
     let zoom = fairZoom(w, h) * BASE_ZOOM * this.#userZoom;
     const box = this.#roomBox;
-    // Indoors the room covers the whole view, and zooming out never shows the dark around it.
-    if (box !== null) zoom = Math.min(Math.max(w / box.width, h / box.height) * Math.max(1, this.#userZoom), zoom * ROOM_ZOOM_MAX);
+    if (box !== null) zoom = Math.max(w / box.width, h / box.height) * this.#roomZoom;
     cam.setZoom(sceneDpr(this) * zoom);
     if (box === null) {
       cam.removeBounds();

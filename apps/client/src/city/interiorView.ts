@@ -58,7 +58,7 @@ export class InteriorView {
     for (const f of layout.furniture) {
       const g = make();
       drawPiece(g, f, layout, room, seed);
-      if (f.piece === 'rug') {
+      if (f.piece === 'rug' || f.piece === 'rangoli') {
         ground.add(g);
         continue;
       }

@@ -17,6 +17,7 @@ import { FerryButton, markFerryOnMinimap } from '../ferry/ferryDock.js';
 import type { FerryLook } from '../ferry/FerryScene.js';
 import { formatNumber, t, type PlainKey } from '../i18n/index.js';
 import type { CityScene } from './CityScene.js';
+import { boardNotices, boardOf, shelfBooks } from './reading.js';
 
 type CityRoom = Awaited<ReturnType<Session['city']>>;
 
@@ -36,6 +37,7 @@ const SPOT_LABELS: Readonly<Record<Exclude<SpotKind, 'counter'>, PlainKey>> = {
   candles: 'city.useCandles',
   bell: 'city.useBell',
   cushion: 'city.useCushion',
+  diya: 'city.useDiya',
 };
 // What the kitchen can make, each with the colour of its card.
 const DISHES: readonly { readonly name: PlainKey; readonly color: string }[] = [
@@ -52,9 +54,15 @@ const WELCOME: Readonly<Record<Exclude<RoomKind, 'shop' | 'fishMarket'>, PlainKe
   arcade: 'city.welcomeArcade',
   office: 'city.welcomeOffice',
   temple: 'city.welcomeTemple',
+  mandir: 'city.welcomeMandir',
 };
 
 const BELL_GAP_MS = 2500;
+const QUIET_TOASTS: Readonly<Record<'candles' | 'cushion' | 'diya', readonly [PlainKey, PlainKey]>> = {
+  candles: ['city.candleLit', 'city.candleCalm'],
+  cushion: ['city.meditated', 'city.meditateCalm'],
+  diya: ['city.diyaLit', 'city.diyaCalm'],
+};
 
 type Zone = 'rough' | 'safe' | 'indoors';
 const ZONE_LABELS: Readonly<Record<Zone, readonly [PlainKey, PlainKey | null]>> = {
@@ -100,7 +108,7 @@ export class CityController {
   #lastRestAt = 0;
   // The dish being made, while the kitchen's answer is on its way.
   #dish: PlainKey | null = null;
-  #quiet: 'candles' | 'cushion' | null = null;
+  #quiet: 'candles' | 'cushion' | 'diya' | null = null;
   #lastBellAt = 0;
   // The building whose name the HUD shows while inside it; 0 on the street.
   #namedInside = 0;
@@ -432,6 +440,7 @@ export class CityController {
       case 'reception':
       case 'candles':
       case 'cushion':
+      case 'diya':
         this.#dish = null;
         this.#quiet = spot.kind === 'bed' || spot.kind === 'reception' ? null : spot.kind;
         this.#rest();
@@ -461,11 +470,14 @@ export class CityController {
           );
         });
         return;
-      case 'books':
+      case 'books': {
+        const room = doorBySeed(this.scene.inside)?.room ?? 'flat';
+        const books = shelfBooks(room, this.scene.inside);
         this.#withPanel(() => {
-          void pickPanel().openShelf();
+          void pickPanel().openShelf(books);
         });
         return;
+      }
       case 'wardrobe':
         this.holdStill(true);
         this.onWardrobe();
@@ -477,9 +489,22 @@ export class CityController {
           this.onToast(t('city.tvNothing'));
         }
         return;
-      case 'board':
-        this.holdStill(true);
-        this.onBoard();
+      case 'board': {
+        const inside = this.scene.inside;
+        const board = boardOf(doorBySeed(inside)?.room ?? 'flat');
+        if (board === null) {
+          this.holdStill(true);
+          this.onBoard();
+          return;
+        }
+        this.#withPanel(() => {
+          void pickPanel().openBoard(buildingName(inside), boardNotices(board, inside), () => {
+            pickPanel().close();
+            this.holdStill(true);
+            this.onBoard();
+          });
+        });
+      }
     }
   }
 
@@ -487,8 +512,9 @@ export class CityController {
     const now = performance.now();
     if (now - this.#lastBellAt < BELL_GAP_MS) return;
     this.#lastBellAt = now;
-    audio.play('templeBell');
-    this.onToast(t('city.bellRung'));
+    const mandir = doorBySeed(this.scene.inside)?.room === 'mandir';
+    audio.play(mandir ? 'mandirBell' : 'templeBell');
+    this.onToast(t(mandir ? 'city.mandirBell' : 'city.bellRung'));
   }
 
   #rest(): void {
@@ -516,7 +542,7 @@ export class CityController {
       if (r.reason === 'healed' || r.reason === 'full') {
         audio.play('chirp');
         const healed = r.reason === 'healed';
-        this.onToast(t(quiet === 'candles' ? (healed ? 'city.candleLit' : 'city.candleCalm') : healed ? 'city.meditated' : 'city.meditateCalm'));
+        this.onToast(t(QUIET_TOASTS[quiet][healed ? 0 : 1]));
       }
       return;
     }

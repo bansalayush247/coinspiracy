@@ -62,14 +62,15 @@ describe('walk-in buildings', () => {
     expect(new Set(BUILDING_DOORS.map((d) => JSON.stringify(layoutFor(d.room, d.building.seed)))).size).toBe(BUILDING_DOORS.length);
   });
 
-  it('makes City Hall, the chapel, the arcade, the fish hall, offices and the temple with something to do in each', () => {
-    const wants: Readonly<Record<'cityHall' | 'chapel' | 'arcade' | 'fishMarket' | 'office' | 'temple', readonly string[]>> = {
+  it('makes City Hall, the chapel, the arcade, the fish hall, offices, the temple and the mandirs with something to do in each', () => {
+    const wants: Readonly<Record<'cityHall' | 'chapel' | 'arcade' | 'fishMarket' | 'office' | 'temple' | 'mandir', readonly string[]>> = {
       cityHall: ['board', 'books'],
       chapel: ['candles'],
       arcade: ['arcade'],
       fishMarket: ['counter'],
       office: ['board', 'books'],
       temple: ['bell', 'cushion'],
+      mandir: ['diya', 'bell'],
     };
     for (const [room, kinds] of Object.entries(wants) as [keyof typeof wants, readonly string[]][]) {
       const handMade = new Set(INTERIOR_TUNING.layouts[room]);

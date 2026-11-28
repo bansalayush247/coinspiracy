@@ -19,6 +19,7 @@ describe('building names', () => {
     expect(named('mintHall')).toBe('The Mint Hall');
     expect(named('fishMarket')).toBe('Saltmarket Fish Hall');
     expect(named('temple')).toBe('Tidewater Temple');
+    expect(CITY_BUILDINGS.filter((b) => b.kind === 'mandir').map((b) => buildingName(b.seed)).sort()).toEqual(['Sagar Tat Mandir', 'Shri Samudra Mandir']);
   });
 
   it('has no name for a building that does not exist', () => {

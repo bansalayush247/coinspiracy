@@ -19,7 +19,7 @@ interface Pt {
 }
 
 const S = ART_SCALE;
-const WALL_H: Readonly<Record<RoomKind, number>> = { shop: 120, mintHall: 136, hospital: 120, flat: 112, cityHall: 140, chapel: 148, arcade: 112, fishMarket: 116, office: 112, temple: 136 };
+const WALL_H: Readonly<Record<RoomKind, number>> = { shop: 120, mintHall: 136, hospital: 120, flat: 112, cityHall: 140, chapel: 148, arcade: 112, fishMarket: 116, office: 112, temple: 136, mandir: 140 };
 const WALL_T = 0.2;
 const STUB_H = 18;
 const STUB_T = 0.24;
@@ -110,7 +110,7 @@ const DROP = 160;
 const REACH = 6;
 const BANDS = 18;
 
-const TALL: ReadonlySet<Piece> = new Set(['shelf', 'bookcase', 'vaultDoor', 'noticeBoard', 'rack', 'mirror', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv', 'cabinet', 'bell']);
+const TALL: ReadonlySet<Piece> = new Set(['shelf', 'bookcase', 'vaultDoor', 'noticeBoard', 'rack', 'mirror', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv', 'cabinet', 'bell', 'sanctum']);
 
 const pick = (list: readonly number[], rand: () => number): number => list[Math.floor(rand() * list.length)] ?? list[0] ?? 0;
 const quad = (x0: number, y0: number, x1: number, y1: number, z = 0): Pt[] => [P(x0, y0, z), P(x1, y0, z), P(x1, y1, z), P(x0, y1, z)];
@@ -445,6 +445,10 @@ function roomWallLook(layout: RoomLayout, room: RoomKind): WallLook | null {
         : layout.wall === 'panel'
           ? { upper: 0xf0e4c8, lower: 0x7a4e32, trim: 0x8e6040, skirt: 0x4a3022, frame: 0x6a4430 }
           : { upper: 0xf2e8d4, lower: 0x3f7472, trim: 0xe6d6b4, skirt: 0x4e3626, frame: 0x6e4830 };
+    case 'mandir':
+      return stone
+        ? { upper: 0xe6cfa0, lower: 0xc89a66, trim: 0xf4e6c6, skirt: 0xa87a4e, frame: 0xc8955a }
+        : { upper: 0xf7efde, lower: 0xb8483a, trim: 0xf2c46a, skirt: 0x8a3428, frame: 0xb8483a };
     default:
       return null;
   }
@@ -594,7 +598,7 @@ function skirting(g: G, side: Side, u1: number, look: WallLook): void {
 
 // ---------- Wall decor ----------
 
-type DecorKind = 'window' | 'arch' | 'curtains' | 'picture' | 'cross' | 'clock' | 'lancet' | 'rose' | 'crest' | 'neon' | 'poster' | 'chart' | 'slate' | 'buoy' | 'lattice' | 'hanging';
+type DecorKind = 'window' | 'arch' | 'curtains' | 'picture' | 'cross' | 'clock' | 'lancet' | 'rose' | 'crest' | 'neon' | 'poster' | 'chart' | 'slate' | 'buoy' | 'lattice' | 'hanging' | 'jali' | 'niche';
 interface Decor {
   readonly kind: DecorKind;
   readonly side: Side;
@@ -687,7 +691,11 @@ function planWalls(layout: RoomLayout, room: RoomKind, seed: number): Decor[] {
     put('hanging', 'n', north);
     put('hanging', west.length > 0 ? 'w' : 'n', west.length > 0 ? west : north);
   }
-  const kind: DecorKind = room === 'mintHall' || room === 'cityHall' ? 'arch' : room === 'chapel' ? 'lancet' : room === 'temple' ? 'lattice' : 'window';
+  if (room === 'mandir') {
+    put('niche', 'n', north);
+    put('niche', west.length > 0 ? 'w' : 'n', west.length > 0 ? west : north);
+  }
+  const kind: DecorKind = room === 'mintHall' || room === 'cityHall' ? 'arch' : room === 'chapel' ? 'lancet' : room === 'temple' ? 'lattice' : room === 'mandir' ? 'jali' : 'window';
   const spaced = (side: Side, list: number[], max: number): void => {
     const phase = rand() < 0.5 ? 0 : 1;
     let placed = 0;
@@ -698,7 +706,7 @@ function planWalls(layout: RoomLayout, room: RoomKind, seed: number): Decor[] {
       placed++;
     }
   };
-  spaced('w', west, room === 'flat' ? 1 : room === 'office' || room === 'fishMarket' || room === 'temple' ? 2 : 3);
+  spaced('w', west, room === 'flat' ? 1 : room === 'office' || room === 'fishMarket' || room === 'temple' || room === 'mandir' ? 2 : 3);
   spaced('n', north, room === 'mintHall' ? 4 : room === 'flat' ? 0 : room === 'chapel' ? 3 : 2);
   return out;
 }
@@ -1358,6 +1366,245 @@ function lanternGarland(g: G, side: Side, u1: number, h: number, rand: () => num
   }
 }
 
+// ---------- Mandir walls ----------
+
+const SANDSTONE = 0xe4c792;
+const SAFFRON = 0xf08a24;
+const KUMKUM = 0xb8282e;
+const CLAY = 0xa8522e;
+const MARBLE_WHITE = 0xf4eee2;
+const MANGO = { light: 0x6aa846, dark: 0x3a7030 } as const;
+const MARIGOLDS = [0xf08a1e, 0xf8b828] as const;
+const LOTUS = 0xe8708a;
+
+function blossom(g: G, x: number, y: number, r: number, col: number): void {
+  g.fillStyle(shade(col, 0.35), 1);
+  g.fillCircle(x + 0.3 * r * S, y + 0.45 * r * S, r * S);
+  g.fillStyle(col, 1);
+  g.fillCircle(x, y, r * 0.88 * S);
+  g.fillStyle(lit(col, 0.45), 0.9);
+  g.fillCircle(x - 0.3 * r * S, y - 0.3 * r * S, r * 0.38 * S);
+}
+
+// A strand of marigolds along a screen path: blossoms of radius r in runs of orange and yellow.
+function marigolds(g: G, pts: readonly Pt[], r: number, tint: (col: number) => number = (c) => c, phase = 0): void {
+  const step = r * 1.45 * S;
+  let carry = 0;
+  let n = phase;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (a === undefined || b === undefined) continue;
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    let d = carry;
+    for (; d <= len; d += step) {
+      const t = len === 0 ? 0 : d / len;
+      blossom(g, a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, r, tint(MARIGOLDS[Math.floor(n / 3) % 2] ?? SAFFRON));
+      n++;
+    }
+    carry = d - len;
+  }
+}
+
+// A sag between two screen points, `sag` art px deep at its middle.
+function swag(a: Pt, b: Pt, sag: number, n = 14): Pt[] {
+  const out: Pt[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t + sag * S * 4 * t * (1 - t) });
+  }
+  return out;
+}
+
+// A short drop of marigolds ending in a red bud, with mango leaves fanned at its hook: one knot of a toran.
+function garlandDrop(g: G, at: Pt, len: number, k = 1, tint: (col: number) => number = (c) => c): void {
+  for (const ang of [0.9, 1.25, 1.9, 2.25]) leaf(g, at, ang, 11 * k, 3 * k, tint(MANGO.light), tint(MANGO.dark));
+  marigolds(g, [at, { x: at.x, y: at.y + len * S * k }], 2.1 * k, tint);
+  g.fillStyle(tint(KUMKUM), 1);
+  g.fillCircle(at.x, at.y + (len + 2.6) * S * k, 1.9 * S * k);
+}
+
+function flameAt(g: G, p: Pt, k = 1): void {
+  const s = S * k;
+  for (const [r, alpha] of [[13, 0.07], [8, 0.12], [4.5, 0.18]] as const) {
+    g.fillStyle(WARM, alpha);
+    g.fillCircle(p.x, p.y - 3 * s, r * s);
+  }
+  g.fillStyle(FLAME, 0.95);
+  g.fillEllipse(p.x, p.y - 3 * s, 2.8 * s, 6.4 * s, 10);
+  g.fillStyle(0xfff6d8, 1);
+  g.fillEllipse(p.x, p.y - 2.2 * s, 1.3 * s, 3 * s, 8);
+}
+
+// A clay diya standing at a screen point, its wick burning at the spout.
+function diyaAt(g: G, p: Pt, k = 1): void {
+  const s = S * k;
+  g.fillStyle(shade(CLAY, 0.4), 1);
+  g.fillEllipse(p.x + 0.6 * s, p.y - 1.2 * s, 11 * s, 4.6 * s, 14);
+  g.fillStyle(CLAY, 1);
+  g.fillTriangle(p.x + 2.5 * s, p.y - 4.6 * s, p.x + 2.5 * s, p.y - 1.4 * s, p.x + 7.2 * s, p.y - 4 * s);
+  g.fillEllipse(p.x, p.y - 2.4 * s, 10 * s, 4.4 * s, 14);
+  g.fillStyle(0x4a2410, 1);
+  g.fillEllipse(p.x - 0.3 * s, p.y - 3.1 * s, 7 * s, 2.3 * s, 12);
+  g.fillStyle(lit(CLAY, 0.35), 0.8);
+  g.fillEllipse(p.x - 3 * s, p.y - 2.4 * s, 3 * s, 1.6 * s, 8);
+  flameAt(g, { x: p.x + 6.2 * s, y: p.y - 4.2 * s }, k * 0.85);
+}
+
+// A lotus seen from the front at a screen point: five petals over a low bowl, opening upward.
+function lotusAt(g: G, p: Pt, r: number, col: number, tint: (col: number) => number = (c) => c): void {
+  const s = S * r;
+  for (const [ang, len, k] of [[-2.85, 0.78, 0.22], [-0.29, 0.78, 0.32], [-2.2, 0.98, 0.06], [-0.94, 0.98, 0.16], [-Math.PI / 2, 1.12, -0.15]] as const) {
+    const dx = Math.cos(ang);
+    const dy = Math.sin(ang);
+    const w = 0.44;
+    const tip = { x: p.x + dx * len * s, y: p.y + dy * len * s };
+    const side = (d: number): Pt => ({ x: p.x + (dx * 0.5 - dy * w * d) * s, y: p.y + (dy * 0.5 + dx * w * d) * s });
+    fan(g, tint(k < 0 ? lit(col, -k) : shade(col, k)), [p, side(1), tip, side(-1)]);
+  }
+  g.fillStyle(tint(MANGO.dark), 1);
+  g.fillEllipse(p.x, p.y + 0.2 * s, 1.7 * s, 0.5 * s, 14);
+  g.fillStyle(tint(lit(col, 0.5)), 1);
+  g.fillCircle(p.x, p.y - 0.12 * s, 0.16 * s);
+}
+
+// A full kalash seen from the front: a round pot with a neck, mango leaves fanned out of its mouth and a coconut on top.
+function kalashAt(g: G, p: Pt, r: number, metal: number, tint: (col: number) => number = (c) => c): void {
+  const s = S * r;
+  const mouth = { x: p.x, y: p.y - 1.75 * s };
+  for (const ang of [-2.6, -2.15, -1.0, -0.55]) leaf(g, mouth, ang, 1.15 * r, 0.32 * r, tint(MANGO.light), tint(MANGO.dark));
+  g.fillStyle(tint(shade(metal, 0.2)), 1);
+  g.fillEllipse(p.x, p.y - 0.8 * s, 2 * s, 1.75 * s, 18);
+  g.fillStyle(tint(metal), 1);
+  g.fillEllipse(p.x - 0.08 * s, p.y - 0.86 * s, 1.8 * s, 1.6 * s, 18);
+  g.fillStyle(tint(lit(metal, 0.5)), 0.85);
+  g.fillEllipse(p.x - 0.4 * s, p.y - 1.1 * s, 0.5 * s, 0.7 * s, 10);
+  g.fillStyle(tint(KUMKUM), 1);
+  g.fillRect(p.x - 0.5 * s, p.y - 1.72 * s, 1 * s, 0.22 * s);
+  g.fillStyle(tint(metal), 1);
+  g.fillRect(p.x - 0.62 * s, p.y - 1.92 * s, 1.24 * s, 0.22 * s);
+  g.fillStyle(tint(0x7a4a2a), 1);
+  g.fillEllipse(p.x, p.y - 2.35 * s, 1.1 * s, 0.95 * s, 14);
+  g.fillStyle(tint(0xa8743e), 1);
+  g.fillEllipse(p.x - 0.12 * s, p.y - 2.45 * s, 0.6 * s, 0.5 * s, 10);
+}
+
+// A carved stone jali under a round arch: a pierced diamond lattice glowing with daylight, a lotus cut in the arch.
+function drawJali(g: G, d: Decor, h: number, look: WallLook): void {
+  const { side } = d;
+  const pl = 1 + FACE;
+  const u0 = d.u + 0.24;
+  const u1 = d.u + 0.76;
+  const z0 = 44;
+  const z1 = h - 38;
+  const uc = (u0 + u1) / 2;
+  const rz = ((u1 - u0) / 2) * ROUND;
+  const zs = z1 - rz;
+  const stone = onWall(side, shade(mix(look.trim, look.lower, 0.35), 0.06));
+  const light = side === 'n' ? 0xffd27a : mix(0xffd27a, 0xd88a50, 0.2);
+  poly(g, side, pl, windowOutline(u0 - 0.08, u1 + 0.08, z0 - 7, z1 + 7, true), onWall(side, look.frame));
+  poly(g, side, pl, windowOutline(u0 - 0.05, u1 + 0.05, z0 - 4, z1 + 4, true), onWall(side, lit(look.frame, 0.25)));
+  poly(g, side, pl, windowOutline(u0, u1, z0, z1, true), light);
+  plate(g, side, pl, u0, u1, zs - 16, zs, WHITE, 0.25);
+  const m = 1 / ROUND;
+  const clip = (c: number, dir: 1 | -1): [Pt, Pt] | null => {
+    const za = z0 + (u0 - c) / (dir * m);
+    const zb = z0 + (u1 - c) / (dir * m);
+    const a = Math.max(z0, Math.min(za, zb));
+    const b = Math.min(zs, Math.max(za, zb));
+    if (b <= a) return null;
+    return [fp(side, c + dir * (a - z0) * m, pl + 0.001, a), fp(side, c + dir * (b - z0) * m, pl + 0.001, b)];
+  };
+  const reach = (zs - z0) * m + 0.1;
+  for (let c = u0 - reach; c < u1 + reach; c += 0.13) {
+    for (const dir of [1, -1] as const) {
+      const seg = clip(c, dir);
+      if (seg !== null) line(g, seg[0], seg[1], 1.5 * S, stone);
+    }
+  }
+  poly(g, side, pl + 0.002, windowOutline(u0, u1, zs - 0.5, z1, true).slice(1), stone);
+  plate(g, side, pl + 0.002, u0, u1, zs - 2.5, zs, onWall(side, shade(look.trim, 0.1)));
+  const petal = (du: number, top: number, w: number): void => {
+    poly(g, side, pl + 0.003, [[uc + du, zs + 2], [uc + du - w, zs + 8], [uc + du * 1.6, top], [uc + du + w, zs + 8]], light);
+  };
+  petal(0, z1 - 5, 0.04);
+  petal(-0.1, z1 - 10, 0.035);
+  petal(0.1, z1 - 10, 0.035);
+  wallPath(g, side, pl + 0.003, windowOutline(u0, u1, z0, z1, true).slice(1), 1.8 * S, stone);
+  plate(g, side, pl + 0.003, u0, u0 + 0.012, z0, zs, stone);
+  plate(g, side, pl + 0.003, u1 - 0.012, u1, z0, zs, stone);
+  const out = 1 + 0.09;
+  fan(g, lit(look.trim, 0.2), [fp(side, u0 - 0.11, pl, z0 - 6), fp(side, u1 + 0.11, pl, z0 - 6), fp(side, u1 + 0.11, out, z0 - 6), fp(side, u0 - 0.11, out, z0 - 6)]);
+  plate(g, side, out, u0 - 0.11, u1 + 0.11, z0 - 10, z0 - 6, tone(side, look.trim, 0.3));
+  plate(g, side, out + 0.001, u0 - 0.11, u1 + 0.11, z0 - 10, z0 - 9, onWall(side, KUMKUM), 0.7);
+}
+
+// A small arched niche in the wall with a clay diya burning on its sill, its glow warming the wall round it.
+function drawNiche(g: G, d: Decor, look: WallLook): void {
+  const { side } = d;
+  const pl = 1 + FACE;
+  const u0 = d.u + 0.35;
+  const u1 = d.u + 0.65;
+  const uc = (u0 + u1) / 2;
+  const z0 = 58;
+  const z1 = 92;
+  const c = fp(side, uc, pl, z0 + 12);
+  for (const [r, alpha] of [[38, 0.05], [26, 0.07], [16, 0.09]] as const) {
+    g.fillStyle(WARM, alpha);
+    g.fillEllipse(c.x, c.y, r * 2 * S, r * 2.3 * S, 24);
+  }
+  poly(g, side, pl, windowOutline(u0 - 0.06, u1 + 0.06, z0 - 4, z1 + 5, true), onWall(side, look.frame));
+  poly(g, side, pl, windowOutline(u0 - 0.035, u1 + 0.035, z0 - 2, z1 + 3, true), onWall(side, lit(look.trim, 0.15)));
+  poly(g, side, pl, windowOutline(u0, u1, z0, z1, true), onWall(side, mix(shade(look.upper, 0.42), 0x8a3a1a, 0.45)));
+  poly(g, side, pl, windowOutline(u0 + 0.03, u1 - 0.03, z0, z1 - 8, true), WARM, 0.22);
+  plate(g, side, pl, u0, u1, z0, z0 + 8, WARM, 0.25);
+  const sill = 1 + 0.05;
+  fan(g, lit(look.trim, 0.25), [fp(side, u0 - 0.08, pl, z0), fp(side, u1 + 0.08, pl, z0), fp(side, u1 + 0.08, sill, z0), fp(side, u0 - 0.08, sill, z0)]);
+  plate(g, side, sill, u0 - 0.08, u1 + 0.08, z0 - 4, z0, tone(side, look.trim, 0.3));
+  for (const u of [u0 - 0.045, u1 + 0.045]) {
+    const p = fp(side, u, pl + 0.002, z1 + 3);
+    g.fillStyle(onWall(side, KUMKUM), 1);
+    g.fillCircle(p.x, p.y, 1.6 * S);
+  }
+  diyaAt(g, fp(side, uc - 0.02, 1 + 0.025, z0), 1);
+}
+
+// A saffron band under the cornice edged in kumkum red, set with a running row of little cream lotus rosettes.
+function lotusFrieze(g: G, side: Side, u1: number, h: number): void {
+  const pl = 1 + FACE * 0.7;
+  const z0 = h - CORNICE_H - 14;
+  const z1 = h - CORNICE_H - 2;
+  plate(g, side, pl, 1, u1, z0, z1, onWall(side, SAFFRON));
+  plate(g, side, pl, 1, u1, z0, z0 + 1.8, onWall(side, KUMKUM));
+  plate(g, side, pl, 1, u1, z1 - 1.8, z1, onWall(side, KUMKUM));
+  for (let u = 1.06; u < u1; u += 0.12) poly(g, side, pl + 0.001, [[u, z0], [u + 0.1, z0], [u + 0.05, z0 - 4]], onWall(side, KUMKUM));
+  const zc = (z0 + z1) / 2;
+  for (let u = 1.18; u < u1 - 0.05; u += 0.36) {
+    const c = fp(side, u, pl + 0.002, zc);
+    g.fillStyle(onWall(side, 0xfff2d8), 1);
+    for (let i = 0; i < 6; i++) {
+      const t = (i / 6) * Math.PI * 2;
+      g.fillCircle(c.x + Math.cos(t) * 2.2 * S, c.y + Math.sin(t) * 2.2 * S, 1.6 * S);
+    }
+    g.fillStyle(onWall(side, KUMKUM), 1);
+    g.fillCircle(c.x, c.y, 1.4 * S);
+  }
+}
+
+// Marigold garlands swagged along the top of a mandir wall, with a hanging drop and mango leaves at every hook.
+function marigoldFestoon(g: G, side: Side, u1: number, h: number): void {
+  const pl = 1 + 0.05;
+  const top = h - CORNICE_H - 20;
+  const span = 1.4;
+  const tint = (col: number): number => onWall(side, col);
+  let u = 1.12;
+  for (let i = 0; u < u1 - 0.3; i++, u += span) {
+    const e = Math.min(u1, u + span);
+    marigolds(g, swag(fp(side, u, pl, top), fp(side, e, pl, top), 15 * ((e - u) / span)), 2.3, tint, i);
+  }
+  for (let v = 1.12; v < u1 + 0.01; v += span) garlandDrop(g, fp(side, v, pl, top), 14, 1, tint);
+}
+
 // ---------- Room shell ----------
 
 // Tile pairs and grout by room, for the rooms whose tiled floors are their own.
@@ -1368,11 +1615,13 @@ const FLOOR_TILES: Partial<Record<RoomKind, readonly [number, number, number]>> 
   arcade: [0x2a2448, 0x161226, 0x0e0b18],
   fishMarket: [0xf0f4f4, 0xcfe2ea, 0x9fb4bc],
   temple: [0xccd2c6, 0xa2b6ac, 0x7a867e],
+  mandir: [0xf2e8d2, 0xb45a40, 0x8a6a52],
 };
 const MARBLE_EDGES: Partial<Record<RoomKind, { field: number; joint: number; line: number }>> = {
   cityHall: { field: 0x2f4a6a, joint: 0x243a56, line: 0xdcd8cc },
   chapel: { field: 0xb4a68e, joint: 0x9a8a72, line: 0xe8dcc4 },
   temple: { field: 0x3f6a62, joint: 0x335850, line: 0xd8c08a },
+  mandir: { field: 0x9a4032, joint: 0x7e3228, line: 0xe8b84a },
 };
 
 function drawDecor(g: G, d: Decor, room: RoomKind, h: number, look: WallLook, rand: () => number): void {
@@ -1419,6 +1668,12 @@ function drawDecor(g: G, d: Decor, room: RoomKind, h: number, look: WallLook, ra
       return;
     case 'hanging':
       drawHanging(g, d, h, rand);
+      return;
+    case 'jali':
+      drawJali(g, d, h, look);
+      return;
+    case 'niche':
+      drawNiche(g, d, look);
       return;
     default:
       drawWindow(g, d, h, look, rand, room === 'office');
@@ -1474,10 +1729,10 @@ export function drawRoomShell(floor: G, backWalls: G, frontStub: G, layout: Room
   fan(floor, 0xa8794a, quad(mat.x0 + 0.06, mat.y0 + 0.06, mat.x1 - 0.06, mat.y1 - 0.06, 0.5));
   for (let x = mat.x0 + 0.1; x < mat.x1 - 0.08; x += 0.06) line(floor, P(x, mat.y0 + 0.08, 0.5), P(x, mat.y1 - 0.08, 0.5), 1, 0x7a5434, 0.45);
   decor.forEach((d, i) => {
-    if (d.kind !== 'window' && d.kind !== 'arch' && d.kind !== 'curtains' && d.kind !== 'lancet' && d.kind !== 'lattice') return;
+    if (d.kind !== 'window' && d.kind !== 'arch' && d.kind !== 'curtains' && d.kind !== 'lancet' && d.kind !== 'lattice' && d.kind !== 'jali') return;
     const lancet = d.kind === 'lancet';
-    const a = d.u + (lancet ? 0.27 : d.kind === 'lattice' ? 0.16 : 0.2);
-    const b = d.u + (lancet ? 0.73 : d.kind === 'lattice' ? 0.84 : 0.8);
+    const a = d.u + (lancet ? 0.27 : d.kind === 'lattice' ? 0.16 : d.kind === 'jali' ? 0.24 : 0.2);
+    const b = d.u + (lancet ? 0.73 : d.kind === 'lattice' ? 0.84 : d.kind === 'jali' ? 0.76 : 0.8);
     const m = (a + b) / 2;
     for (const [k, alpha] of [[1, 0.09], [0.7, 0.08]] as const) {
       for (const [j, [p, q]] of ([[a, m - 0.03], [m + 0.03, b]] as const).entries()) {
@@ -1522,6 +1777,7 @@ export function drawRoomShell(floor: G, backWalls: G, frontStub: G, layout: Room
       neonStrip(backWalls, side, u1, 58, NEON[1]);
     }
     if (room === 'temple') waveFrieze(backWalls, side, u1, h, look);
+    if (room === 'mandir') lotusFrieze(backWalls, side, u1, h);
     plate(backWalls, side, 1 + FACE * 0.6, 1, 1.12, 0, WALL_TOP, SHADOW, 0.1);
     for (const d of decor) {
       if (d.side !== side) continue;
@@ -1530,6 +1786,7 @@ export function drawRoomShell(floor: G, backWalls: G, frontStub: G, layout: Room
   }
   if (room === 'shop') shopSign(backWalls, layout, h, rand);
   if (room === 'temple') for (const side of ['w', 'n'] as const) lanternGarland(backWalls, side, wallU[side] - 0.3, h, rand);
+  if (room === 'mandir') for (const side of ['w', 'n'] as const) marigoldFestoon(backWalls, side, wallU[side] - 0.2, h);
   const vault = layout.furniture.find((f) => f.piece === 'vaultDoor');
   if (room === 'mintHall' && vault !== undefined) {
     mintCrest(backWalls, vault.c + vault.w / 2, h);
@@ -1986,6 +2243,10 @@ function leaf(g: G, base: Pt, ang: number, len: number, wid: number, light: numb
 const POTS: Partial<Record<RoomKind, number>> = { mintHall: 0xd8ccb4, hospital: 0xf2f2ee, cityHall: 0xd8d4cc, chapel: 0xd8ccb4, arcade: 0x2a2438, fishMarket: 0x3f6f8e, office: 0xf2f2ee, temple: 0x5f8f80 };
 
 function plant(g: G, f: Furniture, room: RoomKind, rand: () => number): void {
+  if (room === 'mandir') {
+    tulsi(g, f, rand);
+    return;
+  }
   const x = f.c + f.w / 2;
   const y = f.r + f.d / 2;
   const pot = POTS[room] ?? 0xc0704a;
@@ -2038,6 +2299,10 @@ function plant(g: G, f: Furniture, room: RoomKind, rand: () => number): void {
 function lamp(g: G, f: Furniture, layout: RoomLayout, room: RoomKind): void {
   if (room === 'temple') {
     paperLantern(g, f, layout);
+    return;
+  }
+  if (room === 'mandir') {
+    deepastambha(g, f, layout);
     return;
   }
   const x = f.c + f.w / 2;
@@ -2233,6 +2498,10 @@ function sofa(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void 
 function column(g: G, f: Furniture, room: RoomKind): void {
   if (room === 'temple') {
     timberColumn(g, f);
+    return;
+  }
+  if (room === 'mandir') {
+    stonePillar(g, f);
     return;
   }
   const x = f.c + f.w / 2;
@@ -4099,6 +4368,508 @@ function timberColumn(g: G, f: Furniture): void {
   fan(g, PATINA, [P(x - 0.36, y + 0.36, h - 13), P(x + 0.36, y + 0.36, h - 13), P(x + 0.36, y + 0.36, h - 11), P(x - 0.36, y + 0.36, h - 11)], 0.85);
 }
 
+// ---------- Mandir pieces ----------
+
+const GHANTA = [[0, 0.2], [1.6, 0.194], [3.6, 0.165], [7, 0.138], [12, 0.128], [17, 0.124], [21, 0.116], [24.5, 0.098], [27.5, 0.07], [29.5, 0.035]] as const;
+const RANGOLI = [
+  { ring: 0x2f6ad8, petal: 0xe8307a, inner: 0xf6c42a, scallop: 0xf08a1e, leaf: 0x2fa860, centre: 0xd83a32 },
+  { ring: 0x2fa860, petal: 0xf08a1e, inner: 0xe8307a, scallop: 0xf6c42a, leaf: 0x7a3ab8, centre: 0x2f6ad8 },
+  { ring: 0x7a3ab8, petal: 0xf6c42a, inner: 0xd83a32, scallop: 0x2fb8c8, leaf: 0x2fa860, centre: 0xf08a1e },
+] as const;
+
+// A brass plate seen from above at a floor point, rimmed and lit on its west side.
+function brassPlate(g: G, x: number, y: number, z: number, r: number): void {
+  floorEllipse(g, x + 0.03, y + 0.02, r + 0.02, SHADOW, 0.3, z);
+  floorEllipse(g, x, y, r, shade(BRASS, 0.2), 1, z + 0.6);
+  floorEllipse(g, x - 0.01, y - 0.01, r * 0.86, BRASS, 1, z + 0.8);
+  floorEllipse(g, x - 0.03, y - 0.03, r * 0.5, lit(BRASS, 0.3), 0.6, z + 0.9);
+}
+
+// The garbhagriha: a sandstone shrine front on a marble plinth, its carved doorway veiled by a half-drawn red curtain
+// glowing from within, under a ribbed nagara tower; a kalash, fruit and a brass aarti plate wait on the steps.
+function sanctum(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void {
+  const fr = frameOf(f, layout);
+  const s = span(f, fr);
+  const am = (s.a0 + s.a1) / 2;
+  const b0 = s.b0;
+  const bounds = { x1: layout.w - 1, y1: layout.d - 1 };
+  const [gx, gy] = xy(fr, am, s.b1 - 0.1);
+  for (const [r, alpha] of [[2.6, 0.04], [1.9, 0.05], [1.3, 0.06], [0.8, 0.08]] as const) floorPool(g, gx, gy, r, WARM, alpha, bounds);
+  const glow = fp(fr, am, b0, 64);
+  for (const [r, alpha] of [[92, 0.04], [70, 0.05], [48, 0.06]] as const) {
+    g.fillStyle(WARM, alpha);
+    g.fillEllipse(glow.x, glow.y, r * 2 * S, r * 2.4 * S, 28);
+  }
+  contact(g, f.c + 0.02, f.r + 0.02, f.c + f.w - 0.02, f.r + f.d - 0.04, 0.22);
+  const pb = b0 + 0.7;
+  box(g, fr, s.a0 + 0.05, b0, s.a1 - 0.05, pb, 0, 9, shade(MARBLE_WHITE, 0.05), lit(MARBLE_WHITE, 0.3));
+  plate(g, fr, pb + 0.002, s.a0 + 0.05, s.a1 - 0.05, 3, 5, tone(fr, KUMKUM));
+  plate(g, fr, pb + 0.002, s.a0 + 0.05, s.a1 - 0.05, 7.4, 9, tone(fr, GOLD), 0.8);
+  box(g, fr, am - 0.62, pb, am + 0.62, b0 + 0.95, 0, 4.5, shade(MARBLE_WHITE, 0.03), lit(MARBLE_WHITE, 0.32));
+  plate(g, fr, b0 + 0.952, am - 0.62, am + 0.62, 1.4, 2.6, tone(fr, SAFFRON), 0.8);
+
+  const fb = b0 + 0.4;
+  const sa0 = s.a0 + 0.14;
+  const sa1 = s.a1 - 0.14;
+  const face = (u0: number, u1: number, z0: number, z1: number, col: number, alpha = 1, d = 0.002): void => {
+    plate(g, fr, fb + d, u0, u1, z0, z1, tone(fr, col), alpha);
+  };
+  const at = (u: number, z: number, d = 0.004): Pt => fp(fr, u, fb + d, z);
+  const tint = (col: number): number => tone(fr, col);
+  box(g, fr, sa0, b0, sa1, fb, 9, 88, SANDSTONE, lit(SANDSTONE, 0.25));
+  face(sa0, sa1, 9, 13, lit(SANDSTONE, 0.25));
+  face(sa0, sa1, 13, 15, shade(SANDSTONE, 0.2));
+  face(sa0, sa1, 18, 19.6, KUMKUM, 0.85);
+  for (const u of [sa0 + 0.04, sa1 - 0.18]) {
+    face(u, u + 0.14, 20, 96, lit(SANDSTONE, 0.14));
+    face(u + 0.05, u + 0.09, 24, 92, shade(SANDSTONE, 0.16));
+  }
+  for (const su of [(sa0 + 0.18 + am - 0.52) / 2, (sa1 - 0.18 + am + 0.52) / 2]) {
+    const n0 = 34;
+    const n1 = 64;
+    poly(g, fr, fb + 0.002, windowOutline(su - 0.14, su + 0.14, n0 - 3, n1 + 4, true), tint(shade(SANDSTONE, 0.2)));
+    poly(g, fr, fb + 0.003, windowOutline(su - 0.1, su + 0.1, n0, n1, true), tint(0x5a2a16));
+    poly(g, fr, fb + 0.004, windowOutline(su - 0.07, su + 0.07, n0, n1 - 6, true), WARM, 0.3);
+    diyaAt(g, at(su - 0.02, n0, 0.03), 0.9);
+    lotusAt(g, at(su, 76), 7, LOTUS, tint);
+  }
+  face(am - 0.54, am + 0.54, 12, 88, shade(SANDSTONE, 0.18));
+  face(am - 0.5, am + 0.5, 12, 86, lit(SANDSTONE, 0.18));
+  face(am - 0.43, am + 0.43, 12, 82, 0xb8483a);
+  face(am - 0.38, am + 0.38, 12, 78, GOLD);
+  face(am - 0.36, am + 0.36, 12, 77, 0x3a1a10);
+  face(am - 0.3, am + 0.3, 13, 72, 0xe07a2a, 0.5);
+  face(am - 0.2, am + 0.2, 13, 62, 0xffc860, 0.6);
+  face(am - 0.1, am + 0.1, 13, 50, 0xfff0c0, 0.65);
+  for (let z = 17; z < 80; z += 6) {
+    for (const u of [am - 0.465, am + 0.465, am - 0.405, am + 0.405]) {
+      const p = at(u, z);
+      g.fillStyle(tint(Math.abs(u - am) > 0.44 ? shade(SANDSTONE, 0.22) : GOLD), 1);
+      g.fillCircle(p.x, p.y, 1.3 * S);
+    }
+  }
+  const red = 0xb8282e;
+  for (const dir of [-1, 1] as const) {
+    const u = (k: number): number => am + dir * k;
+    const pts: [number, number][] = [[u(0.36), 76], [u(0.02), 76], [u(0.05), 56], [u(0.18), 30], [u(0.14), 12], [u(0.36), 12]];
+    poly(g, fr, fb + 0.005, pts, tint(red));
+    for (const k of [0.3, 0.24]) plate(g, fr, fb + 0.006, Math.min(u(k), u(k + 0.02)), Math.max(u(k), u(k + 0.02)), 13, 74, tint(shade(red, 0.25)), 0.7);
+    plate(g, fr, fb + 0.006, Math.min(u(0.33), u(0.36)), Math.max(u(0.33), u(0.36)), 13, 74, tint(lit(red, 0.15)), 0.7);
+    if (fr !== 'e') wallPath(g, fr, fb + 0.007, pts.slice(1, 5), 2.2 * S, tint(SAFFRON));
+    plate(g, fr, fb + 0.007, Math.min(u(0.14), u(0.36)), Math.max(u(0.14), u(0.36)), 12, 15, tint(SAFFRON));
+    const tie = at(u(0.185), 30, 0.008);
+    g.fillStyle(tint(GOLD), 1);
+    g.fillCircle(tie.x, tie.y, 2.4 * S);
+    g.fillStyle(tint(lit(GOLD, 0.4)), 1);
+    g.fillCircle(tie.x - 0.6 * S, tie.y - 0.6 * S, 1 * S);
+  }
+  face(am - 0.38, am + 0.38, 70, 78, SAFFRON, 1, 0.008);
+  face(am - 0.38, am + 0.38, 76.5, 78, GOLD, 1, 0.009);
+  for (let u = am - 0.38; u < am + 0.37; u += 0.076) poly(g, fr, fb + 0.009, [[u, 70], [u + 0.076, 70], [u + 0.038, 66]], tint(SAFFRON));
+  face(am - 0.46, am + 0.46, 9, 13, lit(SANDSTONE, 0.3), 1, 0.009);
+  face(am - 0.58, am + 0.58, 86, 97, lit(SANDSTONE, 0.1));
+  face(am - 0.58, am + 0.58, 86, 87.6, shade(SANDSTONE, 0.25));
+  face(am - 0.13, am + 0.13, 87, 96.5, GOLD, 1, 0.003);
+  lotusAt(g, at(am, 88.6), 6.4, LOTUS, tint);
+  for (const dir of [-1, 1]) kalashAt(g, at(am + dir * 0.36, 87.4), 3.6, GOLD, tint);
+  const lintel = (u: number): Pt => at(u, 84, 0.012);
+  marigolds(g, swag(lintel(am - 0.5), lintel(am + 0.5), 9), 2.2, tint);
+  for (let u = am - 0.42; u < am + 0.43; u += 0.14) leaf(g, { x: lintel(u).x, y: lintel(u).y + 3 * S }, Math.PI / 2 + (u - am) * 0.4, 8, 2.6, tint(MANGO.light), tint(MANGO.dark));
+  for (const u of [am - 0.5, am + 0.5]) garlandDrop(g, lintel(u), 16, 1, tint);
+  box(g, fr, sa0 - 0.05, b0, sa1 + 0.05, fb + 0.06, 97, 7, SANDSTONE, lit(SANDSTONE, 0.3));
+  plate(g, fr, fb + 0.062, sa0 - 0.05, sa1 + 0.05, 99, 101, tone(fr, KUMKUM));
+
+  const levels = 20;
+  const band = 3.6;
+  for (let i = 0; i < levels; i++) {
+    const t = i / (levels - 1);
+    const storey = i % 5 === 4;
+    const hw = 1 * (1 - 0.7 * Math.pow(t, 2.2)) + (storey ? 0.04 : 0);
+    const bd = 0.4 - 0.12 * t + (storey ? 0.03 : 0);
+    const z = 104 + i * band;
+    const col = storey ? shade(SANDSTONE, 0.1) : i % 2 === 0 ? SANDSTONE : shade(SANDSTONE, 0.04);
+    box(g, fr, am - hw, b0, am + hw, b0 + bd, z, band, col, lit(col, 0.35));
+    box(g, fr, am - hw * 0.68, b0, am + hw * 0.68, b0 + bd + 0.025, z, band, lit(col, 0.03), lit(col, 0.38));
+    box(g, fr, am - hw * 0.34, b0, am + hw * 0.34, b0 + bd + 0.05, z, band, lit(col, 0.08), lit(col, 0.42));
+    if (i === 0) plate(g, fr, b0 + bd + 0.052, am - hw * 0.34, am + hw * 0.34, z + 1, z + 2.6, tone(fr, KUMKUM));
+  }
+  const crown = 104 + levels * band;
+  box(g, fr, am - 0.2, b0, am + 0.2, b0 + 0.3, crown, 3, shade(SANDSTONE, 0.1), lit(SANDSTONE, 0.2));
+  const [kx, ky] = xy(fr, am, b0 + 0.2);
+  tube(g, kx, ky, 0.18, 0.24, crown + 3, 3, SANDSTONE, null, 16);
+  tube(g, kx, ky, 0.24, 0.24, crown + 6, 6, SANDSTONE, null, 16, true);
+  tube(g, kx, ky, 0.24, 0.15, crown + 12, 3, SANDSTONE, lit(SANDSTONE, 0.3), 16);
+  tube(g, kx, ky, 0.06, 0.11, crown + 15, 4, GOLD, null, 10);
+  tube(g, kx, ky, 0.11, 0.07, crown + 19, 4, GOLD, null, 10);
+  tube(g, kx, ky, 0.035, 0.035, crown + 23, 3, GOLD, lit(GOLD, 0.3), 8);
+  tube(g, kx, ky, 0.03, 0, crown + 26, 9, GOLD, null, 6);
+
+  const kz = 9;
+  const [px, py] = xy(fr, am - 0.95, b0 + 0.54);
+  floorEllipse(g, px + 0.05, py + 0.03, 0.14, SHADOW, 0.3, kz);
+  tube(g, px, py, 0.07, 0.13, kz, 4, BRASS, null, 14);
+  tube(g, px, py, 0.13, 0.12, kz + 4, 5, BRASS, null, 14);
+  tube(g, px, py, 0.12, 0.06, kz + 9, 4, BRASS, null, 14);
+  strokePath(g, nearArc(px, py, 0.128, kz + 6), 1.4 * S, KUMKUM);
+  tube(g, px, py, 0.05, 0.075, kz + 13, 3, BRASS, lit(BRASS, 0.3), 10);
+  const mouth = P(px, py, kz + 16);
+  for (const ang of [-2.7, -2.2, -1.75, -1.35, -0.9, -0.45]) leaf(g, mouth, ang, 13, 3.2, MANGO.light, MANGO.dark);
+  g.fillStyle(0x6a4026, 1);
+  g.fillEllipse(mouth.x, mouth.y - 4 * S, 10 * S, 9 * S, 14);
+  g.fillStyle(0x9a6a3e, 1);
+  g.fillEllipse(mouth.x - 1.4 * S, mouth.y - 5 * S, 5 * S, 4.4 * S, 12);
+  line(g, { x: mouth.x, y: mouth.y - 8 * S }, { x: mouth.x + 1.5 * S, y: mouth.y - 12 * S }, 1.4 * S, 0xc8a070);
+
+  const [fx, fy] = xy(fr, am + 0.95, b0 + 0.52);
+  brassPlate(g, fx, fy, kz, 0.2);
+  const fruitAt = P(fx, fy, kz + 1);
+  for (const [dx, dy, ang] of [[-6, -2, -2.4], [-4, -1, -2.1], [-2, 0, -1.8]] as const) leaf(g, { x: fruitAt.x + dx * S, y: fruitAt.y + dy * S }, ang, 14, 3, 0xf6d84a, 0xd8a82a);
+  for (const [dx, dy, col] of [[4, -2, 0xc8302a], [7, 1, 0xd84a2a], [2, 2, 0x8ab83a]] as const) {
+    g.fillStyle(shade(col, 0.3), 1);
+    g.fillCircle(fruitAt.x + (dx + 0.6) * S, fruitAt.y + (dy - 2.4) * S, 3.6 * S);
+    g.fillStyle(col, 1);
+    g.fillCircle(fruitAt.x + dx * S, fruitAt.y + (dy - 3) * S, 3.2 * S);
+    g.fillStyle(WHITE, 0.45);
+    g.fillCircle(fruitAt.x + (dx - 1) * S, fruitAt.y + (dy - 4) * S, 1 * S);
+  }
+  for (const [ta, tb] of [[0.22, 0.6], [s.a1 - s.a0 - 0.22, 0.6]] as const) diyaAt(g, fp(fr, s.a0 + ta, b0 + tb, kz), 0.95);
+  for (let i = 0; i < 7; i++) {
+    const p = fp(fr, am + (rand() - 0.5) * 1.1, b0 + 0.5 + rand() * 0.15, kz);
+    blossom(g, p.x, p.y - 1.5 * S, 1.8, i % 3 === 0 ? KUMKUM : MARIGOLDS[i % 2] ?? SAFFRON);
+  }
+
+  const tz = 4.5;
+  const [tx, ty] = xy(fr, am, b0 + 0.82);
+  brassPlate(g, tx, ty, tz, 0.17);
+  for (let i = 0; i < 9; i++) {
+    const p = P(tx + 0.05 + rand() * 0.06, ty - 0.08 + rand() * 0.06, tz + 1);
+    g.fillStyle(0xfaf6ea, 1);
+    g.fillCircle(p.x, p.y, 0.8 * S);
+  }
+  const kum = P(tx + 0.08, ty + 0.04, tz + 1);
+  g.fillStyle(shade(KUMKUM, 0.2), 1);
+  g.fillEllipse(kum.x, kum.y, 6 * S, 3 * S, 10);
+  g.fillStyle(KUMKUM, 1);
+  g.fillEllipse(kum.x - 0.4 * S, kum.y - 0.8 * S, 4.4 * S, 2.4 * S, 10);
+  for (const [dx, dy] of [[-0.1, 0.06], [0.02, 0.1], [-0.08, -0.06]] as const) {
+    const p = P(tx + dx, ty + dy, tz + 1);
+    blossom(g, p.x, p.y - 1.6 * S, 2, MARIGOLDS[dx > 0 ? 1 : 0]);
+  }
+  diyaAt(g, P(tx - 0.03, ty - 0.02, tz + 1.2), 0.9);
+  const bx = tx + 0.1;
+  const by = ty - 0.06;
+  tube(g, bx, by, 0.045, 0.028, tz + 1.2, 6, BRASS, null, 8);
+  line(g, P(bx, by, tz + 7), P(bx, by, tz + 14), 1.6 * S, shade(BRASS, 0.15));
+  const knob = P(bx, by, tz + 15);
+  g.fillStyle(BRASS, 1);
+  g.fillCircle(knob.x, knob.y, 1.8 * S);
+}
+
+// A rangoli in bright powder colours on the floor: a lotus of pointed petals in rings of scallops and white dots.
+function rangoli(g: G, f: Furniture, rand: () => number): void {
+  const cx = f.c + f.w / 2;
+  const cy = f.r + f.d / 2;
+  const R = Math.min(f.w, f.d) / 2 - 0.1;
+  const z = 0.4;
+  const pal = RANGOLI[Math.floor(rand() * RANGOLI.length)] ?? RANGOLI[0];
+  const chalk = 0xfaf6ec;
+  const at = (r: number, t: number, ox = cx, oy = cy, rr = R): Pt => P(ox + Math.cos(t) * r * rr, oy + Math.sin(t) * r * rr, z);
+  const disc = (r: number, col: number, ox = cx, oy = cy, rr = R): void => {
+    const pts: Pt[] = [];
+    for (let i = 0; i < 40; i++) pts.push(at(r, (i / 40) * Math.PI * 2, ox, oy, rr));
+    fan(g, col, pts);
+  };
+  const petal = (r0: number, r1: number, t: number, w: number, col: number, ox = cx, oy = cy, rr = R): void => {
+    const m = r0 + (r1 - r0) * 0.45;
+    fan(g, col, [at(r0, t, ox, oy, rr), at(m, t - w, ox, oy, rr), at(r1, t, ox, oy, rr), at(m, t + w, ox, oy, rr)]);
+  };
+  fan(g, SHADOW, quad(cx - R * 0.98, cy - R * 0.98, cx + R * 0.98, cy + R * 0.98), 0.04);
+  for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    const ox = cx + dx * R * 0.86;
+    const oy = cy + dy * R * 0.86;
+    for (let i = 0; i < 4; i++) petal(0.1, 1, (i / 4) * Math.PI * 2 + Math.PI / 4, 0.5, chalk, ox, oy, 0.16);
+    for (let i = 0; i < 4; i++) petal(0.15, 0.85, (i / 4) * Math.PI * 2 + Math.PI / 4, 0.4, pal.scallop, ox, oy, 0.16);
+    disc(0.3, pal.centre, ox, oy, 0.16);
+  }
+  disc(1, chalk);
+  disc(0.965, pal.ring);
+  for (let i = 0; i < 16; i++) {
+    const t = (i / 16) * Math.PI * 2;
+    fan(g, chalk, [at(0.66, t - 0.2), at(0.9, t - 0.15), at(0.97, t), at(0.9, t + 0.15), at(0.66, t + 0.2)]);
+    fan(g, pal.scallop, [at(0.69, t - 0.16), at(0.88, t - 0.11), at(0.935, t), at(0.88, t + 0.11), at(0.69, t + 0.16)]);
+  }
+  disc(0.7, chalk);
+  disc(0.67, pal.leaf);
+  for (let i = 0; i < 8; i++) {
+    const t = (i / 8) * Math.PI * 2;
+    petal(0.18, 0.56, t, 0.24, chalk);
+    petal(0.21, 0.51, t, 0.17, pal.inner);
+  }
+  for (let i = 0; i < 8; i++) {
+    const t = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    petal(0.16, 0.7, t, 0.3, chalk);
+    petal(0.2, 0.64, t, 0.24, pal.petal);
+    petal(0.28, 0.54, t, 0.1, lit(pal.petal, 0.45));
+  }
+  disc(0.24, chalk);
+  disc(0.21, pal.inner);
+  disc(0.13, pal.centre);
+  disc(0.05, chalk);
+  for (let i = 0; i < 32; i++) {
+    const p = at(1.06, (i / 32) * Math.PI * 2);
+    g.fillStyle(chalk, 1);
+    g.fillEllipse(p.x, p.y, 2.6 * S, 1.5 * S, 8);
+  }
+  for (let i = 0; i < 16; i++) {
+    const p = at(0.8, (i / 16) * Math.PI * 2 + Math.PI / 16);
+    g.fillStyle(chalk, 1);
+    g.fillEllipse(p.x, p.y, 2 * S, 1.2 * S, 8);
+  }
+  for (let i = 0; i < 40; i++) {
+    const p = at(rand() * 1.05, rand() * Math.PI * 2);
+    g.fillStyle(WHITE, 0.18);
+    g.fillCircle(p.x, p.y, 0.8 * S);
+  }
+}
+
+// A brass ghanta on a short chain from a carved teak post with a curling brass bracket, its clapper and red tassel at hand height.
+function ghanta(g: G, f: Furniture, layout: RoomLayout): void {
+  const fr = frameOf(f, layout);
+  const s = span(f, fr);
+  const am = (s.a0 + s.a1) / 2;
+  const bp = s.b0 + 0.2;
+  const bb = s.b0 + 0.64;
+  const [px, py] = xy(fr, am, bp);
+  const [x, y] = xy(fr, am, bb);
+  const top = 118;
+  const lip = 62;
+  floorEllipse(g, px + 0.08, py + 0.03, 0.2, SHADOW, 0.22);
+  floorEllipse(g, x + 0.1, y + 0.04, 0.16, SHADOW, 0.1);
+  box(g, fr, am - 0.15, bp - 0.15, am + 0.15, bp + 0.15, 0, 6, SANDSTONE, lit(SANDSTONE, 0.25));
+  box(g, fr, am - 0.1, bp - 0.1, am + 0.1, bp + 0.1, 6, 5, shade(TEAK, 0.1), lit(TEAK, 0.2));
+  box(g, fr, am - 0.055, bp - 0.055, am + 0.055, bp + 0.055, 11, top - 11, TEAK, lit(TEAK, 0.2));
+  for (const z of [26, 60, top - 16]) box(g, fr, am - 0.07, bp - 0.07, am + 0.07, bp + 0.07, z, 3, BRASS, lit(BRASS, 0.3));
+  box(g, fr, am - 0.08, bp - 0.08, am + 0.08, bp + 0.08, top, 4, TEAK, lit(TEAK, 0.25));
+  tube(g, px, py, 0.04, 0.0, top + 4, 8, BRASS, null, 6);
+  const arm: Pt[] = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12;
+    arm.push(fp(fr, am, bp + (bb + 0.04 - bp) * t, top - 6 + 5 * Math.sin(t * Math.PI * 0.8)));
+  }
+  const curl: Pt[] = [];
+  for (let i = 0; i <= 10; i++) {
+    const t = -Math.PI / 2 + (i / 10) * Math.PI * 1.6;
+    curl.push(fp(fr, am, bb + 0.04 + Math.cos(t) * 0.05, top - 4 + 1.6 + Math.sin(t) * 3.4));
+  }
+  line(g, fp(fr, am, bp + 0.03, top - 28), fp(fr, am, bp + 0.22, top - 6), 1.8 * S, shade(BRASS, 0.2));
+  strokePath(g, [...arm, ...curl], 3.2 * S, shade(BRASS, 0.25));
+  strokePath(g, [...arm, ...curl], 1.4 * S, lit(BRASS, 0.35));
+  const tint = (c: number): number => c;
+  marigolds(g, swag(fp(fr, am, bp + 0.03, top - 9), fp(fr, am, bp + 0.3, top - 4), 10, 10), 1.9, tint);
+  garlandDrop(g, fp(fr, am, bp + 0.03, top - 9), 10, 0.8);
+  for (let z = top - 6; z > lip + 31; z -= 3.6) {
+    const p = P(x, y, z);
+    g.lineStyle(1.2 * S, shade(BRASS, 0.2), 1);
+    if (Math.round((top - z) / 3.6) % 2 === 0) g.strokeEllipse(p.x, p.y, 2.6 * S, 4 * S, 8);
+    else line(g, { x: p.x, y: p.y - 2 * S }, { x: p.x, y: p.y + 2 * S }, 1.4 * S, lit(BRASS, 0.1));
+  }
+  const ball = P(x, y, lip - 6);
+  line(g, P(x, y, lip + 10), ball, 1.6 * S, shade(BRASS, 0.45));
+  const cord = P(x, y, 38);
+  line(g, ball, cord, 1.6 * S, KUMKUM);
+  g.fillStyle(shade(BRASS, 0.4), 1);
+  g.fillCircle(ball.x, ball.y, 3 * S);
+  g.fillStyle(lit(BRASS, 0.2), 1);
+  g.fillCircle(ball.x - 0.9 * S, ball.y - 0.9 * S, 1.2 * S);
+  g.fillStyle(SAFFRON, 1);
+  g.fillCircle(cord.x, cord.y, 2.2 * S);
+  fan(g, KUMKUM, [{ x: cord.x - 1.8 * S, y: cord.y + 1 * S }, { x: cord.x + 1.8 * S, y: cord.y + 1 * S }, { x: cord.x + 3.2 * S, y: cord.y + 10 * S }, { x: cord.x - 3.2 * S, y: cord.y + 10 * S }]);
+  for (const dx of [-1.8, 0, 1.8]) line(g, { x: cord.x + dx * 0.6 * S, y: cord.y + 2 * S }, { x: cord.x + dx * S, y: cord.y + 9.5 * S }, 1, shade(KUMKUM, 0.3), 0.7);
+  for (let i = 0; i < GHANTA.length - 1; i++) {
+    const [z0, r0] = GHANTA[i] ?? [0, 0.17];
+    const [z1, r1] = GHANTA[i + 1] ?? [29, 0.03];
+    tube(g, x, y, r0, r1, lip + z0, z1 - z0, i === 0 ? lit(BRASS, 0.1) : BRASS, null, 16);
+  }
+  floorEllipse(g, x, y, 0.035, shade(BRASS, 0.1), 1, lip + 29);
+  const loop = P(x, y, lip + 32);
+  g.lineStyle(1.4 * S, shade(BRASS, 0.15), 1);
+  g.strokeEllipse(loop.x, loop.y, 3 * S, 4.4 * S, 10);
+  strokePath(g, nearArc(x, y, 0.198, lip + 1), 2.2 * S, lit(BRASS, 0.5), 0.95);
+  strokePath(g, nearArc(x, y, 0.16, lip + 4.4), 1.2 * S, shade(BRASS, 0.3), 0.7);
+  for (const z of [12, 20]) strokePath(g, nearArc(x, y, 0.128, lip + z), 1.4 * S, lit(BRASS, 0.35), 0.8);
+  fan(g, WHITE, [P(x - 0.12, y + 0.08, lip + 4), P(x - 0.08, y + 0.1, lip + 4), P(x - 0.06, y + 0.06, lip + 22), P(x - 0.08, y + 0.04, lip + 22)], 0.35);
+}
+
+// A carved sandstone pillar: a moulded base, a square shaft with lotus panels, an octagonal drum wound with marigolds,
+// a pot-and-foliage neck and a cross-bracket capital carrying the beam.
+function stonePillar(g: G, f: Furniture): void {
+  const x = f.c + f.w / 2;
+  const y = f.r + f.d / 2;
+  const st = SANDSTONE;
+  const tint = (c: number): number => c;
+  fan(g, SHADOW, [P(x - 0.3, y - 0.3), P(x + 0.9, y - 0.2), P(x + 1, y + 0.3), P(x - 0.3, y + 0.42)], 0.12);
+  prism(g, x - 0.4, y - 0.4, x + 0.4, y + 0.4, 0, 6, shade(st, 0.08), lit(st, 0.2));
+  prism(g, x - 0.34, y - 0.34, x + 0.34, y + 0.34, 6, 5, st, lit(st, 0.25));
+  fan(g, KUMKUM, [P(x - 0.34, y + 0.341, 8.2), P(x + 0.34, y + 0.341, 8.2), P(x + 0.34, y + 0.341, 9.6), P(x - 0.34, y + 0.341, 9.6)], 0.85);
+  fan(g, shade(KUMKUM, 0.3), [P(x + 0.341, y + 0.34, 8.2), P(x + 0.341, y - 0.34, 8.2), P(x + 0.341, y - 0.34, 9.6), P(x + 0.341, y + 0.34, 9.6)], 0.85);
+  prism(g, x - 0.3, y - 0.3, x + 0.3, y + 0.3, 11, 4, shade(st, 0.05), lit(st, 0.25));
+  const sq = 0.23;
+  prism(g, x - sq, y - sq, x + sq, y + sq, 15, 35, st, lit(st, 0.25));
+  fan(g, shade(st, 0.12), [P(x - 0.16, y + sq + 0.001, 19), P(x + 0.16, y + sq + 0.001, 19), P(x + 0.16, y + sq + 0.001, 46), P(x - 0.16, y + sq + 0.001, 46)]);
+  fan(g, shade(st, 0.48), [P(x + sq + 0.001, y + 0.16, 19), P(x + sq + 0.001, y - 0.16, 19), P(x + sq + 0.001, y - 0.16, 46), P(x + sq + 0.001, y + 0.16, 46)]);
+  lotusAt(g, P(x, y + sq + 0.002, 30), 6, LOTUS, tint);
+  fan(g, shade(st, 0.3), [P(x + sq + 0.002, y, 26), P(x + sq + 0.002, y - 0.1, 32), P(x + sq + 0.002, y, 40), P(x + sq + 0.002, y + 0.1, 32)]);
+  fan(g, KUMKUM, [P(x - sq, y + sq + 0.002, 42), P(x + sq, y + sq + 0.002, 42), P(x + sq, y + sq + 0.002, 43.4), P(x - sq, y + sq + 0.002, 43.4)]);
+  fan(g, shade(KUMKUM, 0.3), [P(x + sq + 0.002, y + sq, 42), P(x + sq + 0.002, y - sq, 42), P(x + sq + 0.002, y - sq, 43.4), P(x + sq + 0.002, y + sq, 43.4)]);
+  prism(g, x - 0.27, y - 0.27, x + 0.27, y + 0.27, 50, 4, lit(st, 0.08), lit(st, 0.3));
+  tube(g, x, y, 0.22, 0.22, 54, 26, st, null, 8, true);
+  tube(g, x, y, 0.25, 0.25, 80, 4, st, lit(st, 0.3), 16);
+  tube(g, x, y, 0.18, 0.18, 84, 12, st, null, 14);
+  tube(g, x, y, 0.18, 0.27, 96, 6, st, null, 16);
+  tube(g, x, y, 0.27, 0.2, 102, 5, st, lit(st, 0.25), 16);
+  for (let i = 0; i <= 4; i++) {
+    const t = -Math.PI / 4 + (Math.PI * (i + 0.5)) / 5;
+    const p = P(x + Math.cos(t) * 0.27, y + Math.sin(t) * 0.27, 101);
+    fan(g, i < 2 ? lit(st, 0.08) : shade(st, 0.12), [{ x: p.x - 4 * S, y: p.y }, { x: p.x + 4 * S, y: p.y }, { x: p.x + 2.6 * S, y: p.y + 6 * S }, { x: p.x, y: p.y + 9 * S }, { x: p.x - 2.6 * S, y: p.y + 6 * S }]);
+    line(g, { x: p.x, y: p.y + 1 * S }, { x: p.x, y: p.y + 7.5 * S }, 1, shade(st, 0.3), 0.6);
+  }
+  tube(g, x, y, 0.16, 0.16, 107, 3, shade(st, 0.05), null, 12);
+  prism(g, x - 0.26, y - 0.26, x + 0.26, y + 0.26, 110, 4, st, lit(st, 0.3));
+  const arm = 0.6;
+  const w = 0.13;
+  const bz = 114;
+  const bh = 9;
+  prism(g, x - arm, y - w, x - w, y + w, bz, bh, st, lit(st, 0.3));
+  prism(g, x - w, y - arm, x + w, y - w, bz, bh, st, lit(st, 0.3));
+  prism(g, x - w, y - w, x + w, y + w, bz, bh, st, lit(st, 0.3));
+  prism(g, x + w, y - w, x + arm, y + w, bz, bh, st, lit(st, 0.3));
+  prism(g, x - w, y + w, x + w, y + arm, bz, bh, st, lit(st, 0.3));
+  prism(g, x + arm - 0.12, y - 0.07, x + arm - 0.02, y + 0.07, bz - 5, 5, shade(st, 0.05));
+  prism(g, x - 0.07, y + arm - 0.12, x + 0.07, y + arm - 0.02, bz - 5, 5, shade(st, 0.05));
+  fan(g, shade(st, 0.25), [P(x - w, y + arm + 0.001, bz + 3), P(x + w, y + arm + 0.001, bz + 3), P(x + w, y + arm + 0.001, bz + 4.5), P(x - w, y + arm + 0.001, bz + 4.5)]);
+  prism(g, x - 0.3, y - 0.3, x + 0.3, y + 0.3, bz + bh, 6, lit(st, 0.04), lit(st, 0.3));
+  fan(g, KUMKUM, [P(x - 0.3, y + 0.301, bz + bh + 2), P(x + 0.3, y + 0.301, bz + bh + 2), P(x + 0.3, y + 0.301, bz + bh + 3.4), P(x - 0.3, y + 0.301, bz + bh + 3.4)], 0.85);
+  marigolds(g, nearArc(x, y, 0.235, 74, 16), 2);
+  const loop: Pt[] = [];
+  for (let i = 0; i <= 16; i++) {
+    const t = -Math.PI / 4 + (Math.PI * i) / 16;
+    loop.push(P(x + Math.cos(t) * 0.24, y + Math.sin(t) * 0.24, 74 - 12 * Math.sin((t + Math.PI / 4))));
+  }
+  marigolds(g, loop, 2, tint, 1);
+}
+
+// A tulsi vrindavan: a whitewashed square planter edged in red ochre with a diya niche and corner horns, holding a bushy tulsi.
+function tulsi(g: G, f: Furniture, rand: () => number): void {
+  const x = f.c + f.w / 2;
+  const y = f.r + f.d / 2;
+  const white = 0xf6eee0;
+  const ochre = 0xb8483a;
+  contact(g, x - 0.42, y - 0.42, x + 0.42, y + 0.42, 0.22);
+  prism(g, x - 0.4, y - 0.4, x + 0.4, y + 0.4, 0, 5, SANDSTONE, lit(SANDSTONE, 0.25));
+  prism(g, x - 0.34, y - 0.34, x + 0.34, y + 0.34, 5, 4, shade(white, 0.04), white);
+  const r = 0.3;
+  prism(g, x - r, y - r, x + r, y + r, 9, 30, white);
+  const band = (z0: number, z1: number): void => {
+    fan(g, ochre, [P(x - r, y + r + 0.001, z0), P(x + r, y + r + 0.001, z0), P(x + r, y + r + 0.001, z1), P(x - r, y + r + 0.001, z1)]);
+    fan(g, shade(ochre, 0.3), [P(x + r + 0.001, y + r, z0), P(x + r + 0.001, y - r, z0), P(x + r + 0.001, y - r, z1), P(x + r + 0.001, y + r, z1)]);
+  };
+  band(9, 12);
+  band(35, 39);
+  const arch = (pl: (u: number, z: number) => Pt, z0: number, z1: number, hw: number, col: number): void => {
+    fan(g, col, windowOutline(-hw, hw, z0, z1, true).map(([u, z]) => pl(u, z)));
+  };
+  const south = (u: number, z: number): Pt => P(x + u, y + r + 0.002, z);
+  const east = (u: number, z: number): Pt => P(x + r + 0.002, y - u, z);
+  arch(south, 14, 32, 0.12, ochre);
+  arch(south, 15, 30, 0.095, 0x4a2010);
+  arch(south, 15, 26, 0.07, WARM);
+  fan(g, WARM, windowOutline(-0.095, 0.095, 15, 30, true).map(([u, z]) => south(u, z)), 0.25);
+  diyaAt(g, P(x - 0.01, y + r + 0.02, 15), 0.7);
+  arch(east, 16, 30, 0.1, shade(ochre, 0.3));
+  arch(east, 17.5, 28.5, 0.075, shade(white, 0.38));
+  lotusAt(g, east(0, 21), 4.5, shade(LOTUS, 0.3));
+  prism(g, x - 0.35, y - 0.35, x + 0.35, y + 0.35, 39, 4, white, lit(white, 0.3));
+  fan(g, 0x5a3a26, quad(x - 0.27, y - 0.27, x + 0.27, y + 0.27, 43.1));
+  const horn = (hx: number, hy: number): void => {
+    prism(g, hx - 0.05, hy - 0.05, hx + 0.05, hy + 0.05, 43, 4, white, lit(white, 0.3));
+    const apex = P(hx, hy, 55);
+    fan(g, lit(white, 0.05), [P(hx - 0.05, hy + 0.05, 47), P(hx + 0.05, hy + 0.05, 47), apex]);
+    fan(g, shade(white, 0.3), [P(hx + 0.05, hy + 0.05, 47), P(hx + 0.05, hy - 0.05, 47), apex]);
+    const tip = P(hx, hy, 55);
+    g.fillStyle(ochre, 1);
+    g.fillCircle(tip.x, tip.y, 1.3 * S);
+  };
+  horn(x - 0.29, y - 0.29);
+  horn(x + 0.29, y - 0.29);
+  horn(x - 0.29, y + 0.29);
+  const soil = P(x, y, 43);
+  for (const [dx, h] of [[-3, 24], [1, 30], [4, 22]] as const) line(g, soil, { x: soil.x + dx * S, y: soil.y - h * S }, 1.6 * S, 0x6a3a4a);
+  const leaves: { x: number; y: number; k: number }[] = [];
+  for (let i = 0; i < 70; i++) {
+    const a = rand() * Math.PI * 2;
+    const d = Math.sqrt(rand());
+    leaves.push({ x: Math.cos(a) * d * 14, y: -20 + Math.sin(a) * d * 13, k: rand() });
+  }
+  leaves.sort((p, q) => p.y - q.y);
+  for (const p of leaves) {
+    const side = Math.max(0, Math.min(1, (p.x + 14) / 28));
+    const base = p.k < 0.25 ? 0x5a6a3a : mix(0x7ab84e, 0x3a6a30, side * 0.8);
+    g.fillStyle(shade(base, 0.25), 1);
+    g.fillEllipse(soil.x + (p.x + 0.6) * S, soil.y + (p.y + 0.8) * S, 4.4 * S, 2.8 * S, 8);
+    g.fillStyle(base, 1);
+    g.fillEllipse(soil.x + p.x * S, soil.y + p.y * S, 4 * S, 2.5 * S, 8);
+  }
+  for (let i = 0; i < 7; i++) {
+    const sx = soil.x + (rand() - 0.5) * 20 * S;
+    const sy = soil.y - (24 + rand() * 6) * S;
+    const len = (7 + rand() * 5) * S;
+    line(g, { x: sx, y: sy }, { x: sx, y: sy - len }, 1.2 * S, 0x6a3a5a);
+    for (let k = 0; k < 4; k++) {
+      g.fillStyle(0x9a5a9a, 1);
+      g.fillCircle(sx, sy - len * (0.3 + k * 0.22), 1 * S);
+    }
+  }
+  horn(x + 0.29, y + 0.29);
+}
+
+// A tall brass deepastambha: a domed foot, a ringed stem and tiers of oil cups each ringed with little flames, under a lotus bud.
+function deepastambha(g: G, f: Furniture, layout: RoomLayout): void {
+  const x = f.c + f.w / 2;
+  const y = f.r + f.d / 2;
+  const bounds = { x1: layout.w - 1, y1: layout.d - 1 };
+  for (const [r, alpha] of [[2.2, 0.045], [1.6, 0.05], [1.05, 0.06], [0.6, 0.08]] as const) floorPool(g, x, y, r, WARM, alpha, bounds);
+  for (const [z, r] of [[40, 40], [62, 34], [80, 28]] as const) {
+    const c = P(x, y, z);
+    g.fillStyle(WARM, 0.07);
+    g.fillCircle(c.x, c.y - 4 * S, r * S);
+  }
+  floorEllipse(g, x + 0.08, y + 0.03, 0.28, SHADOW, 0.25);
+  tube(g, x, y, 0.28, 0.26, 0, 3, shade(BRASS, 0.1), lit(BRASS, 0.2), 18);
+  tube(g, x, y, 0.23, 0.09, 3, 10, BRASS, null, 16);
+  tube(g, x, y, 0.1, 0.1, 13, 2, lit(BRASS, 0.1), lit(BRASS, 0.3), 12);
+  const tiers = [[38, 0.25, 7], [60, 0.19, 6], [78, 0.13, 5]] as const;
+  let from = 15;
+  for (const [z, r, n] of tiers) {
+    tube(g, x, y, 0.035, 0.035, from, z - from - 4, BRASS, null, 4);
+    for (let k = from + 10; k < z - 8; k += 12) tube(g, x, y, 0.06, 0.06, k, 3, lit(BRASS, 0.05), lit(BRASS, 0.3), 10);
+    tube(g, x, y, r * 0.3, r, z - 4, 4, BRASS, null, 16);
+    floorEllipse(g, x, y, r, lit(BRASS, 0.25), 1, z);
+    floorEllipse(g, x, y, r * 0.82, 0x6a3a10, 1, z + 0.1);
+    for (let i = 0; i < n; i++) {
+      const t = (i / n) * Math.PI * 2 + 0.3;
+      flameAt(g, P(x + Math.cos(t) * r * 0.86, y + Math.sin(t) * r * 0.86, z + 0.5), 0.85);
+    }
+    from = z;
+  }
+  tube(g, x, y, 0.035, 0.035, from, 10, BRASS, null, 4);
+  tube(g, x, y, 0.05, 0.09, from + 10, 4, BRASS, null, 10);
+  tube(g, x, y, 0.09, 0, from + 14, 12, BRASS, null, 10);
+  const tip = P(x, y, from + 26);
+  g.fillStyle(lit(BRASS, 0.3), 1);
+  g.fillCircle(tip.x, tip.y, 1.4 * S);
+  line(g, P(x - 0.02, y + 0.02, 18), P(x - 0.02, y + 0.02, 76), 1, lit(BRASS, 0.5), 0.5);
+}
+
 /** One piece of furniture, drawn in room-local tile coordinates like the shell; `layout` is the room it stands in, so it can face its wall and keep its light on the floor. */
 export function drawPiece(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, seed: number): void {
   const rand = pieceRand(f, seed);
@@ -4186,13 +4957,20 @@ export function drawPiece(g: G, f: Furniture, layout: RoomLayout, room: RoomKind
       candles(g, f, layout, rand);
       return;
     case 'bell':
-      bell(g, f, layout);
+      if (room === 'mandir') ghanta(g, f, layout);
+      else bell(g, f, layout);
       return;
     case 'cushion':
       cushion(g, f, layout, rand);
       return;
     case 'pool':
       pool(g, f, layout, rand);
+      return;
+    case 'sanctum':
+      sanctum(g, f, layout, rand);
+      return;
+    case 'rangoli':
+      rangoli(g, f, rand);
       return;
   }
 }
@@ -4204,6 +4982,7 @@ export function drawPiece(g: G, f: Furniture, layout: RoomLayout, room: RoomKind
  */
 export function pieceFront(f: Furniture, layout?: RoomLayout): { x: number; y: number } {
   if (f.piece === 'rug') return { x: f.c, y: f.r };
+  if (f.piece === 'rangoli') return { x: f.c - 0.5, y: f.r - 0.5 };
   if (f.piece === 'pool') return { x: f.c + f.w / 2, y: f.r + f.d / 2 };
   if (layout !== undefined && frameOf(f, layout) === 'e') return { x: f.c, y: f.r + f.d };
   return f.w >= f.d ? { x: f.c, y: f.r + f.d } : { x: f.c + f.w, y: f.r };

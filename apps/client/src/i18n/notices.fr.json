@@ -1,0 +1,152 @@
+{
+  "councilMeetings": {
+    "title": "Le Conseil se réunit le jeudi",
+    "body": "Le Conseil de Port Concord se réunit chaque jeudi à 19 h dans la Salle, au premier étage de l’Hôtel de ville. Tous les habitants sont les bienvenus. Les questions du public sont prises la première demi-heure, trois minutes chacune, chronométrées au sablier officiel. Attention : l’horloge de la salle avance de quatre minutes. Arrive en avance, ou au moins à l’heure de cette horloge.",
+    "from": "Prudence Ogilvy, greffière du Conseil"
+  },
+  "regattaClosure": {
+    "title": "Route fermée : samedi de la régate",
+    "body": "Harbour Parade sera fermée aux charrettes et chariots de 6 h à 20 h le samedi de la régate, des Reef Docks à la halle aux poissons de Saltmarket. Spectateurs, merci de prendre les escaliers de Low Tide. Baignoires, radeaux et tout ce qui n’est pas un bateau seront refoulés à la cale. Cette année, le comité ne plaisante pas.",
+    "from": "Le Comité de la régate"
+  },
+  "lostAndFound": {
+    "title": "Objets trouvés",
+    "body": "À réclamer à l’accueil : un parapluie rayé, trois gants dépareillés (tous de la main gauche), une boussole en laiton, un livre de la bibliothèque sur les nœuds, des clés de maison sur un porte-clés phare, et un billet de ferry pour les Shallows daté de jeudi dernier. Ce qui n’est pas réclamé sous 30 jours ira au stand caritatif de Saltmarket.",
+    "from": "Accueil, Hôtel de ville"
+  },
+  "libraryHours": {
+    "title": "Horaires de la Harbour Library",
+    "body": "Du lundi au vendredi, de 9 h à 19 h. Samedi, de 10 h à 16 h. Fermé le dimanche. Heure du conte pour les petits chaque samedi à 11 h dans la salle de lecture. Les livres s’empruntent pour trois semaines. Pas d’amende de retard si tu rends le livre avec un petit avis. Ne fais pas sécher les livres mouillés sur les radiateurs : ils gondolent et ils boudent.",
+    "from": "La Harbour Library"
+  },
+  "beachClean": {
+    "title": "Bénévoles recherchés : nettoyage de plage",
+    "body": "Rejoins-nous sur le sable sous Gullmoor ce dimanche, de 9 h à midi. Gants, sacs et pinces fournis, avec du thé et des brioches de la boulangerie de Ravi. La dernière fois, on a rempli 41 sacs et trouvé un chariot de supermarché et un crabe très surpris, qui a été relâché. Enfants bienvenus avec un adulte. Mets des bottes : la marée n’attend personne.",
+    "from": "Les Amis du rivage"
+  },
+  "festivalSeason": {
+    "title": "Fêtes d’automne : Diwali et la Nuit des lanternes",
+    "body": "Diwali : des diyas sur les marches du Shri Samudra Mandir au crépuscule, avec rangoli, musique et douceurs après l’aarti du soir. Tout le monde est bienvenu ; chaussures au râtelier. Nuit des lanternes : à la pleine lune, lâche une lanterne des Reef Docks avec la marée du soir (papier et bougie seulement). Atelier lanternes gratuit pour les enfants à Pixel Pier Arcade dès 16 h.",
+    "from": "Bureau des fêtes de Port Concord"
+  },
+  "dogLicence": {
+    "title": "Rappel : licences pour chiens",
+    "body": "Chaque chien de Port Concord doit renouveler sa licence au printemps, à l’accueil de l’Hôtel de ville. Apporte le nom, l’âge et une description de ton chien ; le chien est facultatif, mais très apprécié du personnel. Les chiens en règle reçoivent une médaille en laiton. Ramasse derrière ton chien sur Harbour Parade. Les chats n’ont pas besoin de licence : aucun n’a jamais accepté de médaille.",
+    "from": "Service des licences, Hôtel de ville"
+  },
+  "pierConsultation": {
+    "title": "Consultation publique : la nouvelle jetée",
+    "body": "Le conseil propose une nouvelle jetée près de Saltmarket pour les ferrys vers les Shallows. Les plans sont exposés dans le hall de l’Hôtel de ville jusqu’à la fin du mois. Donne ton avis sur une carte, ou viens à la soirée portes ouvertes mercredi à 18 h. Questions reçues : « Y aura-t-il des bancs ? » (oui) et « Est-ce qu’elle va tanguer ? » (non).",
+    "from": "Service des travaux du port"
+  },
+  "lostCat": {
+    "title": "CHAT PERDU : Admiral",
+    "body": "Grand matou roux, chaussettes blanches, une oreille un peu pliée. Répond à Admiral ou au bruit d’une boîte qu’on ouvre. Vu pour la dernière fois mardi près de la halle aux poissons, l’air très content de lui. Très gentil mais il VA voler tes sardines. Si tu le vois, ne le poursuis pas, viens nous le dire au 14 Lantern Lane, Low Tide. Récompense : une miche toute fraîche et un gros câlin !!",
+    "from": "Maisie, 9 ans (et sa maman)"
+  },
+  "recyclingDays": {
+    "title": "Jours de recyclage par quartier",
+    "body": "Verre et boîtes : le lundi à Low Tide et Saltmarket, le mardi à The Heights et Signet Row. Papier et carton : le mercredi, dans toute la ville. Caisses à poisson et vieux filets dans la benne des Reef Docks uniquement, jamais dans les poubelles de rue. Rince tes bocaux. Les mouettes savent lire le calendrier : sors les poubelles le matin, pas la veille au soir.",
+    "from": "Service des poubelles et balais"
+  },
+  "courierWanted": {
+    "title": "RECHERCHE : coursier rapide sur ses jambes",
+    "body": "Vance & Daughters Shipping cherche un coursier pour porter lettres et colis entre Council Hill, Signet Row et les Reef Docks. Il faut connaître la ville, garder tout au sec et ne jamais lire le courrier des autres. Vélo fourni ; la sonnette peut servir à volonté. Le matin, du lundi au samedi. Présente-toi au bureau 3B avec un mot disant par où tu irais à Gullmoor.",
+    "from": "Vance & Daughters Shipping, bureau 3B"
+  },
+  "juniorClerk": {
+    "title": "Recherche commis débutant",
+    "body": "Le Bureau des comptes du port cherche un commis débutant. Belle écriture, calcul solide et amour des colonnes bien rangées indispensables. Tu apprendras la partie double, le rapprochement et le noble art du classement. Aucune expérience requise ; patience exigée. Thé fourni, biscuits rationnés. Candidature écrite à Mme E. Rook, cheffe de bureau, avant la fin du mois.",
+    "from": "Bureau des comptes du port"
+  },
+  "nightWatch": {
+    "title": "Veilleur de nuit recherché aux Reef Docks",
+    "body": "La Reef Docks Company recrute un veilleur de nuit, de 22 h à 6 h, quatre nuits par semaine. Missions : arpenter les quais, vérifier les cadenas des entrepôts, noter chaque navire qui entre et sort, et sonner la cloche au moindre souci. Être calme, éveillé, et ne craindre ni le noir ni les mouettes. Lanterne, thermos et manteau bien chaud fournis. Demande le contremaître Duda au hangar 7.",
+    "from": "Reef Docks Company"
+  },
+  "kettleRota": {
+    "title": "LE PLANNING DE LA BOUILLOIRE (lisez-le vraiment)",
+    "body": "Lun : Comptes. Mar : Expéditions. Mer : Juridique. Jeu : Comptes encore (vous savez pourquoi). Ven : celui qui a fini le lait jeudi. Rince ta tasse. Détartrage le vendredi. La bouilloire n’est pas une casserole à soupe, Derek. Qui est de service remplit aussi la boîte à biscuits, ce qui est un privilège, pas une corvée.",
+    "from": "Services généraux, 2e étage"
+  },
+  "brokenLift": {
+    "title": "Ascenseur en panne",
+    "body": "L’ascenseur est encore en panne, bloqué entre le deuxième et le troisième étage. Personne à l’intérieur ; c’était le monstera du Juridique, et il va bien. Le technicien passe jeudi. D’ici là, prenez l’escalier et portez les colis lourds à deux. Une chaise attend sur le palier du troisième pour qui a besoin de s’asseoir.",
+    "from": "Gestion de l’immeuble"
+  },
+  "roomToLet": {
+    "title": "Chambre à louer, Signet Row",
+    "body": "Chambre lumineuse dans un appartement calme au-dessus de la papeterie, à cinq minutes de l’hôpital. Cuisine partagée, jardinière à toi, et vue sur la Gate Tower si tu te penches. Idéal pour un commis, une infirmière ou toute autre personne soigneuse. Ni tambours ni perroquets. Loyer payé chaque mois au comptoir du Mint Hall. Demande à l’appartement 4 n’importe quel soir après 18 h.",
+    "from": "M. et Mme Okafor, appartement 4"
+  },
+  "shippingNotice": {
+    "title": "Avis maritime : arrivées de la semaine",
+    "body": "Attendus aux Reef Docks : le Gannet (épices, pleine mer de jeudi), le Marlinspike (poisson, chaque jour si le temps le permet) et le Patient Heron (bois, retardé par le brouillard). Les destinataires doivent retirer sous trois jours ou payer le stockage. Grandes marées ce week-end : les postes 5 à 8 assèchent à marée basse, prévoyez de décharger au flot.",
+    "from": "Capitainerie du port"
+  },
+  "chessClub": {
+    "title": "Club d’échecs de midi",
+    "body": "Chaque mercredi, de 12 h 30 à 13 h 30, en salle de réunion B. Tous niveaux, des grands maîtres à ceux qui croient que le cavalier tourne en rond. Échiquiers fournis. Apporte ton déjeuner, mais pas de soupe près des pièces. Défi du mois : battre le vieux M. Hargreaves, du Juridique, qui n’a pas perdu une partie depuis qu’il était commis.",
+    "from": "Le Club d’échecs (demande Nadia)"
+  },
+  "fileReceipts": {
+    "title": "Petit rappel : classe tes reçus",
+    "body": "Les notes de frais sans reçu ne seront pas remboursées. Pas même les petites. Surtout pas les petites. Agrafe chaque reçu à son formulaire, note la date et l’objet, et rends-le avant le 25. Un reçu qui dit juste « déjeuner », ce n’est pas un reçu, c’est un état d’âme. Merci !",
+    "from": "Bureau des comptes"
+  },
+  "fireDrill": {
+    "title": "Exercice d’incendie mardi",
+    "body": "Un exercice d’incendie aura lieu mardi à 11 h. Quand la cloche sonne, sors par l’escalier le plus proche (pas l’ascenseur, qui est en panne de toute façon) et rejoins la fontaine de Council Hill. Laisse ton thé. Laisse tes papiers. Laisse le monstera. Les serre-files en écharpe jaune compteront les têtes ; reste immobile et laisse-toi compter.",
+    "from": "Responsable incendie, 2e étage"
+  },
+  "signingRota": {
+    "title": "Planning des gardiens : poste de signature",
+    "body": "Poste de signature cette semaine : lundi et mardi, gardiens Ada et Bram ; mercredi et jeudi, Chen et Dela ; vendredi, tout le monde pour l’audit mensuel. Le poste veille ; il ne décide pas. Chaque billet doit toujours obtenir l’accord d’un seuil de gardiens. Tu échanges un créneau ? Note-le sur cette feuille. Ne signe jamais à la place de quelqu’un.",
+    "from": "Gardien principal, salle des signatures"
+  },
+  "neverShareKeys": {
+    "title": "Ne partage jamais tes clés",
+    "body": "Ta part de clé de gardien et les mots de récupération de ton portefeuille n’appartiennent qu’à toi. Aucun vrai gardien, commis ou élu ne te les demandera jamais : ni par lettre, ni au comptoir, ni avec un très joli chapeau. Écris tes mots sur papier et range-les dans un endroit sûr et sec. Ne les tape jamais là où on te les demande. Si quelqu’un insiste, dis non et préviens le gardien de service.",
+    "from": "Les Gardiens de la Monnaie"
+  },
+  "checkBeforeAccepting": {
+    "title": "Vérifie le billet avant de l’accepter",
+    "body": "Un billet ne vaut que si la fédération le dit. Avant de remettre la marchandise, laisse ton portefeuille vérifier les billets auprès de la Monnaie et attends qu’il confirme le paiement. La photo d’un billet, la promesse d’un billet ou un billet « sûrement bon » selon quelqu’un, ce n’est pas un paiement. Encaisse tout de suite les billets reçus, pour que personne ne dépense une copie avant toi.",
+    "from": "Gardien de service"
+  },
+  "mintHours": {
+    "title": "Horaires du Mint Hall",
+    "body": "Comptoir : du lundi au vendredi, de 9 h à 17 h ; le samedi, de 9 h à 13 h. Galerie du coffre : le samedi seulement, en visite guidée. Fermé le dimanche et les jours de fête. La fédération, elle, ne dort jamais : les gardiens font tourner leurs serveurs jour et nuit, donc ton portefeuille marche même portes closes. Essuie tes bottes ; le marbre est neuf.",
+    "from": "Accueil du Mint Hall"
+  },
+  "depositsAtCounter": {
+    "title": "Comment se passent les dépôts au comptoir",
+    "body": "1. Prends un ticket et fais la queue. 2. Dis au commis combien de sats tu déposes. 3. Ton portefeuille crée des billets aveuglés et les gardiens les signent ensemble : personne au comptoir ne peut voir lesquels sont à toi. 4. Vérifie que ton portefeuille affiche le nouveau solde avant de partir. 5. Garde ton reçu. Des questions ? Demande à n’importe quel gardien en robe.",
+    "from": "Services du comptoir"
+  },
+  "forgedNote": {
+    "title": "ATTENTION : faux billet découvert",
+    "body": "Un faux billet de 64 sats a été refusé à un stand de Saltmarket cette semaine. Les signes : sa signature ne correspondait pas à la clé de la fédération, ce billet avait déjà été dépensé, et le vendeur voulait un échange rapide « avant l’ouverture de la Monnaie ». La hâte et la pression sont le plus gros indice. Laisse ton portefeuille vérifier chaque billet. S’il en refuse un, refuse-le aussi.",
+    "from": "Sécurité du Mint Hall"
+  },
+  "newGuardians": {
+    "title": "Bienvenue aux nouveaux gardiens !",
+    "body": "Accueillons les gardiens Rosa, Kwame et Tobiah, assermentés samedi devant le conseil et une foule respectable. Chacun détient désormais une part de clé, et aucun ne peut signer seul. Leur serment, comme toujours : garder le serveur en marche, vérifier chaque proposition, refuser de signer ce qu’on ne peut pas vérifier. Il y avait du gâteau. Une mouette est venue et a été poliment désassermentée.",
+    "from": "La Fédération de Port Concord"
+  },
+  "federationThanks": {
+    "title": "Un grand merci de la fédération",
+    "body": "À tous ceux qui ont patienté pendant l’audit du mois dernier, qui ont signalé un billet bizarre au lieu de le dépenser, et qui ont apporté du thé aux gardiens pendant la longue garde de nuit : merci. Une fédération n’est forte que des gens qui la gardent honnête, et ce mois-ci, c’était vous tous. Les comptes tombent juste, au sat près.",
+    "from": "Les Gardiens de la Monnaie"
+  },
+  "vaultQueueRules": {
+    "title": "Règles de la file du coffre",
+    "body": "1. Une seule file. Elle serpente ; suis le cordon de laiton. 2. Aie ton ticket prêt. 3. Pas de places gardées pour cousins, amis ou très gros chiens. 4. Reste en retrait quand on sert la personne devant ; ses affaires la regardent. 5. Ni course, ni cris, ni marchandage avec le commis. 6. La file n’est pas l’endroit pour demander ses mots de récupération à un inconnu. Ni à personne, jamais.",
+    "from": "Huissier en chef, Mint Hall"
+  },
+  "fakeGuardians": {
+    "title": "Attention aux faux gardiens",
+    "body": "Quelqu’un en robe empruntée propose de « doubler tes billets » devant le Mint Hall. Aucun gardien ne proposera jamais de doubler, garder ou améliorer ton argent. Les vrais gardiens portent un badge numéroté, travaillent dans le Hall et ne te demandent jamais de billets ni de mots de récupération. Si une offre semble trop belle pour être vraie, c’est qu’elle l’est. Signale-la au comptoir.",
+    "from": "Sécurité du Mint Hall"
+  }
+}

@@ -41,7 +41,7 @@ export function districtAt(pos: Vec2): District | null {
 }
 
 // A named landmark or an ordinary building, for the client to draw the right shape and height.
-export const BUILDING_KINDS = ['mintHall', 'gateTower', 'cityHall', 'hospital', 'fishMarket', 'lighthouse', 'radioMast', 'gatehouse', 'warehouse', 'office', 'tower', 'shop', 'house', 'mansion', 'stall', 'arcade', 'chapel', 'temple'] as const;
+export const BUILDING_KINDS = ['mintHall', 'gateTower', 'cityHall', 'hospital', 'fishMarket', 'lighthouse', 'radioMast', 'gatehouse', 'warehouse', 'office', 'tower', 'shop', 'house', 'mansion', 'stall', 'arcade', 'chapel', 'temple', 'mandir'] as const;
 export type BuildingKind = (typeof BUILDING_KINDS)[number];
 
 export interface CityBuilding {
@@ -84,6 +84,7 @@ const LANDMARKS: readonly { kind: BuildingKind; at: readonly [number, number]; h
   { kind: 'arcade', at: [74, 64], height: 110 },
   { kind: 'chapel', at: [88, 32], height: 160 },
   { kind: 'temple', at: [104, 80], height: 130 },
+  { kind: 'mandir', at: [88, 48], height: 120 },
   { kind: 'gatehouse', at: [32, 16], height: 70 },
 ];
 
@@ -246,6 +247,7 @@ function build(): CityLayout {
   place('house', 'shallows', { c0: 16, r0: 92, c1: 18, r1: 94 }, 70);
   place('house', 'shallows', { c0: 33, r0: 99, c1: 35, r1: 101 }, 70);
   place('house', 'shallows', { c0: 14, r0: 109, c1: 16, r1: 111 }, 70);
+  place('mandir', 'shallows', { c0: 20, r0: 93, c1: 23, r1: 96 }, 80);
   // Street trees on the Heights and the Mint, and lamps at road corners.
   for (const c0 of ROAD_COLS) {
     for (const r0 of ROAD_ROWS) {

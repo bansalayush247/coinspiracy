@@ -24,6 +24,7 @@ const [hospital] = doorsOf('hospital');
 const [mintHall] = doorsOf('mintHall');
 const [chapel] = doorsOf('chapel');
 const [temple] = doorsOf('temple');
+const [mandir] = doorsOf('mandir');
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 async function walkIn(name: string) {
@@ -236,6 +237,18 @@ describe('walk-in buildings', () => {
     a.client.send('rest');
     await waitFor(() => a.rests.length === 2, 'rest answered on the cushion');
     expect(a.rests[1]).toEqual({ ok: true, reason: 'healed' });
+  });
+
+  it('lets a guardian heal by lighting a diya at the mandir shrine', async () => {
+    const a = await walkIn('Ana');
+    a.standAt(mandir);
+    a.client.send('enter');
+    await waitFor(() => a.doors.length === 1, 'in the mandir');
+    a.room.hurt(a.client.sessionId, 30);
+    a.standOn(layoutFor('mandir', mandir?.building.seed ?? 0).spots.find((s) => s.kind === 'diya'));
+    a.client.send('rest');
+    await waitFor(() => a.rests.length === 1, 'rest answered at the shrine');
+    expect(a.rests[0]).toEqual({ ok: true, reason: 'healed' });
   });
 
   it('takes a deposit at the Mint Hall counter inside, but not elsewhere in the hall', async () => {

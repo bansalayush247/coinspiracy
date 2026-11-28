@@ -2,8 +2,24 @@
 
 ## 28 November 2026
 
+### Two mandirs, rounder wheels, and something different on every shelf
+- Two Hindu temples open in Port Concord. Shri Samudra Mandir rises over Signet Row, with a tall carved shikhara,
+  a saffron flag and a pillared porch; Sagar Tat Mandir is a small whitewashed shrine on a Shallows islet, facing the
+  sea. Leave your shoes at the steps, ring the brass bell as you go in, and light a diya at the shrine to be back to
+  full health.
+- Car, van, taxi and bus wheels are now real wheels: round tyres with tread and alloy or steel rims, set flat against
+  the side of the body and turning with the car whichever way it faces.
+- Every bookshelf in the city holds its own handful of books. Homes keep stories, poems, a harbour cookbook and a
+  mystery; City Hall keeps the city charter, its history and the council minutes; offices keep tide tables, a
+  bookkeeping handbook and merchants' letters. The six primers on keeping money safe turn up everywhere.
+- Notice boards pin up their own notices: council meetings, lost cats and festival nights at City Hall, job ads and
+  the kettle rota in offices, signing rotas and forged-note warnings at the Mint Hall. Today's quests are still the
+  first card on every board.
+- Indoors, the room always fills the screen: scrolling can zoom in for a closer look but never out into the dark
+  around the room, and zooming out on the street no longer shrinks the rooms you walk into.
+
 ### Every building has a name, and more of them open
-- All 97 buildings in Port Concord now have their own name: shops after their keepers ("Marlow & Daughters,
+- All 95 buildings in Port Concord now have their own name: shops after their keepers ("Marlow & Daughters,
   Tailors"), homes by street address ("14 Kelp Row"), offices after the firms inside. No two share a name.
 - A name board hangs over each door as you walk up, the door button says where you are going, and inside, the top
   of the screen names the building and its district.

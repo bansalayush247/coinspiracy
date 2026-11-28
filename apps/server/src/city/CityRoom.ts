@@ -191,7 +191,7 @@ interface Sim {
   doorLockUntil: number;
 }
 
-const REST_SPOTS: ReadonlySet<SpotKind | null | undefined> = new Set<SpotKind>(['bed', 'reception', 'kitchen', 'candles', 'cushion']);
+const REST_SPOTS: ReadonlySet<SpotKind | null | undefined> = new Set<SpotKind>(['bed', 'reception', 'kitchen', 'candles', 'cushion', 'diya']);
 
 const IDLE_MS = 15 * 60_000;
 const IDLE_CHECK_MS = 30_000;
@@ -928,7 +928,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     return sim.room !== null && doorBySeed(me.inside)?.room === 'mintHall' && spotAt(me, sim.room.layout)?.kind === 'counter';
   }
 
-  // A bed or the kitchen at home, the hospital desk, the chapel's candles or a temple cushion: back to full health, only while standing at one.
+  // A bed or the kitchen at home, the hospital desk, the chapel's candles, a temple cushion or a mandir's diya: back to full health, only while standing at one.
   #rest(sessionId: string, now: number): void {
     const sim = this.#sims.get(sessionId);
     const me = this.state.players.get(sessionId);

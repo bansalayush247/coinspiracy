@@ -19,11 +19,11 @@ export function shopTradeOf(seed: number): ShopTrade {
 }
 
 /** The kinds of room a building can open into. */
-export const ROOM_KINDS = ['shop', 'mintHall', 'hospital', 'flat', 'cityHall', 'chapel', 'arcade', 'fishMarket', 'office', 'temple'] as const;
+export const ROOM_KINDS = ['shop', 'mintHall', 'hospital', 'flat', 'cityHall', 'chapel', 'arcade', 'fishMarket', 'office', 'temple', 'mandir'] as const;
 /** A kind of room a building can open into. */
 export type RoomKind = (typeof ROOM_KINDS)[number];
 /** The rooms made up from each building's seed; the rest (the Mint Hall and the hospital) are hand-made. */
-export const GENERATED_ROOMS = ['shop', 'flat', 'cityHall', 'chapel', 'arcade', 'fishMarket', 'office', 'temple'] as const satisfies readonly RoomKind[];
+export const GENERATED_ROOMS = ['shop', 'flat', 'cityHall', 'chapel', 'arcade', 'fishMarket', 'office', 'temple', 'mandir'] as const satisfies readonly RoomKind[];
 /** A room made up from its building's seed. */
 export type GeneratedRoom = (typeof GENERATED_ROOMS)[number];
 /** Whether a room is made up from its building's seed. */
@@ -32,17 +32,17 @@ export const isGenerated = (room: RoomKind): room is GeneratedRoom => (GENERATED
 /** Every piece of furniture a room can hold. */
 export const PIECES = [
   'counter', 'shelf', 'rug', 'plant', 'lamp', 'table', 'chair', 'bed', 'sofa', 'bookcase', 'column', 'vaultDoor', 'noticeBoard', 'bench', 'desk', 'hospitalBed',
-  'rack', 'mirror', 'displayCase', 'barberChair', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv', 'cabinet', 'candles', 'bell', 'cushion', 'pool',
+  'rack', 'mirror', 'displayCase', 'barberChair', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv', 'cabinet', 'candles', 'bell', 'cushion', 'pool', 'sanctum', 'rangoli',
 ] as const;
 /** A piece of furniture. */
 export type Piece = (typeof PIECES)[number];
 
 // Pieces you walk over rather than round.
-const FLAT_PIECES: ReadonlySet<Piece> = new Set(['rug']);
+const FLAT_PIECES: ReadonlySet<Piece> = new Set(['rug', 'rangoli']);
 
 const FurnitureSchema = z.strictObject({ piece: z.enum(PIECES), c: z.int().min(1), r: z.int().min(1), w: z.int().min(1), d: z.int().min(1) });
 /** Every kind of spot in a room where something can be done. */
-export const SPOT_KINDS = ['counter', 'reception', 'bed', 'board', 'wardrobe', 'tv', 'books', 'kitchen', 'arcade', 'candles', 'bell', 'cushion'] as const;
+export const SPOT_KINDS = ['counter', 'reception', 'bed', 'board', 'wardrobe', 'tv', 'books', 'kitchen', 'arcade', 'candles', 'bell', 'cushion', 'diya'] as const;
 /** A kind of spot: a counter, the hospital desk, a bed, a notice board, a wardrobe, a TV, a bookcase, a kitchen, an arcade cabinet, candles. */
 export type SpotKind = (typeof SPOT_KINDS)[number];
 
@@ -90,6 +90,7 @@ export const InteriorTuningSchema = z.strictObject({
     fishMarket: RoomRecipeSchema,
     office: RoomRecipeSchema,
     temple: RoomRecipeSchema,
+    mandir: RoomRecipeSchema,
   }),
 });
 /** The interiors' tuning, as checked by `InteriorTuningSchema`. */

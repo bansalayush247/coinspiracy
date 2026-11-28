@@ -4,8 +4,16 @@ import { z } from 'zod';
 import english from './books.en.json' with { type: 'json' };
 import { getLocale, onLocaleChange, type Locale } from './index.js';
 
-/** Every book a shelf can hold, in shelf order. */
-export const BOOK_IDS = ['generals', 'third', 'blind', 'twice', 'powers', 'keepers'] as const;
+/** The primers on how a federation keeps money safe, which any shelf may hold. */
+export const PRIMER_IDS = ['generals', 'third', 'blind', 'twice', 'powers', 'keepers'] as const;
+/** The books only a home keeps. */
+export const HOME_BOOK_IDS = ['harbourTales', 'gullSongs', 'saltKitchen', 'lighthouseKid', 'nightFerry'] as const;
+/** The books City Hall keeps. */
+export const CIVIC_BOOK_IDS = ['charter', 'harbourHistory', 'councilMinutes'] as const;
+/** The books an office keeps. */
+export const OFFICE_BOOK_IDS = ['tideTables', 'ledgerCraft', 'merchantLetters'] as const;
+/** Every book a shelf can hold. */
+export const BOOK_IDS = [...PRIMER_IDS, ...HOME_BOOK_IDS, ...CIVIC_BOOK_IDS, ...OFFICE_BOOK_IDS] as const;
 /** A book on the shelves. */
 export type BookId = (typeof BOOK_IDS)[number];
 
@@ -29,6 +37,17 @@ export const BOOK_COLORS: Readonly<Record<BookId, string>> = {
   twice: '#a8823a',
   powers: '#5f8f4e',
   keepers: '#7a4a7e',
+  harbourTales: '#c46a3c',
+  gullSongs: '#6f9fbf',
+  saltKitchen: '#d19a3e',
+  lighthouseKid: '#d4584f',
+  nightFerry: '#2f4566',
+  charter: '#8a3b3b',
+  harbourHistory: '#5d6f4a',
+  councilMinutes: '#6b5a8e',
+  tideTables: '#2f7f86',
+  ledgerCraft: '#4f5a3a',
+  merchantLetters: '#9a6b47',
 };
 
 const LOADERS: Readonly<Partial<Record<Locale, () => Promise<unknown>>>> = {

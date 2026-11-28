@@ -34,7 +34,8 @@ export type Sfx =
   | 'punch'
   | 'whiff'
   | 'knockout'
-  | 'templeBell';
+  | 'templeBell'
+  | 'mandirBell';
 
 /** Player audio preferences stored under localStorage key `bc.audio`. */
 export interface AudioSettings {
@@ -889,6 +890,9 @@ export class AudioEngine {
       case 'templeBell':
         this.#bell(hz(45), t, 0.2, out, 6, 2.76, 1.2);
         this.#bell(hz(57), t + 0.01, 0.07, out, 4, 3.1, 0.8);
+        return;
+      case 'mandirBell':
+        for (let i = 0; i < 3; i++) this.#bell(hz(69 + (i % 2) * 2), t + i * 0.32, 0.12 - i * 0.025, out, 2.6, 3.4, 1.6);
         return;
       case 'chirp':
         for (let i = 0; i < 3; i++) this.#tone(2600 + Math.random() * 1200, t + i * 0.11, 0.08, 0.05, 'sine', 3800 + Math.random() * 800);
