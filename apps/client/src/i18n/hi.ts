@@ -30,10 +30,14 @@ export const hi: Messages = {
   'settings.soundOff': 'आवाज़ बंद',
   'settings.musicOff': 'संगीत बंद',
   'settings.soundAria': '{label}। आवाज़ बदलें',
-  'settings.vocalsOn': 'वोकल्स: चालू',
-  'settings.vocalsOff': 'वोकल्स: बंद',
-  'settings.vocalsAria': '{label}। वोकल्स बदलें',
+  'settings.soundtrack': 'साउंडट्रैक',
+  'settings.soundtrackAria': 'साउंडट्रैक: {style}',
   'settings.musicAria': 'संगीत: {choice}',
+
+  'musicStyle.auto': 'ऑटो',
+  'musicStyle.western': 'वेस्टर्न इंस्ट्रुमेंटल',
+  'musicStyle.indian': 'इंडियन इंस्ट्रुमेंटल',
+  'musicStyle.hindi': 'हिंदी गाने',
 
   'music.dynamic': 'अडैप्टिव',
   'music.menu': 'Mint Citadel',

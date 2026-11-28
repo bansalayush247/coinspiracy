@@ -26,6 +26,8 @@ export const CityPlayer = schema(
     inside: t.uint16().default(0),
     pocket: t.uint32().view(VIEW_TAGS.OWNER).optional(),
     ack: t.uint32().view(VIEW_TAGS.OWNER).optional(),
+    // The last numbered driving input the server has run for this driver.
+    driveAck: t.uint32().view(VIEW_TAGS.OWNER).optional(),
   },
   'CityPlayer',
 );
@@ -48,6 +50,7 @@ export const CityCar = schema(
     x: t.float64().default(0),
     y: t.float64().default(0),
     heading: t.float32().default(0),
+    speed: t.float32().default(0),
     color: t.uint8().default(0),
     driver: t.string().default(''),
   },

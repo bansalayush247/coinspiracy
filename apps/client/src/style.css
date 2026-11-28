@@ -737,7 +737,7 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .corner-toggles { position: absolute; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); display: flex; gap: 6px; z-index: 3; }
 .corner-toggle { pointer-events: auto; padding: 8px 14px; font-size: 12px; background: rgba(34, 22, 48, 0.78); }
 .music-picker { pointer-events: auto; display: flex; align-items: center; gap: 7px; padding: 5px 8px 5px 12px; border: 1px solid var(--edge); border-radius: 999px; color: var(--muted); background: rgba(34, 22, 48, 0.78); font-size: 12px; font-weight: 600; }
-.music-picker select { min-width: 112px; max-width: 148px; padding: 3px 22px 3px 6px; border: 0; border-radius: 999px; color: var(--text); background: rgba(255, 241, 222, 0.1); font: 600 12px/1.4 var(--font); cursor: pointer; }
+.music-picker select { min-width: 112px; max-width: 176px; padding: 3px 22px 3px 6px; border: 0; border-radius: 999px; color: var(--text); background: rgba(255, 241, 222, 0.1); font: 600 12px/1.4 var(--font); cursor: pointer; }
 
 /* The storybook. */
 .modal.story { width: min(640px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; gap: 12px; padding: 14px 18px 16px; background: linear-gradient(180deg, rgba(48, 32, 64, 0.97), rgba(34, 22, 48, 0.97)); }
@@ -922,7 +922,7 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
   .corner-toggles { left: max(12px, env(safe-area-inset-left)); justify-content: flex-end; flex-wrap: wrap; }
   .corner-toggle { padding: 6px 10px; font-size: 11px; }
   .music-picker { padding: 3px 6px 3px 9px; font-size: 11px; }
-  .music-picker select { min-width: 98px; max-width: 126px; font-size: 11px; }
+  .music-picker select { min-width: 98px; max-width: 148px; font-size: 11px; }
   #menu { padding-bottom: 64px; }
   .beach-emotes { bottom: max(52px, calc(env(safe-area-inset-bottom) + 52px)); }
   .emote-toggle { width: 40px; height: 40px; font-size: 20px; }

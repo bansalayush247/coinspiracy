@@ -95,7 +95,6 @@ export class CityController {
     this.onFerry();
   });
   #inCar = false;
-  #driveLoop = 0;
   #atVault = false;
   #rough: boolean | null = null;
   #zoneShown: Zone | null = null;
@@ -221,6 +220,9 @@ export class CityController {
       },
       send: (input) => {
         room.send('move', input);
+      },
+      drive: (input) => {
+        room.send('drive', input);
       },
     });
     const callbacks = Callbacks.get(room);
@@ -357,8 +359,9 @@ export class CityController {
     }
     this.#rough = rough;
     this.#punch.disabled = this.scene.meDown || this.#inCar;
+    this.#renderDoor(pos);
     const canRide = this.#inCar || (!this.scene.meDown && this.scene.freeCarNear(pos, ENTER_RANGE));
-    this.#ride.hidden = !canRide;
+    this.#ride.hidden = !canRide || !this.#door.hidden;
     this.#ride.firstChild?.replaceWith(document.createTextNode(t(this.#inCar ? 'city.getOut' : 'city.getIn')));
     this.#punch.classList.toggle('off', !rough);
     this.#punch.setAttribute('aria-disabled', String(!rough));
@@ -368,7 +371,6 @@ export class CityController {
       if (vaultHere) this.onToast(t(this.#coins > 0 ? 'city.vaultSafe' : 'city.vaultEmpty'));
     }
     this.#deposit.hidden = !vaultHere || this.#coins === 0;
-    this.#renderDoor(pos);
     this.#ferry.update(pos, this.scene.inside === 0 && !this.scene.meDown && !this.#inCar, this.ferryOpen());
     drawDots(this.#dots, pos, this.scene.others());
   }
@@ -394,7 +396,7 @@ export class CityController {
     if (inside !== 0) {
       const door = doorBySeed(inside);
       if (door !== null && atExit(pos, layoutFor(door.room, inside))) label = t('city.leaveBuilding');
-    } else if (!this.scene.meDown && !this.#inCar && this.#ride.hidden) {
+    } else if (!this.scene.meDown && !this.#inCar) {
       const door = doorAt(pos);
       if (door !== null) label = t(door.room === 'flat' ? 'city.enterHome' : 'city.enterNamed', { name: buildingName(door.building.seed) });
     }
@@ -639,19 +641,9 @@ export class CityController {
     if (on === this.#inCar) return;
     this.#inCar = on;
     this.scene.driving = on;
-    window.clearInterval(this.#driveLoop);
     if (!on) return;
     audio.play('chirp');
     this.onToast(t('city.driving'));
-    this.#driveLoop = window.setInterval(() => {
-      const pedals = this.input.pedals();
-      if (pedals !== null) {
-        this.#room?.send('drive', pedals);
-        return;
-      }
-      const d = this.input.direction();
-      this.#room?.send('drive', { dx: Math.max(-1, Math.min(1, d.x)), dy: Math.max(-1, Math.min(1, d.y)) });
-    }, 50);
   }
 
   #vault(): void {

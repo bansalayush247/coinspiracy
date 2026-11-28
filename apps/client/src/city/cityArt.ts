@@ -1,13 +1,14 @@
 // Port Concord art: the ground painted one chunk at a time, buildings by kind and district, and street props.
 // Everything is drawn from the shared map, so the city looks the same on every screen.
 import Phaser from 'phaser';
-import { CHUNK, CITY_BUILDINGS, CITY_MAP, ROAD_COLS, ROAD_ROWS, districtAt, type CityBuilding, type DistrictId } from '@byzantine-council/shared/city';
+import { CHUNK, CITY_BUILDINGS, CITY_MAP, ROAD_COLS, ROAD_ROWS, districtAt, doorBySeed, shopTradeOf, type CityBuilding, type DistrictId, type ShopTrade } from '@byzantine-council/shared/city';
 import { tileAt, type Box } from '@byzantine-council/shared';
 import { P, fan, prism } from '../beach/beachArt.js';
 import { hex, jitter, paintPlanks, rng, type Ctx } from '../game/groundPaint.js';
 import { ART_SCALE, TILE_H, TILE_W } from '../game/iso.js';
 import { lit, mix, shade } from '../game/palette.js';
 import { quality } from '../game/quality.js';
+import { drawHospital, drawOffice, drawResidence, drawStorefront } from './streetArchitecture.js';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -560,6 +561,127 @@ function hipRoof(g: G, b: Box, z: number, roof: number, rise: number): void {
   fan(g, roof, [P(x1, y0, z), P(x1, y1, z), bb]);
 }
 
+type Entrance = NonNullable<ReturnType<typeof doorBySeed>>;
+
+interface DoorStyle {
+  readonly half: number;
+  readonly height: number;
+  readonly leaf: number;
+  readonly frame: number;
+  readonly finish: 'panelled' | 'glazed' | 'divided' | 'sliding' | 'planked' | 'bronze';
+  readonly double?: boolean;
+  readonly pane?: number;
+  readonly crown?: 'round' | 'pointed';
+  readonly inset?: number;
+  readonly bottom?: number;
+}
+
+const SHOP_DOORS: Readonly<Record<ShopTrade, DoorStyle>> = {
+  tailor: { half: 0.32, height: 38, leaf: 0x6e304d, frame: 0xdbb77a, finish: 'divided', pane: 0xffd89e },
+  barber: { half: 0.34, height: 39, leaf: 0x24467c, frame: 0xe6e8dc, finish: 'glazed', pane: 0x9ddce6 },
+  hats: { half: 0.32, height: 38, leaf: 0x315943, frame: 0xb78d58, finish: 'panelled' },
+  surf: { half: 0.57, height: 37, leaf: 0x278087, frame: 0xe8e2cb, finish: 'sliding', pane: 0xade9e1, double: true },
+  cafe: { half: 0.55, height: 39, leaf: 0x9b4e38, frame: 0xf1cf92, finish: 'divided', pane: 0xffca8e, double: true },
+};
+
+const HOUSE_DOORS = [0x784933, 0x425a6b, 0x52644d, 0x82464e];
+const BUILDING_DOOR_STYLES: Readonly<Partial<Record<CityBuilding['kind'], DoorStyle>>> = {
+  house: { half: 0.29, height: 38, leaf: 0x784933, frame: 0xddcbb0, finish: 'panelled', inset: 0.135 },
+  mansion: { half: 0.41, height: 43, leaf: 0x59382b, frame: 0xe1ca9b, finish: 'panelled', double: true, inset: 0.135 },
+  office: { half: 0.45, height: 43, leaf: 0x364b5c, frame: 0xaebbc2, finish: 'glazed', pane: 0x9eafb3 },
+  mintHall: { half: 0.73, height: 58, leaf: 0x556555, frame: 0xd7b368, finish: 'bronze', double: true, crown: 'round', inset: 0.54, bottom: 14 },
+  cityHall: { half: 0.71, height: 62, leaf: 0x3e5762, frame: 0xead5aa, finish: 'divided', pane: 0xffcf89, double: true, crown: 'round' },
+  chapel: { half: 0.52, height: 69, leaf: 0x5f3b32, frame: 0xcba68a, finish: 'planked', double: true, crown: 'pointed' },
+  hospital: { half: 0.84, height: 47, leaf: 0x377587, frame: 0xcbdde0, finish: 'sliding', pane: 0xb5e7e7, double: true },
+  fishMarket: { half: 0.68, height: 50, leaf: 0x496f77, frame: 0xe0ca9f, finish: 'planked', pane: 0xffd58f, double: true },
+  arcade: { half: 0.58, height: 49, leaf: 0x35234e, frame: 0xff79c5, finish: 'glazed', pane: 0x8fd7df, double: true },
+};
+
+const facesSouth = (door: Entrance): boolean => door.at.y > door.building.box.r1 + 1;
+
+// The wall and pavement marker use the entrance the room accepts, regardless of door style.
+function drawFacadeDoor(g: G, b: CityBuilding): void {
+  const door = doorBySeed(b.seed);
+  const style = b.kind === 'shop' ? SHOP_DOORS[shopTradeOf(b.seed)] : BUILDING_DOOR_STYLES[b.kind];
+  if (door === null || style === undefined) return;
+  const { half, height, bottom = 0, inset = 0.035, frame, crown } = style;
+  const leaf = b.kind === 'house' ? pick(HOUSE_DOORS, b.seed) : style.leaf;
+  const south = facesSouth(door);
+  const plane = (south ? b.box.r1 : b.box.c1) + 1 - inset;
+  const point = (u: number, z: number): ReturnType<typeof P> => south ? P(door.at.x + u, plane, bottom + z) : P(plane, door.at.y + u, bottom + z);
+  const panel = (left: number, right: number, low: number, high: number, color: number): void => {
+    fan(g, color, [point(left, low), point(right, low), point(right, high), point(left, high)]);
+  };
+  const top = height - (crown === 'pointed' ? 23 : crown === 'round' ? 14 : 0);
+  panel(-half - 0.035, half + 0.035, 0, top, 0x30262b);
+  panel(-half, half, 2, top - (crown === undefined ? 2 : 0), frame);
+  if (crown === 'round') {
+    const arch = (width: number, rise: number) => Array.from({ length: 13 }, (_, i) => {
+      const a = (i * Math.PI) / 12;
+      return point(Math.cos(a) * width, top + Math.sin(a) * rise);
+    });
+    fan(g, frame, arch(half, height - top));
+    fan(g, style.pane ?? shade(leaf, 0.28), arch(half - 0.055, height - top - 4));
+    panel(-0.025, 0.025, top, height - 4, shade(frame, 0.25));
+  } else if (crown === 'pointed') {
+    fan(g, frame, [point(-half, top), point(-half * 0.72, top + 11), point(0, height), point(half * 0.72, top + 11), point(half, top)]);
+    fan(g, shade(leaf, 0.25), [point(-half + 0.075, top), point(-half * 0.56, top + 10), point(0, height - 6), point(half * 0.56, top + 10), point(half - 0.075, top)]);
+  }
+  const leaves: readonly (readonly [number, number])[] = style.double === true ? [[-half + 0.05, -0.02], [0.02, half - 0.05]] : [[-half + 0.05, half - 0.05]];
+  for (const [left, right] of leaves) {
+    const a = left + 0.045;
+    const b = right - 0.045;
+    const mid = (a + b) / 2;
+    panel(left, right, 3, top - 3, shade(leaf, 0.27));
+    panel(left + 0.015, right - 0.015, 4, top - 4, leaf);
+    const finish = style.finish;
+    if (finish === 'glazed' || finish === 'divided' || finish === 'sliding') {
+      const sill = finish === 'sliding' ? 6 : 16;
+      const head = top - 7;
+      panel(a, b, sill, head, style.pane ?? 0xffd89e);
+      fan(g, 0xfff5dc, [point(a, head - 8), point(a, head - 4), point(b, head - 1), point(b, head - 5)], 0.65);
+      if (finish === 'divided') panel(mid - 0.014, mid + 0.014, sill, head, leaf);
+      if (finish !== 'glazed') panel(a, b, (sill + head) / 2, (sill + head) / 2 + 2, leaf);
+      if (finish !== 'sliding') panel(a, b, 6, 12, shade(leaf, 0.2));
+    } else if (finish === 'planked') {
+      for (let i = 1; i < 4; i++) {
+        const u = a + ((b - a) * i) / 4;
+        panel(u - 0.008, u + 0.008, 5, top - 5, shade(leaf, 0.24));
+      }
+      for (const z of [9, top - 13]) panel(a, b, z, z + 2.5, shade(leaf, 0.42));
+      if (style.pane !== undefined) {
+        const porthole = point(mid, top - 20);
+        g.fillStyle(shade(leaf, 0.45), 1).fillCircle(porthole.x, porthole.y, 4.8 * ART_SCALE);
+        g.fillStyle(style.pane, 1).fillCircle(porthole.x, porthole.y, 3.3 * ART_SCALE);
+      }
+    } else {
+      panel(a, b, 7, 14, shade(leaf, 0.2));
+      panel(a, b, 19, top - 8, lit(leaf, 0.13));
+      panel(a, b, top - 10, top - 8, lit(leaf, 0.3));
+      if (finish === 'bronze') {
+        for (const z of [10, 24, top - 10]) {
+          const rivet = point(a + 0.025, z);
+          g.fillStyle(frame, 1).fillCircle(rivet.x, rivet.y, ART_SCALE);
+        }
+      }
+    }
+    const handle = style.double !== true || right < 0 ? b - 0.025 : a + 0.025;
+    panel(handle - 0.014, handle + 0.014, 15, finish === 'sliding' ? 24 : 19, finish === 'sliding' ? 0x293743 : 0xffe4ab);
+  }
+  panel(-half - 0.055, half + 0.055, 0, 2, style.finish === 'sliding' ? 0x8296a0 : 0xb59470);
+}
+
+/** A gold pavement marker at the spot where the entrance button appears. */
+export function drawEntranceMarker(g: G, door: Entrance): void {
+  const { x, y } = door.at;
+  const south = facesSouth(door);
+  const point = (u: number, v: number) => south ? P(x + u, y + v) : P(x + v, y + u);
+  const mat = (r: number) => [point(-r, -r), point(r, -r), point(r, r), point(-r, r)];
+  fan(g, 0x392939, mat(0.34));
+  fan(g, 0xf4c275, mat(0.29));
+  fan(g, 0x392939, [point(-0.18, 0.09), point(0, -0.14), point(0.18, 0.09), point(0.1, 0.14), point(0, 0), point(-0.1, 0.14)]);
+}
+
 export function drawBuilding(g: G, b: CityBuilding): void {
   const box = b.box;
   const wall = pick(WALLS[b.district], b.seed);
@@ -582,9 +704,12 @@ export function drawBuilding(g: G, b: CityBuilding): void {
       // A stone hall with a colonnade, steps and a green copper dome.
       prism(g, x0, y0, x1, y1, 0, 14, 0xc8bca8, 0xddd0bc);
       prism(g, x0 + 0.5, y0 + 0.5, x1 - 0.5, y1 - 0.5, 14, b.height - 60, 0xeadfcc);
-      for (let x = x0 + 0.7; x < x1 - 0.5; x += 0.6) prism(g, x - 0.08, y1 - 0.45, x + 0.08, y1 - 0.3, 14, b.height - 70, 0xfff8ee);
-      fan(g, shade(0xd9cbb6, 0.1), [P(x0 + 0.4, y1 - 0.3, b.height - 56), P(x1 - 0.4, y1 - 0.3, b.height - 56), P((x0 + x1) / 2, y1 - 0.3, b.height - 10)]);
       const cx = (x0 + x1) / 2;
+      drawFacadeDoor(g, b);
+      for (let x = x0 + 0.7; x < x1 - 0.5; x += 0.6) {
+        if (Math.abs(x - cx) > 0.83) prism(g, x - 0.08, y1 - 0.45, x + 0.08, y1 - 0.3, 14, b.height - 70, 0xfff8ee);
+      }
+      fan(g, shade(0xd9cbb6, 0.1), [P(x0 + 0.4, y1 - 0.3, b.height - 56), P(x1 - 0.4, y1 - 0.3, b.height - 56), P((x0 + x1) / 2, y1 - 0.3, b.height - 10)]);
       const cy = (y0 + y1) / 2;
       for (let i = 0; i <= 10; i++) {
         const t = i / 10;
@@ -595,20 +720,15 @@ export function drawBuilding(g: G, b: CityBuilding): void {
       }
       return;
     }
-    case 'cityHall':
     case 'hospital':
+      drawHospital(g, b, { x0, y0, x1, y1 });
+      drawFacadeDoor(g, b);
+      return;
+    case 'cityHall':
     case 'chapel': {
-      prism(g, x0, y0, x1, y1, 0, b.height, b.kind === 'hospital' ? 0xf2f0ec : wall);
+      prism(g, x0, y0, x1, y1, 0, b.height, wall);
       windows(g, box, 0, b.height, b.seed, 0x6a7e94);
-      if (b.kind === 'hospital') {
-        // A red cross on the front and an ambulance bay canopy.
-        const m = P((x0 + x1) / 2, y1 + 0.01, b.height - 40);
-        g.fillStyle(0xe0574b, 1);
-        g.fillRect(m.x - 18 * ART_SCALE, m.y - 6 * ART_SCALE, 36 * ART_SCALE, 12 * ART_SCALE);
-        g.fillRect(m.x - 6 * ART_SCALE, m.y - 18 * ART_SCALE, 12 * ART_SCALE, 36 * ART_SCALE);
-        flatRoof(g, box, b.height, 0x9aa0a8, b.seed);
-        return;
-      }
+      drawFacadeDoor(g, b);
       hipRoof(g, box, b.height, roof, 60);
       // A clock tower or a steeple over the middle.
       const cx = (x0 + x1) / 2;
@@ -677,7 +797,7 @@ export function drawBuilding(g: G, b: CityBuilding): void {
     case 'fishMarket':
     case 'warehouse': {
       prism(g, x0, y0, x1, y1, 0, b.height, wall);
-      // Corrugated lines and a big roller door.
+      // Corrugated siding, with a street entrance at the fish hall.
       g.lineStyle(1 * ART_SCALE, shade(wall, 0.25), 0.6);
       for (let x = x0 + 0.2; x < x1; x += 0.25) {
         const a = P(x, y1, 0);
@@ -685,7 +805,8 @@ export function drawBuilding(g: G, b: CityBuilding): void {
         g.lineBetween(a.x, a.y, z.x, z.y);
       }
       const mid = (x0 + x1) / 2;
-      fan(g, shade(wall, 0.35), [P(mid - 0.8, y1 + 0.01, 0), P(mid + 0.8, y1 + 0.01, 0), P(mid + 0.8, y1 + 0.01, b.height * 0.6), P(mid - 0.8, y1 + 0.01, b.height * 0.6)]);
+      if (b.kind === 'fishMarket') drawFacadeDoor(g, b);
+      else fan(g, shade(wall, 0.35), [P(mid - 0.8, y1 + 0.01, 0), P(mid + 0.8, y1 + 0.01, 0), P(mid + 0.8, y1 + 0.01, b.height * 0.6), P(mid - 0.8, y1 + 0.01, b.height * 0.6)]);
       // A shallow gable roof along the long side.
       const cy = (y0 + y1) / 2;
       const rise = 34;
@@ -703,6 +824,7 @@ export function drawBuilding(g: G, b: CityBuilding): void {
         const e = P(x1, y1 + 0.02, z);
         g.lineBetween(a.x, a.y, e.x, e.y);
       }
+      drawFacadeDoor(g, b);
       flatRoof(g, box, b.height, 0x2a1a3a, b.seed);
       return;
     }
@@ -718,19 +840,10 @@ export function drawBuilding(g: G, b: CityBuilding): void {
       return;
     }
     case 'house':
-    case 'mansion': {
-      prism(g, x0 + 0.1, y0 + 0.1, x1 - 0.1, y1 - 0.1, 0, b.height, wall);
-      windows(g, { c0: box.c0 + 0.1, r0: box.r0 + 0.1, c1: box.c1 - 0.1, r1: box.r1 - 0.1 }, 0, b.height, b.seed, 0x6a7e94);
-      // A front door and a step.
-      const mid = (x0 + x1) / 2;
-      fan(g, shade(roof, 0.3), [P(mid - 0.18, y1 - 0.09, 0), P(mid + 0.18, y1 - 0.09, 0), P(mid + 0.18, y1 - 0.09, 34), P(mid - 0.18, y1 - 0.09, 34)]);
-      hipRoof(g, box, b.height, roof, b.kind === 'mansion' ? 70 : 50);
-      if (b.kind === 'mansion') {
-        // Columns at the entrance.
-        for (const dx of [-0.5, 0.5]) prism(g, mid + dx - 0.06, y1 - 0.12, mid + dx + 0.06, y1, 0, b.height - 6, 0xfff8ee);
-      }
+    case 'mansion':
+      drawResidence(g, b, { x0: x0 + 0.1, y0: y0 + 0.1, x1: x1 - 0.1, y1: y1 - 0.1 }, wall, roof);
+      drawFacadeDoor(g, b);
       return;
-    }
     case 'gatehouse': {
       prism(g, x0 + 1, y0 + 1, x0 + 3, y0 + 3, 0, b.height, 0x8a8070);
       windows(g, { c0: x0 + 1, r0: y0 + 1, c1: x0 + 2, r1: y0 + 2 }, 0, b.height, b.seed, 0x6a7e94);
@@ -741,16 +854,15 @@ export function drawBuilding(g: G, b: CityBuilding): void {
       g.fillRect(s.x - 46 * ART_SCALE, s.y - 10 * ART_SCALE, 92 * ART_SCALE, 18 * ART_SCALE);
       return;
     }
-    default: {
-      // Offices, towers and shops: walls, windows, a roof with plant.
-      prism(g, x0, y0, x1, y1, 0, b.height, wall);
-      windows(g, box, 0, b.height, b.seed, b.kind === 'tower' ? 0x5a7a9a : 0x6a7e94);
-      if (b.kind === 'shop') {
-        // A coloured awning over the shopfront.
-        fan(g, pick([0xe0525a, 0x3fa7b5, 0xffa45c, 0x7fc86a], b.seed), [P(x0, y1 + 0.02, 40), P(x1, y1 + 0.02, 40), P(x1, y1 + 0.35, 28), P(x0, y1 + 0.35, 28)]);
-      }
-      flatRoof(g, box, b.height, roof, b.seed);
-    }
+    case 'shop':
+      drawStorefront(g, b, { x0, y0, x1, y1 }, wall, roof);
+      drawFacadeDoor(g, b);
+      return;
+    case 'office':
+    case 'tower':
+      drawOffice(g, b, { x0, y0, x1, y1 }, wall, roof);
+      drawFacadeDoor(g, b);
+      return;
   }
 }
 

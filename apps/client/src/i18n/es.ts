@@ -30,10 +30,14 @@ export const es: Messages = {
   'settings.soundOff': 'Sonido apagado',
   'settings.musicOff': 'Música apagada',
   'settings.soundAria': '{label}. Cambiar el sonido',
-  'settings.vocalsOn': 'Voces: Sí',
-  'settings.vocalsOff': 'Voces: No',
-  'settings.vocalsAria': '{label}. Cambiar las voces',
+  'settings.soundtrack': 'Banda sonora',
+  'settings.soundtrackAria': 'Banda sonora: {style}',
   'settings.musicAria': 'Música: {choice}',
+
+  'musicStyle.auto': 'Automática',
+  'musicStyle.western': 'Instrumental occidental',
+  'musicStyle.indian': 'Instrumental india',
+  'musicStyle.hindi': 'Canciones en hindi',
 
   'music.dynamic': 'Adaptativa',
   'music.menu': 'Mint Citadel',

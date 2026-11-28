@@ -1,14 +1,20 @@
-// Sound is synthesized in the browser, except the short spoken vocals in ./vocals, credited in CREDITS.md.
-// Plucked strings use Karplus-Strong; bells use FM with inharmonic partials; music is composed live (composer.ts).
-import { Composer, MOODS, STEPS_PER_BAR, type BarPlan, type Mood } from './composer.js';
+// Sound effects, character talking beeps, and ambient weather are synthesized in the browser;
+// background music streams lazily on demand from the pre-generated tracks in ./tracks/.
 
-export type { Mood };
-/** Non-silent music moods paired with spoken intro vocals. */
+export type Mood = 'menu' | 'calm' | 'proposals' | 'final' | 'council' | 'academy' | 'victory' | 'defeat' | 'beach' | 'story' | 'silent';
+/** Non-silent music moods mapped to individual soundtrack files. */
 export type TrackMood = Exclude<Mood, 'silent'>;
 /** Music themes shown to players, with adaptive scene selection first. */
 export const MUSIC_CHOICES = ['dynamic', 'menu', 'calm', 'proposals', 'final', 'council', 'beach', 'academy', 'story'] as const;
-/** Player preference for background music selection. */
+/** Player preference for scene music selection. */
 export type MusicChoice = (typeof MUSIC_CHOICES)[number];
+/** Available generated soundtrack styles, plus automatic locale-aware selection. */
+export const MUSIC_STYLES = ['auto', 'western', 'indian', 'hindi'] as const;
+/** Player preference for soundtrack style. */
+export type MusicStyle = (typeof MUSIC_STYLES)[number];
+/** Concrete generated soundtrack folder. */
+export type ConcreteMusicStyle = Exclude<MusicStyle, 'auto'>;
+
 /** Named sound effects synthesized on demand. */
 export type Sfx =
   | 'click'
@@ -42,58 +48,34 @@ export interface AudioSettings {
   muted: boolean;
   music: number;
   sfx: number;
-  vocals: boolean;
   musicChoice: MusicChoice;
+  musicStyle: MusicStyle;
 }
 
-/** Central timing, gain, and filter tuning for browser synth and vocal mixing. */
+/** Central timing, gain, and buffer tuning for track playback and Web Audio synthesis. */
 export const AUDIO_CONFIG = Object.freeze({
   storageKey: 'bc.audio',
   defaultSettings: Object.freeze<AudioSettings>({
     muted: false,
     music: 0.55,
     sfx: 0.8,
-    vocals: true,
     musicChoice: 'dynamic',
+    musicStyle: 'auto',
   }),
-  lookaheadS: 0.12,
-  tickMs: 25,
-  vocalCooldownMs: 35_000,
-  vocalDelayMs: 1100,
-  vocalStartOffsetS: 0.04,
-  vocalFadeInS: 0.06,
-  vocalFadeOutTcS: 0.2,
-  vocalStopDelayS: 1.0,
-  vocalDisconnectMs: 1300,
-  vocalDuckGain: 0.56,
-  vocalDuckTcS: 0.35,
-  vocalUnduckTcS: 0.45,
   masterGain: 0.9,
-  musicBusGain: 0.6,
-  vocalBusGain: 0.85,
+  musicBusGain: 0.68,
   ambBusScale: 0.7,
   busRampTcS: 0.1,
   fastRampTcS: 0.05,
-  moodGainBoost: 1.6,
-  moodFadeInTcS: 1.3,
-  moodFadeOutTcS: 1.1,
-  moodDisconnectMs: 8000,
-  vinylStopDelayS: 3.5,
-  musicLowpassHz: 5600,
-  musicLowpassQ: 0.5,
-  hallDurationS: 4.2,
-  hallDecay: 3.2,
-  hallDampHz: 3400,
-  hallWetGain: 0.36,
-  vocalLowpassHz: 7800,
-  vocalLowpassQ: 0.4,
-  vocalHallGain: 0.2,
-  noirSwellBars: 4,
-  noirSwellLengthBars: 0.75,
-  noirSwellLeadScale: 0.06,
-  vinylBandpassHz: 1800,
-  vinylQ: 0.9,
-  vinylGain: 0.0055,
+  trackFadeInTcS: 0.8,
+  trackFadeOutTcS: 0.65,
+  trackStartOffsetS: 0.02,
+  trackStopDelayS: 2.5,
+  trackDisconnectMs: 2800,
+  dialogueDuckGain: 0.35,
+  dialogueDuckTcS: 0.35,
+  dialogueUnduckTcS: 0.45,
+  maxCachedBuffers: 3,
   talkGain: 0.075,
   talkLengthS: 0.065,
   talkMinGapS: 0.045,
@@ -111,52 +93,70 @@ export interface TalkSyllable {
   readonly through: 'phone' | 'tape' | undefined;
 }
 
-const VOCAL_LOADERS: Readonly<Record<TrackMood, () => Promise<{ readonly default: string }>>> = {
-  menu: () => import('./vocals/menu.mp3'),
-  calm: () => import('./vocals/calm.mp3'),
-  proposals: () => import('./vocals/proposals.mp3'),
-  final: () => import('./vocals/final.mp3'),
-  council: () => import('./vocals/council.mp3'),
-  story: () => import('./vocals/story.mp3'),
-  beach: () => import('./vocals/beach.mp3'),
-  academy: () => import('./vocals/academy.mp3'),
-  victory: () => import('./vocals/victory.mp3'),
-  defeat: () => import('./vocals/defeat.mp3'),
+type TrackLoader = () => Promise<{ readonly default: string }>;
+
+/** Lazy dynamic-import map for every generated soundtrack style and scene mood. */
+export const TRACK_LOADERS: Readonly<Record<ConcreteMusicStyle, Readonly<Record<TrackMood, TrackLoader>>>> = {
+  western: {
+    menu: () => import('./tracks/western/menu.mp3'),
+    calm: () => import('./tracks/western/calm.mp3'),
+    proposals: () => import('./tracks/western/proposals.mp3'),
+    final: () => import('./tracks/western/final.mp3'),
+    council: () => import('./tracks/western/council.mp3'),
+    story: () => import('./tracks/western/story.mp3'),
+    beach: () => import('./tracks/western/beach.mp3'),
+    academy: () => import('./tracks/western/academy.mp3'),
+    victory: () => import('./tracks/western/victory.mp3'),
+    defeat: () => import('./tracks/western/defeat.mp3'),
+  },
+  indian: {
+    menu: () => import('./tracks/indian/menu.mp3'),
+    calm: () => import('./tracks/indian/calm.mp3'),
+    proposals: () => import('./tracks/indian/proposals.mp3'),
+    final: () => import('./tracks/indian/final.mp3'),
+    council: () => import('./tracks/indian/council.mp3'),
+    story: () => import('./tracks/indian/story.mp3'),
+    beach: () => import('./tracks/indian/beach.mp3'),
+    academy: () => import('./tracks/indian/academy.mp3'),
+    victory: () => import('./tracks/indian/victory.mp3'),
+    defeat: () => import('./tracks/indian/defeat.mp3'),
+  },
+  hindi: {
+    menu: () => import('./tracks/hindi/menu.mp3'),
+    calm: () => import('./tracks/hindi/calm.mp3'),
+    proposals: () => import('./tracks/hindi/proposals.mp3'),
+    final: () => import('./tracks/hindi/final.mp3'),
+    council: () => import('./tracks/hindi/council.mp3'),
+    story: () => import('./tracks/hindi/story.mp3'),
+    beach: () => import('./tracks/hindi/beach.mp3'),
+    academy: () => import('./tracks/hindi/academy.mp3'),
+    victory: () => import('./tracks/hindi/victory.mp3'),
+    defeat: () => import('./tracks/hindi/defeat.mp3'),
+  },
 };
 
-const NOIR_MOODS = new Set<TrackMood>(['menu', 'calm', 'proposals', 'council', 'story', 'academy', 'defeat']);
-
 const hz = (midi: number): number => 440 * 2 ** ((midi - 69) / 12);
-
-/** Options checked when deciding whether entering a mood should play its vocal clip. */
-export interface VocalPlayOptions {
-  readonly force?: boolean;
-  readonly vocals?: boolean;
-  readonly dialogueOpen?: boolean;
-}
-
-/** True when a mood transition should play its vocal clip (always on victory/defeat unless disabled or story dialogue is open). */
-export function shouldPlayVocal(
-  mood: Mood,
-  lastPlayedAt: number | undefined,
-  nowMs: number,
-  options: VocalPlayOptions = {},
-): mood is TrackMood {
-  const { force = false, vocals = true, dialogueOpen = false } = options;
-  if (mood === 'silent' || !vocals || dialogueOpen) return false;
-  if (force || mood === 'victory' || mood === 'defeat' || lastPlayedAt === undefined) return true;
-  return nowMs - lastPlayedAt >= AUDIO_CONFIG.vocalCooldownMs;
-}
 
 /** True when `value` is a supported music choice key. */
 export function isMusicChoice(value: unknown): value is MusicChoice {
   return typeof value === 'string' && (MUSIC_CHOICES as readonly string[]).includes(value);
 }
 
+/** True when `value` is a supported soundtrack style key. */
+export function isMusicStyle(value: unknown): value is MusicStyle {
+  return typeof value === 'string' && (MUSIC_STYLES as readonly string[]).includes(value);
+}
+
 /** Resolves the music mood to play given the scene's mood and player's choice. */
 export function musicMood(requested: Mood, choice: MusicChoice): Mood {
   if (requested === 'silent') return 'silent';
   return choice === 'dynamic' ? requested : choice;
+}
+
+/** Resolves the concrete soundtrack folder given the player's style setting and UI language. */
+export function resolveMusicStyle(style: MusicStyle, locale: string): ConcreteMusicStyle {
+  if (style !== 'auto') return style;
+  return locale === 'hi' ? 'hindi' : 'western';
 }
 
 function saveSettings(settings: AudioSettings): void {
@@ -178,8 +178,8 @@ function loadSettings(): AudioSettings {
         muted: v.muted === true,
         music: num(v.music, defaults.music),
         sfx: num(v.sfx, defaults.sfx),
-        vocals: v.vocals !== false,
         musicChoice: isMusicChoice(v.musicChoice) ? v.musicChoice : defaults.musicChoice,
+        musicStyle: isMusicStyle(v.musicStyle) ? v.musicStyle : defaults.musicStyle,
       };
     }
   } catch {
@@ -188,40 +188,31 @@ function loadSettings(): AudioSettings {
   return { ...defaults };
 }
 
-/** Synthesizes Web Audio music/SFX/ambience, mixes spoken mood vocals, and saves settings. */
+/** Streams pre-generated scene music and songs on demand while synthesizing SFX, voice beeps, and ambience. */
 export class AudioEngine {
   #ctx: AudioContext | null = null;
   #master: GainNode | null = null;
   #musicBus: GainNode | null = null;
   #musicDuck: GainNode | null = null;
-  #vocalBus: GainNode | null = null;
   #sfxBus: GainNode | null = null;
   #ambBus: GainNode | null = null;
   #reverb: ConvolverNode | null = null;
   #noise: AudioBuffer | null = null;
   #settings: AudioSettings = loadSettings();
   #requestedMood: Mood = 'silent';
-  #mood: Mood = 'silent';
-  #moodGain: GainNode | null = null;
-  #timer = 0;
-  #composer: Composer | null = null;
-  #barCount = 0;
-  #nextBar = 0;
-  #lead: LeadVoice | null = null;
-  #vinyl: AudioBufferSourceNode | null = null;
-  #hall: ConvolverNode | null = null;
+  #locale = 'en';
+  #activeTrackKey: string | null = null;
+  #trackEpoch = 0;
+  #playingTrack: { key: string; src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  readonly #trackBuffers = new Map<string, AudioBuffer>();
+  readonly #trackPending = new Map<string, Promise<AudioBuffer | null>>();
   #wind: { src: AudioBufferSourceNode; gain: GainNode; filter: BiquadFilterNode } | null = null;
   #rain: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  #surf: { src: AudioBufferSourceNode; gain: GainNode; lfo: OscillatorNode; lfo2: OscillatorNode } | null = null;
   #lastStep = 0;
   readonly #listeners = new Set<() => void>();
   #held = false;
   #dialogueOpen = false;
-  readonly #vocalBuffers = new Map<TrackMood, AudioBuffer>();
-  readonly #vocalPending = new Map<TrackMood, Promise<AudioBuffer | null>>();
-  readonly #lastVocalAt = new Map<TrackMood, number>();
-  #vocalEpoch = 0;
-  #vocalCueTimer = 0;
-  #vocalPlaying: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
   #lastTalk = 0;
 
   /** Current saved audio preferences. */
@@ -251,8 +242,7 @@ export class AudioEngine {
     this.#master.connect(limiter).connect(ctx.destination);
     this.#musicBus = ctx.createGain();
     this.#musicDuck = ctx.createGain();
-    this.#musicDuck.gain.value = 1;
-    this.#vocalBus = ctx.createGain();
+    this.#musicDuck.gain.value = this.#dialogueOpen ? AUDIO_CONFIG.dialogueDuckGain : 1;
     this.#sfxBus = ctx.createGain();
     this.#ambBus = ctx.createGain();
     this.#reverb = ctx.createConvolver();
@@ -264,32 +254,11 @@ export class AudioEngine {
       bus.connect(this.#master);
       bus.connect(this.#reverb);
     }
-    const tone = ctx.createBiquadFilter();
-    tone.type = 'lowpass';
-    tone.frequency.value = AUDIO_CONFIG.musicLowpassHz;
-    tone.Q.value = AUDIO_CONFIG.musicLowpassQ;
-    this.#musicBus.connect(this.#musicDuck).connect(tone).connect(this.#master);
-    this.#hall = ctx.createConvolver();
-    this.#hall.buffer = this.#impulse(AUDIO_CONFIG.hallDurationS, AUDIO_CONFIG.hallDecay);
-    const hallDamp = ctx.createBiquadFilter();
-    hallDamp.type = 'lowpass';
-    hallDamp.frequency.value = AUDIO_CONFIG.hallDampHz;
-    const hallWet = ctx.createGain();
-    hallWet.gain.value = AUDIO_CONFIG.hallWetGain;
-    tone.connect(this.#hall).connect(hallDamp).connect(hallWet).connect(this.#master);
-    const vocalTone = ctx.createBiquadFilter();
-    vocalTone.type = 'lowpass';
-    vocalTone.frequency.value = AUDIO_CONFIG.vocalLowpassHz;
-    vocalTone.Q.value = AUDIO_CONFIG.vocalLowpassQ;
-    const vocalHall = ctx.createGain();
-    vocalHall.gain.value = AUDIO_CONFIG.vocalHallGain;
-    this.#vocalBus.connect(vocalTone).connect(this.#master);
-    vocalTone.connect(vocalHall).connect(this.#hall);
+    this.#musicBus.connect(this.#musicDuck).connect(this.#master);
     this.#noise = this.#noiseBuffer(2);
     this.#apply();
     this.#startWind();
-    this.#mood = 'silent';
-    this.#playMood(this.#selectedMood());
+    this.#syncMusic();
     if (this.#held) void ctx.suspend();
   }
 
@@ -308,22 +277,12 @@ export class AudioEngine {
     return () => this.#listeners.delete(fn);
   }
 
-  /** Persists a partial settings update, updates audio buses, and stops or cues vocals accordingly. */
+  /** Persists a partial settings update, updates audio buses, and transitions tracks if needed. */
   update(patch: Partial<AudioSettings>): void {
-    const prevAudible = !this.#settings.muted && this.#settings.music > 0;
-    const prevVocals = this.#settings.vocals;
-    const musicChoiceChanged = patch.musicChoice !== undefined && patch.musicChoice !== this.#settings.musicChoice;
     this.#settings = { ...this.#settings, ...patch };
     saveSettings(this.#settings);
     this.#apply();
-    const nowAudible = !this.#settings.muted && this.#settings.music > 0;
-    if (!nowAudible || !this.#settings.vocals) {
-      this.#stopVocal(this.#ctx?.currentTime ?? 0);
-    }
-    if (musicChoiceChanged) this.#playMood(this.#selectedMood(), true);
-    else if (nowAudible && this.#settings.vocals && (!prevAudible || !prevVocals) && this.#mood !== 'silent' && this.#vocalPlaying === null) {
-      this.#cueVocal(this.#mood, false);
-    }
+    this.#syncMusic();
     for (const fn of this.#listeners) fn();
   }
 
@@ -333,7 +292,6 @@ export class AudioEngine {
     const t = ctx.currentTime;
     this.#master.gain.setTargetAtTime(this.#settings.muted ? 0 : AUDIO_CONFIG.masterGain, t, AUDIO_CONFIG.fastRampTcS);
     this.#musicBus?.gain.setTargetAtTime(this.#settings.music * AUDIO_CONFIG.musicBusGain, t, AUDIO_CONFIG.busRampTcS);
-    this.#vocalBus?.gain.setTargetAtTime(this.#settings.music * AUDIO_CONFIG.vocalBusGain, t, AUDIO_CONFIG.busRampTcS);
     this.#sfxBus?.gain.setTargetAtTime(this.#settings.sfx, t, AUDIO_CONFIG.fastRampTcS);
     this.#ambBus?.gain.setTargetAtTime(this.#settings.sfx * AUDIO_CONFIG.ambBusScale, t, AUDIO_CONFIG.busRampTcS);
   }
@@ -341,182 +299,119 @@ export class AudioEngine {
   /** Crossfades to the music for a place or moment. */
   setMood(mood: Mood): void {
     this.#requestedMood = mood;
-    this.#playMood(this.#selectedMood());
+    this.#syncMusic();
   }
 
-  /** Blocks new vocals and fades out any playing or pending vocal while story dialogue is open. */
+  /** Updates the UI language so `auto` soundtrack selection tracks Hindi vs other languages. */
+  setLocale(locale: string): void {
+    if (this.#locale === locale) return;
+    this.#locale = locale;
+    this.#syncMusic();
+  }
+
+  /** Gently ducks background music while story dialogue is open so speech beeps stay clear. */
   setDialogueOpen(open: boolean): void {
     if (this.#dialogueOpen === open) return;
     this.#dialogueOpen = open;
-    if (open) this.#stopVocal(this.#ctx?.currentTime ?? 0);
-  }
-
-  #selectedMood(): Mood {
-    return musicMood(this.#requestedMood, this.#settings.musicChoice);
-  }
-
-  #playMood(mood: Mood, forceVocal = false): void {
-    if (mood === this.#mood && !forceVocal) return;
-    this.#mood = mood;
     const ctx = this.#ctx;
-    if (ctx === null || this.#musicBus === null) return;
-    this.#stopVocal(ctx.currentTime);
-    const old = this.#moodGain;
-    if (old !== null) {
-      fadeOut(old.gain, ctx.currentTime, AUDIO_CONFIG.moodFadeOutTcS);
-      window.setTimeout(() => {
-        old.disconnect();
-      }, AUDIO_CONFIG.moodDisconnectMs);
-    }
-    if (this.#vinyl !== null) {
-      try {
-        this.#vinyl.stop(ctx.currentTime + AUDIO_CONFIG.vinylStopDelayS);
-      } catch {
-        this.#vinyl = null;
-      }
-      this.#vinyl = null;
-    }
-    this.#lead?.stop(ctx.currentTime);
-    this.#lead = null;
-    window.clearInterval(this.#timer);
-    this.#moodGain = null;
-    this.#composer = null;
-    this.#barCount = 0;
-    if (mood === 'silent') return;
-    const spec = MOODS[mood];
-    const gain = ctx.createGain();
-    gain.gain.value = 0;
-    gain.gain.setTargetAtTime(AUDIO_CONFIG.moodGainBoost, ctx.currentTime, AUDIO_CONFIG.moodFadeInTcS);
-    gain.connect(this.#musicBus);
-    this.#moodGain = gain;
-    this.#composer = new Composer(spec);
-    this.#lead = spec.lead > 0 ? new LeadVoice(ctx, gain, mood === 'story' || mood === 'council' || mood === 'defeat' ? 'sine' : 'triangle') : null;
-    if (NOIR_MOODS.has(mood)) this.#startVinyl(gain);
-    this.#nextBar = ctx.currentTime + 0.15;
-    this.#timer = window.setInterval(() => {
-      this.#schedule();
-    }, AUDIO_CONFIG.tickMs);
-    this.#cueVocal(mood, forceVocal);
+    if (ctx === null) return;
+    this.#musicDuck?.gain.setTargetAtTime(
+      open ? AUDIO_CONFIG.dialogueDuckGain : 1,
+      ctx.currentTime,
+      open ? AUDIO_CONFIG.dialogueDuckTcS : AUDIO_CONFIG.dialogueUnduckTcS,
+    );
   }
 
-  #stopVocal(now: number): void {
-    this.#vocalEpoch += 1;
-    window.clearTimeout(this.#vocalCueTimer);
-    this.#vocalCueTimer = 0;
-    const playing = this.#vocalPlaying;
+  #isMusicAudible(): boolean {
+    return !this.#settings.muted && this.#settings.music > 0;
+  }
+
+  #syncMusic(): void {
+    const ctx = this.#ctx;
+    const mood = musicMood(this.#requestedMood, this.#settings.musicChoice);
+    const style = resolveMusicStyle(this.#settings.musicStyle, this.#locale);
+    const targetKey = ctx !== null && this.#musicBus !== null && mood !== 'silent' && this.#isMusicAudible() ? `${style}:${mood}` : null;
+    if (targetKey === this.#activeTrackKey) return;
+    if (ctx !== null) this.#stopTrack(ctx.currentTime);
+    if (ctx === null || this.#musicBus === null || targetKey === null || mood === 'silent') return;
+    this.#activeTrackKey = targetKey;
+    const epoch = this.#trackEpoch;
+    void this.#startTrack(style, mood, targetKey, epoch);
+  }
+
+  #stopTrack(now: number): void {
+    this.#trackEpoch += 1;
+    this.#activeTrackKey = null;
+    const playing = this.#playingTrack;
     if (playing !== null) {
-      this.#vocalPlaying = null;
-      fadeOut(playing.gain.gain, now, AUDIO_CONFIG.vocalFadeOutTcS);
+      this.#playingTrack = null;
+      fadeOut(playing.gain.gain, now, AUDIO_CONFIG.trackFadeOutTcS);
       try {
-        playing.src.stop(now + AUDIO_CONFIG.vocalStopDelayS);
+        playing.src.stop(now + AUDIO_CONFIG.trackStopDelayS);
       } catch {
-        this.#vocalPlaying = null;
+        this.#playingTrack = null;
       }
       window.setTimeout(() => {
         playing.gain.disconnect();
-      }, AUDIO_CONFIG.vocalDisconnectMs);
+      }, AUDIO_CONFIG.trackDisconnectMs);
     }
-    this.#musicDuck?.gain.setTargetAtTime(1, now, AUDIO_CONFIG.vocalUnduckTcS);
   }
 
-  #cueVocal(mood: Mood, force: boolean): void {
+  async #startTrack(style: ConcreteMusicStyle, mood: TrackMood, key: string, epoch: number): Promise<void> {
     const ctx = this.#ctx;
-    if (ctx === null || mood === 'silent' || this.#settings.muted || this.#settings.music <= 0) return;
-    if (!shouldPlayVocal(mood, this.#lastVocalAt.get(mood), Date.now(), { force, vocals: this.#settings.vocals, dialogueOpen: this.#dialogueOpen })) return;
-    const epoch = this.#vocalEpoch;
-    this.#vocalCueTimer = window.setTimeout(() => {
-      void this.#playVocal(mood, epoch);
-    }, AUDIO_CONFIG.vocalDelayMs);
-  }
-
-  async #playVocal(mood: TrackMood, epoch: number): Promise<void> {
-    const ctx = this.#ctx;
-    const bus = this.#vocalBus;
-    if (ctx === null || bus === null || epoch !== this.#vocalEpoch) return;
-    if (this.#dialogueOpen || !this.#settings.vocals || this.#settings.muted || this.#settings.music <= 0) return;
-    const buffer = await this.#loadVocal(mood, ctx);
-    if (buffer === null || epoch !== this.#vocalEpoch || this.#ctx !== ctx) return;
-    this.#lastVocalAt.set(mood, Date.now());
+    const bus = this.#musicBus;
+    if (ctx === null || bus === null || epoch !== this.#trackEpoch || !this.#isMusicAudible()) return;
+    const buffer = await this.#loadTrack(style, mood, key, ctx);
+    if (buffer === null) {
+      if (epoch === this.#trackEpoch && this.#activeTrackKey === key) this.#activeTrackKey = null;
+      return;
+    }
+    if (epoch !== this.#trackEpoch || this.#ctx !== ctx || !this.#isMusicAudible()) return;
     const gain = ctx.createGain();
     const now = ctx.currentTime;
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(1, now + AUDIO_CONFIG.vocalFadeInS);
+    gain.gain.setTargetAtTime(1, now, AUDIO_CONFIG.trackFadeInTcS);
     gain.connect(bus);
     const src = ctx.createBufferSource();
     src.buffer = buffer;
+    src.loop = true;
     src.connect(gain);
-    this.#musicDuck?.gain.setTargetAtTime(AUDIO_CONFIG.vocalDuckGain, now, AUDIO_CONFIG.vocalDuckTcS);
-    this.#vocalPlaying = { src, gain };
-    src.onended = () => {
-      gain.disconnect();
-      if (this.#vocalPlaying?.src === src) this.#vocalPlaying = null;
-      if (epoch !== this.#vocalEpoch) return;
-      this.#musicDuck?.gain.setTargetAtTime(1, ctx.currentTime, AUDIO_CONFIG.vocalUnduckTcS);
-    };
-    src.start(now + AUDIO_CONFIG.vocalStartOffsetS);
+    this.#playingTrack = { key, src, gain };
+    src.start(now + AUDIO_CONFIG.trackStartOffsetS);
   }
 
-  async #loadVocal(mood: TrackMood, ctx: AudioContext): Promise<AudioBuffer | null> {
-    const cached = this.#vocalBuffers.get(mood);
-    if (cached !== undefined) return cached;
-    const pending = this.#vocalPending.get(mood);
+  async #loadTrack(style: ConcreteMusicStyle, mood: TrackMood, key: string, ctx: AudioContext): Promise<AudioBuffer | null> {
+    const cached = this.#trackBuffers.get(key);
+    if (cached !== undefined) {
+      this.#trackBuffers.delete(key);
+      this.#trackBuffers.set(key, cached);
+      return cached;
+    }
+    const pending = this.#trackPending.get(key);
     if (pending !== undefined) return pending;
     const load = (async (): Promise<AudioBuffer | null> => {
       try {
-        const mod = await VOCAL_LOADERS[mood]();
+        const mod = await TRACK_LOADERS[style][mood]();
         const res = await fetch(mod.default);
         if (!res.ok) return null;
         const bytes = await res.arrayBuffer();
         const decoded = await ctx.decodeAudioData(bytes);
-        this.#vocalBuffers.set(mood, decoded);
+        if (this.#ctx === ctx) {
+          if (this.#trackBuffers.size >= AUDIO_CONFIG.maxCachedBuffers) {
+            const oldest = this.#trackBuffers.keys().next().value;
+            if (oldest !== undefined) this.#trackBuffers.delete(oldest);
+          }
+          this.#trackBuffers.set(key, decoded);
+        }
         return decoded;
       } catch {
         return null;
       } finally {
-        this.#vocalPending.delete(mood);
+        this.#trackPending.delete(key);
       }
     })();
-    this.#vocalPending.set(mood, load);
+    this.#trackPending.set(key, load);
     return load;
-  }
-
-  // Look-ahead scheduler: whole bars are timed on the audio clock, never on timers, so they never drift.
-  #schedule(): void {
-    const ctx = this.#ctx;
-    const out = this.#moodGain;
-    const composer = this.#composer;
-    if (ctx === null || out === null || composer === null) return;
-    const sixteenth = 60 / composer.spec.bpm / 4;
-    if (this.#nextBar < ctx.currentTime - 1) this.#nextBar = ctx.currentTime + 0.05;
-    while (this.#nextBar < ctx.currentTime + AUDIO_CONFIG.lookaheadS) {
-      this.#playBar(composer.next(), this.#nextBar, sixteenth, out, this.#barCount);
-      this.#barCount += 1;
-      this.#nextBar += sixteenth * STEPS_PER_BAR;
-    }
-  }
-
-  #playBar(plan: BarPlan, t: number, sixteenth: number, out: GainNode, barIndex: number): void {
-    const spec = this.#composer?.spec;
-    if (spec === undefined) return;
-    const bar = sixteenth * STEPS_PER_BAR;
-    for (const m of plan.pad) this.#pad(hz(m), t, bar, spec.pad * 0.06, out);
-    for (const e of plan.bass) this.#bass(hz(e.midi), t + e.at * sixteenth, e.len * sixteenth, spec.bass * 0.2, out);
-    for (const e of plan.arp) {
-      const at = t + e.at * sixteenth;
-      const level = spec.arp * (e.at % 4 === 0 ? 0.075 : 0.055) * (0.9 + Math.random() * 0.2);
-      if (spec.arpVoice === 'pluck') this.#pluck(hz(e.midi), at + Math.random() * 0.008, level * 2.4, out, 3.2);
-      else this.#keys(hz(e.midi), at + Math.random() * 0.008, e.len * sixteenth, level, out);
-    }
-    for (const e of plan.lead) this.#lead?.note(hz(e.midi), t + e.at * sixteenth, e.len * sixteenth, spec.lead * 0.11, e.tied, e.release);
-    if (barIndex % AUDIO_CONFIG.noirSwellBars === 0 && this.#mood !== 'silent' && NOIR_MOODS.has(this.#mood)) {
-      const anchor = plan.lead[0];
-      if (anchor !== undefined) this.#noirSwell(hz(anchor.midi), t + anchor.at * sixteenth, bar * AUDIO_CONFIG.noirSwellLengthBars, spec.lead * AUDIO_CONFIG.noirSwellLeadScale, out);
-    }
-    for (const e of plan.bells) this.#bell(hz(e.midi), t + e.at * sixteenth, spec.bell * 0.05, out, 4, 2, 0.6);
-    for (const e of plan.pulse) {
-      if (e.kind === 'thump') this.#thump(t + e.at * sixteenth, e.level * 0.28, out);
-      else this.#shaker(t + e.at * sixteenth, e.level * 0.05, out);
-    }
   }
 
   // Short bursts of noise into a tuned feedback delay: the Karplus-Strong plucked string.
@@ -571,163 +466,6 @@ export class AudioEngine {
     mod.start(t);
     car.stop(t + length + 0.1);
     mod.stop(t + length + 0.1);
-  }
-
-  // A warm pad: detuned triangles with a slow swell and a long release that overlaps the next chord.
-  #pad(freq: number, t: number, length: number, level: number, out: AudioNode): void {
-    const ctx = this.#ctx;
-    if (ctx === null) return;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = Math.min(1550, freq * 4.5);
-    filter.Q.value = 0.3;
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0, t);
-    env.gain.linearRampToValueAtTime(level, t + Math.min(1.6, length * 0.45));
-    env.gain.setValueAtTime(level, t + length);
-    env.gain.setTargetAtTime(0, t + length, 0.9);
-    filter.connect(env).connect(out);
-    const stop = t + length + 4.5;
-    for (const [type, detune, gain] of [['triangle', -7, 1], ['triangle', 7, 1], ['sine', 0, 0.85]] as const) {
-      const o = ctx.createOscillator();
-      o.type = type;
-      o.frequency.value = freq;
-      o.detune.value = detune;
-      const g = ctx.createGain();
-      g.gain.value = gain;
-      o.connect(g).connect(filter);
-      o.start(t);
-      o.stop(stop);
-    }
-  }
-
-  // Soft muted harbour-noir brass swell for phrase downbeats.
-  #noirSwell(freq: number, t: number, length: number, level: number, out: AudioNode): void {
-    const ctx = this.#ctx;
-    if (ctx === null) return;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(Math.min(700, freq * 2.2), t);
-    filter.frequency.linearRampToValueAtTime(Math.min(1400, freq * 4), t + length * 0.45);
-    filter.frequency.setTargetAtTime(520, t + length * 0.65, 0.4);
-    filter.Q.value = 0.8;
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0, t);
-    env.gain.linearRampToValueAtTime(level, t + Math.min(0.65, length * 0.35));
-    env.gain.setTargetAtTime(0, t + length * 0.7, 0.55);
-    filter.connect(env).connect(out);
-    const stop = t + length + 2.5;
-    for (const [type, detune, gain] of [['sawtooth', -4, 0.35], ['triangle', 3, 0.65]] as const) {
-      const o = ctx.createOscillator();
-      o.type = type;
-      o.frequency.value = freq;
-      o.detune.value = detune;
-      const g = ctx.createGain();
-      g.gain.value = gain;
-      o.connect(g).connect(filter);
-      o.start(t);
-      o.stop(stop);
-    }
-  }
-
-  // Subtle late-night lo-fi vinyl warmth behind noir moods.
-  #startVinyl(out: AudioNode): void {
-    const ctx = this.#ctx;
-    if (ctx === null || this.#noise === null) return;
-    const src = ctx.createBufferSource();
-    src.buffer = this.#noise;
-    src.loop = true;
-    const bp = ctx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = AUDIO_CONFIG.vinylBandpassHz;
-    bp.Q.value = AUDIO_CONFIG.vinylQ;
-    const gain = ctx.createGain();
-    gain.gain.value = AUDIO_CONFIG.vinylGain;
-    src.connect(bp).connect(gain).connect(out);
-    src.start();
-    this.#vinyl = src;
-  }
-
-  // Warm Rhodes electric-piano keys: a gentle chime transient that settles into round sine warmth.
-  #keys(freq: number, t: number, length: number, level: number, out: AudioNode): void {
-    const ctx = this.#ctx;
-    if (ctx === null) return;
-    const car = ctx.createOscillator();
-    const mod = ctx.createOscillator();
-    const modGain = ctx.createGain();
-    car.frequency.value = freq;
-    mod.frequency.value = freq * 2;
-    modGain.gain.setValueAtTime(freq * 0.85, t);
-    modGain.gain.setTargetAtTime(freq * 0.015, t, 0.14);
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0, t);
-    env.gain.linearRampToValueAtTime(level, t + 0.012);
-    env.gain.setTargetAtTime(level * 0.38, t + 0.02, 0.42);
-    env.gain.setTargetAtTime(0, t + length, 0.38);
-    mod.connect(modGain).connect(car.frequency);
-    car.connect(env).connect(out);
-    const stop = t + length + 2;
-    car.start(t);
-    mod.start(t);
-    car.stop(stop);
-    mod.stop(stop);
-  }
-
-  // A round bass: sine with a filtered triangle for body, legato with a soft release.
-  #bass(freq: number, t: number, length: number, level: number, out: AudioNode): void {
-    const ctx = this.#ctx;
-    if (ctx === null) return;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 420;
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0, t);
-    env.gain.linearRampToValueAtTime(level, t + 0.05);
-    env.gain.setTargetAtTime(level * 0.7, t + 0.05, 0.6);
-    env.gain.setTargetAtTime(0, t + length * 0.95, 0.12);
-    filter.connect(env).connect(out);
-    for (const type of ['sine', 'triangle'] as const) {
-      const o = ctx.createOscillator();
-      o.type = type;
-      o.frequency.value = freq;
-      o.connect(filter);
-      o.start(t);
-      o.stop(t + length + 1);
-    }
-  }
-
-  // A felt-soft heartbeat instead of a drum kick.
-  #thump(t: number, level: number, out: AudioNode): void {
-    const ctx = this.#ctx;
-    if (ctx === null) return;
-    const o = ctx.createOscillator();
-    o.frequency.setValueAtTime(72, t);
-    o.frequency.exponentialRampToValueAtTime(46, t + 0.25);
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0, t);
-    env.gain.linearRampToValueAtTime(level, t + 0.008);
-    env.gain.exponentialRampToValueAtTime(0.001, t + 0.42);
-    o.connect(env).connect(out);
-    o.start(t);
-    o.stop(t + 0.45);
-  }
-
-  // A shaker that fades in over a few milliseconds, so it whispers rather than clicks.
-  #shaker(t: number, level: number, out: AudioNode): void {
-    const ctx = this.#ctx;
-    if (ctx === null || this.#noise === null) return;
-    const src = ctx.createBufferSource();
-    src.buffer = this.#noise;
-    const f = ctx.createBiquadFilter();
-    f.type = 'bandpass';
-    f.frequency.value = 5200;
-    f.Q.value = 0.7;
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0, t);
-    env.gain.linearRampToValueAtTime(level, t + 0.014);
-    env.gain.exponentialRampToValueAtTime(0.0005, t + 0.11);
-    src.connect(f).connect(env).connect(out);
-    src.start(t, Math.random() * 1.5, 0.13);
   }
 
   #noiseHit(t: number, level: number, out: AudioNode, type: BiquadFilterType, freq: number, length: number, q = 1): void {
@@ -934,8 +672,6 @@ export class AudioEngine {
     }
   }
 
-  #surf: { src: AudioBufferSourceNode; gain: GainNode; lfo: OscillatorNode; lfo2: OscillatorNode } | null = null;
-
   /** Enables or fades out synthesized surf ambience. */
   setSurf(on: boolean): void {
     const ctx = this.#ctx;
@@ -1061,60 +797,4 @@ function fadeOut(param: AudioParam, now: number, timeConstant: number): void {
   if (typeof param.cancelAndHoldAtTime === 'function') param.cancelAndHoldAtTime(now);
   else param.cancelScheduledValues(now);
   param.setTargetAtTime(0, now, timeConstant);
-}
-
-// The melody voice: one held oscillator pair per mood that glides between notes (portamento),
-// swells on each note and breathes out at rests, with a slow vibrato like a singer's.
-class LeadVoice {
-  readonly #osc: OscillatorNode[];
-  readonly #lfo: OscillatorNode;
-  readonly #gain: GainNode;
-
-  constructor(ctx: AudioContext, out: AudioNode, type: OscillatorType) {
-    this.#gain = ctx.createGain();
-    this.#gain.gain.value = 0;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 2400;
-    filter.Q.value = 0.4;
-    this.#gain.connect(filter).connect(out);
-    this.#lfo = ctx.createOscillator();
-    this.#lfo.frequency.value = 4.8;
-    const depth = ctx.createGain();
-    depth.gain.value = 7;
-    this.#lfo.connect(depth);
-    const voices: readonly { readonly kind: OscillatorType; readonly detune: number; readonly level: number }[] = [
-      { kind: type, detune: -3, level: 0.6 },
-      { kind: 'sine', detune: 4, level: 0.36 },
-    ];
-    this.#osc = voices.map((v) => {
-      const o = ctx.createOscillator();
-      o.type = v.kind;
-      o.detune.value = v.detune;
-      depth.connect(o.detune);
-      const g = ctx.createGain();
-      g.gain.value = v.level;
-      o.connect(g).connect(this.#gain);
-      o.start();
-      return o;
-    });
-    this.#lfo.start();
-  }
-
-  note(freq: number, t: number, length: number, level: number, tied: boolean, release: boolean): void {
-    for (const o of this.#osc) {
-      // Tied notes glide; a fresh note after a rest starts on pitch.
-      if (tied) o.frequency.setTargetAtTime(freq, t, 0.05);
-      else o.frequency.setValueAtTime(freq, t);
-    }
-    const g = this.#gain.gain;
-    g.setTargetAtTime(level, t, tied ? 0.06 : 0.09);
-    g.setTargetAtTime(level * 0.72, t + Math.min(0.35, length * 0.5), 0.7);
-    if (release) g.setTargetAtTime(0, t + length * 0.92, 0.22);
-  }
-
-  stop(now: number): void {
-    fadeOut(this.#gain.gain, now, 0.4);
-    for (const o of [...this.#osc, this.#lfo]) o.stop(now + 4);
-  }
 }

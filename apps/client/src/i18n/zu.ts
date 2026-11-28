@@ -30,10 +30,14 @@ export const zu: Messages = {
   'settings.soundOff': 'Umsindo uvaliwe',
   'settings.musicOff': 'Umculo uvaliwe',
   'settings.soundAria': '{label}. Shintsha umsindo',
-  'settings.vocalsOn': 'Amazwi: Avuliwe',
-  'settings.vocalsOff': 'Amazwi: Avaliwe',
-  'settings.vocalsAria': '{label}. Shintsha amazwi',
+  'settings.soundtrack': 'Uhlobo lomculo',
+  'settings.soundtrackAria': 'Uhlobo lomculo: {style}',
   'settings.musicAria': 'Umculo: {choice}',
+
+  'musicStyle.auto': 'Okuzenzakalelayo',
+  'musicStyle.western': 'Izinsimbi zaseNtshonalanga',
+  'musicStyle.indian': 'Izinsimbi zaseNdiya',
+  'musicStyle.hindi': 'Izingoma zesi-Hindi',
 
   'music.dynamic': 'Oguquguqukayo',
   'music.menu': 'Mint Citadel',

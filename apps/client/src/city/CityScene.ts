@@ -4,7 +4,7 @@ import Phaser from 'phaser';
 import { PLAYER_RADIUS, TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
 import { canStand } from '@byzantine-council/shared/pathfinding';
 import { BUILDING_DOORS, INTERIOR_ORIGIN, doorBySeed, layoutFor, roomMap, type RoomSpot } from '@byzantine-council/shared/city';
-import { pushClear, type CarPose, type CrowdBody } from '@byzantine-council/shared/city';
+import { carBlockedByMap, carsBlockCar, pushClear, touchesCar, type CarBody, type CarPose, type CrowdBody } from '@byzantine-council/shared/city';
 import { CHUNK, CITY_BUILDINGS, carsSolid, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityCar, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
 import type { Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
@@ -26,9 +26,10 @@ import { InteriorView } from './interiorView.js';
 import { MissionView } from './missionView.js';
 import { makeSign } from './signArt.js';
 import { drawModernCar } from './carArt.js';
+import { CarPredictor, type DriveInput, type NumberedDrive } from './carPrediction.js';
 import { CAR_COLORS, Traffic } from './traffic.js';
 import { drawFerryDock } from '../ferry/ferryDock.js';
-import { buildingFront, drawBuilding, drawContainer, drawMound, drawStreetLamp, drawStreetTree, makeCoinTexture, paintChunk } from './cityArt.js';
+import { buildingFront, drawBuilding, drawContainer, drawEntranceMarker, drawMound, drawStreetLamp, drawStreetTree, makeCoinTexture, paintChunk } from './cityArt.js';
 import { shadowScale, startJump, stepHop } from '../game/jump.js';
 
 export const CITY_SCENE_KEY = 'city';
@@ -38,6 +39,14 @@ const BASE_ZOOM = 0.72;
 const ROOM_ZOOM_IN_MAX = 1.6;
 const ROOM_WALL_PX = 120 * ART_SCALE;
 // Name signs show on buildings within this many tiles of the guardian, refreshed this often.
+// Driving: how fast a correction from the server fades, past how far it snaps instead, how fast other cars swing to
+// their server heading, and how far a car turns before it is redrawn.
+const CAR_SMOOTH_HALF_LIFE_MS = 90;
+const CAR_SNAP_TILES = 2;
+const CAR_TURN_HALF_LIFE_MS = 45;
+const CAR_REDRAW_MINE = 0.012;
+const CAR_REDRAW_OTHERS = 0.02;
+const wrapAngle = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 const SIGN_RANGE = 9;
 const SIGN_TAG_ALPHA = 0.28;
 const SIGN_EVERY_MS = 250;
@@ -50,10 +59,12 @@ const KEEP = 3;
 
 export interface CityInput {
   direction(): Vec2;
+  pedals?(): { throttle: number; steer: number } | null;
 }
 export interface CitySink {
   readonly canSend: boolean;
   send(input: PendingInput): void;
+  drive?(input: NumberedDrive): void;
 }
 
 interface Avatar {
@@ -96,7 +107,7 @@ interface Avatar {
 interface DrivenCar {
   readonly g: Phaser.GameObjects.Graphics;
   // Where the server last put the car, for walking into it the way the server does.
-  readonly body: { x: number; y: number; heading: number };
+  readonly body: { x: number; y: number; heading: number; speed: number };
   readonly buffer: InterpBuffer;
   readonly pos: { x: number; y: number };
   heading: number;
@@ -204,6 +215,11 @@ export class CityScene extends Phaser.Scene {
   #myServed: Wear | null = null;
   #predictor: Predictor | null = null;
   #smoother = new CorrectionSmoother();
+  #carPredictor: CarPredictor | null = null;
+  #carPrev: CarBody | null = null;
+  #carDirty = false;
+  #driveAck = 0;
+  #carOffset = { x: 0, y: 0, heading: 0 };
   #prev: Vec2 = { x: 0, y: 0 };
   #acc = 0;
   #input: CityInput | null = null;
@@ -358,6 +374,10 @@ export class CityScene extends Phaser.Scene {
   // While this client drives, its walking input stops; the controller sends driving input instead.
   set driving(on: boolean) {
     this.#driving = on;
+    if (on) return;
+    this.#carPredictor = null;
+    this.#carPrev = null;
+    this.#carOffset = { x: 0, y: 0, heading: 0 };
   }
 
   addCar(id: string, car: CityCar): void {
@@ -365,7 +385,7 @@ export class CityScene extends Phaser.Scene {
     const g = new Phaser.GameObjects.Graphics(this);
     this.#entities.add(g);
     const color = CAR_COLORS[car.color % CAR_COLORS.length] ?? 0xd9534f;
-    const entry: DrivenCar = { g, body: { x: car.x, y: car.y, heading: car.heading }, buffer: new InterpBuffer(), pos: { x: car.x, y: car.y }, heading: car.heading, target: car.heading, drawn: car.heading, color, driver: car.driver };
+    const entry: DrivenCar = { g, body: { x: car.x, y: car.y, heading: car.heading, speed: car.speed }, buffer: new InterpBuffer(), pos: { x: car.x, y: car.y }, heading: car.heading, target: car.heading, drawn: car.heading, color, driver: car.driver };
     entry.buffer.push(performance.now(), car.x, car.y);
     drawModernCar(g, car.heading, color, car.driver !== '');
     this.#cars.set(id, entry);
@@ -379,6 +399,8 @@ export class CityScene extends Phaser.Scene {
     c.body.x = car.x;
     c.body.y = car.y;
     c.body.heading = car.heading;
+    c.body.speed = car.speed;
+    if (car.driver !== '' && car.driver === this.#myId) this.#carDirty = true;
     if (c.driver !== car.driver) {
       c.driver = car.driver;
       drawModernCar(c.g, c.heading, c.color, car.driver !== '');
@@ -396,15 +418,27 @@ export class CityScene extends Phaser.Scene {
     return false;
   }
 
-  #placeCars(renderTime: number): void {
+  #placeCars(renderTime: number, delta: number): void {
+    const turnK = 1 - Math.pow(0.5, delta / CAR_TURN_HALF_LIFE_MS);
+    const pr = this.#carPredictor;
     for (const c of this.#cars.values()) {
-      if (c.buffer.sample(renderTime, this.#tmp)) {
-        c.pos.x = this.#tmp.x;
-        c.pos.y = this.#tmp.y;
+      const predicted = pr !== null && c.driver === this.#myId;
+      if (predicted) {
+        const now = pr.body;
+        const prev = this.#carPrev ?? now;
+        const alpha = this.#acc / STEP_MS;
+        const o = this.#carOffset;
+        c.pos.x = prev.x + (now.x - prev.x) * alpha + o.x;
+        c.pos.y = prev.y + (now.y - prev.y) * alpha + o.y;
+        c.heading = prev.heading + wrapAngle(now.heading - prev.heading) * alpha + o.heading;
+      } else {
+        if (c.buffer.sample(renderTime, this.#tmp)) {
+          c.pos.x = this.#tmp.x;
+          c.pos.y = this.#tmp.y;
+        }
+        c.heading += wrapAngle(c.target - c.heading) * turnK;
       }
-      const turn = Math.atan2(Math.sin(c.target - c.heading), Math.cos(c.target - c.heading));
-      c.heading += turn * 0.35;
-      if (Math.abs(Math.atan2(Math.sin(c.heading - c.drawn), Math.cos(c.heading - c.drawn))) > 0.04) {
+      if (Math.abs(wrapAngle(c.heading - c.drawn)) > (predicted ? CAR_REDRAW_MINE : CAR_REDRAW_OTHERS)) {
         c.drawn = c.heading;
         drawModernCar(c.g, c.heading, c.color, c.driver !== '');
       }
@@ -453,6 +487,10 @@ export class CityScene extends Phaser.Scene {
     }
     this.#setFight(a, p);
     this.#seat(a, p.car);
+    if (a.isMe && (p.driveAck ?? 0) !== this.#driveAck) {
+      this.#driveAck = p.driveAck ?? 0;
+      this.#carDirty = true;
+    }
     if (a.isMe && this.#predictor !== null) {
       const before = this.#predictor.position;
       this.#predictor.reconcile({ x: p.x, y: p.y }, p.ack ?? 0);
@@ -647,7 +685,7 @@ export class CityScene extends Phaser.Scene {
       }
       this.#place(a, time);
     }
-    this.#placeCars(renderTime);
+    this.#placeCars(renderTime, delta);
     this.#cull();
     this.#seeThrough(delta);
     const eye = this.predictedPosition();
@@ -813,6 +851,14 @@ export class CityScene extends Phaser.Scene {
       walls.push(wall);
       boxes.push(wall);
       this.#walls.add(wall);
+      const door = this.#mission === null ? doorBySeed(b.seed) : null;
+      if (door !== null) {
+        const { x, y } = worldToScreen(door.at.x, door.at.y);
+        const marker = add(isoDepth(door.at.x, door.at.y) - TILE_H, (gr) => {
+          drawEntranceMarker(gr, door);
+        });
+        boxes.push({ g: marker, left: x - TILE_W / 2, right: x + TILE_W / 2, top: y - TILE_H / 2, bottom: y + TILE_H / 2 });
+      }
     }
     for (let r = cy * CHUNK; r < (cy + 1) * CHUNK; r++) {
       for (let c = cx * CHUNK; c < (cx + 1) * CHUNK; c++) {
@@ -863,15 +909,86 @@ export class CityScene extends Phaser.Scene {
     const p = this.#predictor;
     if (p === null) return;
     this.#smoother.decay(delta);
+    this.#reconcileCar(delta);
     this.#acc = Math.min(this.#acc + delta, 250);
     while (this.#acc >= STEP_MS) {
       this.#acc -= STEP_MS;
       this.#prev = { ...p.position };
+      if (this.#driving) {
+        this.#driveStep();
+        continue;
+      }
       const dir = this.#input?.direction() ?? { x: 0, y: 0 };
       const sink = this.#sink;
-      if (Math.hypot(dir.x, dir.y) < 0.01 || sink === null || !sink.canSend || p.stalled || this.meDown || this.#driving) continue;
+      if (Math.hypot(dir.x, dir.y) < 0.01 || sink === null || !sink.canSend || p.stalled || this.meDown) continue;
       sink.send(p.apply(Math.max(-1, Math.min(1, dir.x)), Math.max(-1, Math.min(1, dir.y))));
     }
+  }
+
+  // One tick of this client's own driving: predicted at once, numbered and sent for the server to run.
+  #driveStep(): void {
+    const mine = this.#myCar();
+    const sink = this.#sink;
+    if (mine === null || sink?.drive === undefined || !sink.canSend) return;
+    this.#carPredictor ??= new CarPredictor(mine.body, () => false);
+    const pr = this.#carPredictor;
+    this.#carPrev = pr.body;
+    if (pr.stalled) return;
+    pr.blocked = this.#carBlocker(mine, pr.body);
+    sink.drive(pr.apply(this.#driveInput()));
+  }
+
+  #driveInput(): DriveInput {
+    const pedals = this.#input?.pedals?.() ?? null;
+    if (pedals !== null) return pedals;
+    const d = this.#input?.direction() ?? { x: 0, y: 0 };
+    return { dx: Math.max(-1, Math.min(1, d.x)), dy: Math.max(-1, Math.min(1, d.y)) };
+  }
+
+  #myCar(): DrivenCar | null {
+    if (this.#myId === null) return null;
+    for (const c of this.#cars.values()) if (c.driver === this.#myId) return c;
+    return null;
+  }
+
+  // What stops the driven car as the server sees it: walls and water, anyone on foot, and the other cars.
+  #carBlocker(mine: DrivenCar, from: CarBody): (p: Vec2, heading: number) => boolean {
+    const others: CarPose[] = [];
+    for (const c of this.#cars.values()) if (c !== mine) others.push(c.body);
+    const hitsCar = carsBlockCar(others, from);
+    const walkers: Vec2[] = [];
+    for (const a of this.#avatars.values()) if (!a.isMe && !a.inCar && !a.down) walkers.push(a.server);
+    return (p, heading) => carBlockedByMap(p) || hitsCar(p, heading) || walkers.some((w) => touchesCar({ x: p.x, y: p.y, heading }, w, PLAYER_RADIUS));
+  }
+
+  // Rebases the driven car on the server's once per frame, after both the car and its ack have arrived; the jump
+  // goes into an offset that fades, so corrections never show as a snap.
+  #reconcileCar(delta: number): void {
+    const k = Math.pow(0.5, delta / CAR_SMOOTH_HALF_LIFE_MS);
+    const o = this.#carOffset;
+    o.x *= k;
+    o.y *= k;
+    o.heading *= k;
+    const pr = this.#carPredictor;
+    if (!this.#carDirty || pr === null) return;
+    this.#carDirty = false;
+    const mine = this.#myCar();
+    if (mine === null) return;
+    const before = pr.body;
+    pr.blocked = this.#carBlocker(mine, mine.body);
+    pr.reconcile(mine.body, this.#driveAck);
+    const after = pr.body;
+    const dx = before.x - after.x;
+    const dy = before.y - after.y;
+    const dh = wrapAngle(before.heading - after.heading);
+    if (this.#carPrev !== null) this.#carPrev = { ...this.#carPrev, x: this.#carPrev.x - dx, y: this.#carPrev.y - dy, heading: this.#carPrev.heading - dh };
+    if (Math.hypot(o.x + dx, o.y + dy) > CAR_SNAP_TILES) {
+      this.#carOffset = { x: 0, y: 0, heading: 0 };
+      return;
+    }
+    o.x += dx;
+    o.y += dy;
+    o.heading = wrapAngle(o.heading + dh);
   }
 
   #place(a: Avatar, time: number): void {

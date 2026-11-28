@@ -30,10 +30,14 @@ export const en = {
   'settings.soundOff': 'Sound off',
   'settings.musicOff': 'Music off',
   'settings.soundAria': '{label}. Change sound',
-  'settings.vocalsOn': 'Vocals: On',
-  'settings.vocalsOff': 'Vocals: Off',
-  'settings.vocalsAria': '{label}. Change vocals',
+  'settings.soundtrack': 'Soundtrack',
+  'settings.soundtrackAria': 'Soundtrack: {style}',
   'settings.musicAria': 'Music: {choice}',
+
+  'musicStyle.auto': 'Auto',
+  'musicStyle.western': 'Western Instrumental',
+  'musicStyle.indian': 'Indian Instrumental',
+  'musicStyle.hindi': 'Hindi Songs',
 
   'music.dynamic': 'Adaptive',
   'music.menu': 'Mint Citadel',

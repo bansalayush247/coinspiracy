@@ -30,10 +30,14 @@ export const sw: Messages = {
   'settings.soundOff': 'Sauti imezimwa',
   'settings.musicOff': 'Muziki umezimwa',
   'settings.soundAria': '{label}. Badilisha sauti',
-  'settings.vocalsOn': 'Usimulizi: Umewashwa',
-  'settings.vocalsOff': 'Usimulizi: Umezimwa',
-  'settings.vocalsAria': '{label}. Badilisha usimulizi',
+  'settings.soundtrack': 'Mtindo wa muziki',
+  'settings.soundtrackAria': 'Mtindo wa muziki: {style}',
   'settings.musicAria': 'Muziki: {choice}',
+
+  'musicStyle.auto': 'Otomatiki',
+  'musicStyle.western': 'Ala za Magharibi',
+  'musicStyle.indian': 'Ala za Kihindi',
+  'musicStyle.hindi': 'Nyimbo za Kihindi',
 
   'music.dynamic': 'Unaobadilika',
   'music.menu': 'Mint Citadel',

@@ -24,19 +24,19 @@ import {
   CAR_COLORS,
   CAR_TOW_MS,
   DRIVE_INPUT_TTL_MS,
+  DRIVE_QUEUE_MAX,
   DrivePayloadSchema,
   ENTER_RANGE,
   PARKING,
   carBlockedByMap,
   carsBlockCar,
   carsSolid,
-  driveControls,
+  driveTick,
   resolveCrowd,
   toLocal,
   type CrowdBody,
   type PushBlocked,
   touchesCar,
-  stepCar,
   type DrivePayload,
   type ParkingSpot,
   BULLY_RANGE,
@@ -151,14 +151,21 @@ interface Car {
   readonly state: CityCar;
   readonly home: ParkingSpot;
   speed: number;
-  input: DrivePayload;
+  input: DriveInput;
   wantAt: number;
   parkedSince: number;
+  readonly queue: { seq: number; input: DriveInput }[];
+  ack: number;
 }
+
+type DriveInput = { dx: number; dy: number } | { throttle: number; steer: number };
+
+// The pedal or stick part of a driving message, without its number.
+const driveInput = (p: DrivePayload): DriveInput => ('throttle' in p ? { throttle: p.throttle, steer: p.steer } : { dx: p.dx, dy: p.dy });
 
 const near = (a: { x: number; y: number }, b: { x: number; y: number }, range: number): boolean => Math.hypot(a.x - b.x, a.y - b.y) <= range;
 // Foot off the pedal, hands off the wheel.
-const LET_GO: DrivePayload = Object.freeze({ throttle: 0, steer: 0 });
+const LET_GO: DriveInput = Object.freeze({ throttle: 0, steer: 0 });
 
 interface Sim {
   readonly client: CityClient;
@@ -261,8 +268,14 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       if (sim === undefined || car === undefined) return;
       const now = Date.now();
       sim.lastActiveMs = now;
-      car.input = payload;
       car.wantAt = now;
+      if (payload.seq === undefined) {
+        car.input = driveInput(payload);
+        return;
+      }
+      if (payload.seq <= car.ack || car.queue.some((q) => q.seq >= (payload.seq ?? 0))) return;
+      car.queue.push({ seq: payload.seq, input: driveInput(payload) });
+      if (car.queue.length > DRIVE_QUEUE_MAX) car.queue.shift();
     }),
     enter: validate(NoPayloadSchema, (client: CityClient) => {
       this.#enter(client.sessionId, Date.now());
@@ -307,7 +320,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     this.patchRate = null;
     PARKING.forEach((home, i) => {
       const state = new CityCar({ x: home.x, y: home.y, heading: home.heading, color: i % CAR_COLORS });
-      this.#cars.set(`car${String(i)}`, { state, home, speed: 0, input: LET_GO, wantAt: 0, parkedSince: Date.now() });
+      this.#cars.set(`car${String(i)}`, { state, home, speed: 0, input: LET_GO, wantAt: 0, parkedSince: Date.now(), queue: [], ack: 0 });
       this.state.cars.set(`car${String(i)}`, state);
     });
     let n = 0;
@@ -689,6 +702,9 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     car.state.driver = sessionId;
     car.input = LET_GO;
     car.wantAt = 0;
+    car.queue.length = 0;
+    car.ack = 0;
+    player.driveAck = 0;
     player.car = carId;
     player.x = car.state.x;
     player.y = car.state.y;
@@ -699,6 +715,8 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     if (driver !== undefined) driver.car = '';
     car.state.driver = '';
     car.speed = 0;
+    car.state.speed = 0;
+    car.queue.length = 0;
     car.parkedSince = now;
   }
 
@@ -720,11 +738,18 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
         this.#park(car, now);
         continue;
       }
-      const c = driveControls(s.heading, car.speed, now - car.wantAt > DRIVE_INPUT_TTL_MS ? LET_GO : car.input);
+      const queued = car.queue.shift();
+      if (queued !== undefined) {
+        car.input = queued.input;
+        car.ack = queued.seq;
+      }
       const others = [...this.#cars].flatMap(([id, o]) => (id === carId ? [] : [{ x: o.state.x, y: o.state.y, heading: o.state.heading }]));
       const hitsCar = carsBlockCar(others, s);
-      const next = stepCar({ x: s.x, y: s.y, heading: s.heading, speed: car.speed }, c.throttle, c.steer, TICK_SECONDS, (p, heading) => this.#carBlocked(s.driver, p, heading) || hitsCar(p, heading));
+      const input = queued === undefined && now - car.wantAt > DRIVE_INPUT_TTL_MS ? LET_GO : car.input;
+      const next = driveTick({ x: s.x, y: s.y, heading: s.heading, speed: car.speed }, input, TICK_SECONDS, (p, heading) => this.#carBlocked(s.driver, p, heading) || hitsCar(p, heading));
       car.speed = next.speed;
+      if (s.speed !== next.speed) s.speed = next.speed;
+      if (driver.driveAck !== car.ack) driver.driveAck = car.ack;
       if (next.x !== s.x) s.x = next.x;
       if (next.y !== s.y) s.y = next.y;
       if (next.heading !== s.heading) s.heading = next.heading;

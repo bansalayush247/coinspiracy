@@ -36,12 +36,12 @@ import { registerServiceWorker } from './pwa/register.js';
 import { resolveServerEndpoint } from './serverUrl.js';
 import { el, h } from './ui/dom.js';
 import { NATURE_NOTES, type NatureNote } from './game/atmosphere.js';
-import { AUDIO_CONFIG, audio, isMusicChoice, type MusicChoice } from './audio/engine.js';
+import { AUDIO_CONFIG, audio, isMusicChoice, isMusicStyle, type MusicChoice, type MusicStyle } from './audio/engine.js';
 import { quality, saveQuality } from './game/quality.js';
 import { MatchView } from './matchView.js';
 import { Hud, type LobbyInfo, type RosterEntry } from './ui/hud.js';
 import { Menu, type MenuAction } from './ui/menu.js';
-import { bindLanguagePicker, initLocale, onLocaleChange, t, type PlainKey } from './i18n/index.js';
+import { bindLanguagePicker, getLocale, initLocale, onLocaleChange, t, type PlainKey } from './i18n/index.js';
 import { preloadStory } from './i18n/story.js';
 import { lookWear } from './game/wear.js';
 import { feedbackWhere } from '@byzantine-council/shared';
@@ -996,11 +996,18 @@ const MUSIC_LABELS: Readonly<Record<MusicChoice, PlainKey>> = {
   story: 'music.story',
 };
 
+const MUSIC_STYLE_LABELS: Readonly<Record<MusicStyle, PlainKey>> = {
+  auto: 'musicStyle.auto',
+  western: 'musicStyle.western',
+  indian: 'musicStyle.indian',
+  hindi: 'musicStyle.hindi',
+};
+
 // Sound starts on the first tap or key press, as browsers require. Players can keep the
-// scene-aware score or pin one of its themes; the button still offers a quick mute cycle.
+// scene-aware score or pin one of its themes, switch soundtrack styles, or mute.
 function setupSound(): void {
   const button = el('sound', HTMLButtonElement);
-  const vocals = el('vocals', HTMLButtonElement);
+  const style = el('music-style', HTMLSelectElement);
   const music = el('music', HTMLSelectElement);
   const defaultMusic = audio.settings.music || AUDIO_CONFIG.defaultSettings.music;
   const render = (): void => {
@@ -1008,23 +1015,27 @@ function setupSound(): void {
     const label = t(s.muted ? 'settings.soundOff' : s.music === 0 ? 'settings.musicOff' : 'settings.soundOn');
     button.textContent = label;
     button.setAttribute('aria-label', t('settings.soundAria', { label }));
-    const vocalsLabel = t(s.vocals ? 'settings.vocalsOn' : 'settings.vocalsOff');
-    vocals.textContent = vocalsLabel;
-    vocals.setAttribute('aria-pressed', String(s.vocals));
-    vocals.setAttribute('aria-label', t('settings.vocalsAria', { label: vocalsLabel }));
+    style.value = s.musicStyle;
+    style.setAttribute('aria-label', t('settings.soundtrackAria', { style: t(MUSIC_STYLE_LABELS[s.musicStyle]) }));
     music.value = s.music === 0 ? 'off' : s.musicChoice;
     const choice = t(s.music === 0 ? 'music.off' : MUSIC_LABELS[s.musicChoice]);
     music.setAttribute('aria-label', t('settings.musicAria', { choice }));
   };
-  onLocaleChange(render);
+  onLocaleChange(() => {
+    audio.setLocale(getLocale());
+    render();
+  });
   button.addEventListener('click', () => {
     const s = audio.settings;
     if (s.muted) audio.update({ muted: false, music: defaultMusic });
     else if (s.music > 0) audio.update({ music: 0 });
     else audio.update({ muted: true });
   });
-  vocals.addEventListener('click', () => {
-    audio.update({ vocals: !audio.settings.vocals });
+  style.addEventListener('change', () => {
+    if (isMusicStyle(style.value)) {
+      audio.update({ musicStyle: style.value, music: audio.settings.music || defaultMusic, muted: false });
+    }
+    audio.play('click');
   });
   music.addEventListener('change', () => {
     if (music.value === 'off') audio.update({ music: 0 });
@@ -1033,6 +1044,7 @@ function setupSound(): void {
     }
     audio.play('click');
   });
+  audio.setLocale(getLocale());
   audio.onChange(render);
   render();
   const unlock = (): void => {

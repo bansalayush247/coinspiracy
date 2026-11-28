@@ -139,13 +139,13 @@ function planFor(door: Door): Plan {
     case 'shop':
       return shopPlan(name, shopTradeOf(b.seed), x0, x1, y1, b.height);
     case 'cityHall':
-      return { faces: [south(mid - 2.6, y1, 64, 5.2, 22, 0.08, S.stone.edge, true, stoneLintel(name, false))] };
+      return { faces: [south(mid - 2.6, y1, 91, 5.2, 22, 0.08, S.stone.edge, true, stoneLintel(name, false))] };
     case 'mintHall':
       return { faces: [south(x0 + 0.45, y1 - 0.3, b.height - 55, x1 - x0 - 0.9, 19, 0.05, S.stone.edge, false, stoneLintel(name, true))] };
     case 'hospital':
-      return { faces: [south(mid - 2.2, y1, 58, 4.4, 18, 0.06, S.hospital.edge, true, hospitalPanel(name))] };
+      return { faces: [south(mid - 2.2, y1, 76, 4.4, 18, 0.06, S.hospital.edge, true, hospitalPanel(name))] };
     case 'chapel':
-      return { faces: [south(mid - 1.8, y1, 66, 3.6, 24, 0.06, S.oak.edge, true, carvedBoard(name))] };
+      return { faces: [south(mid - 1.8, y1, 100, 3.6, 24, 0.06, S.oak.edge, true, carvedBoard(name))] };
     case 'temple': {
       const beam = y1 - 0.8 + 0.045;
       const a = mid - 0.95;
@@ -165,11 +165,11 @@ function planFor(door: Door): Plan {
       return { faces: [{ ...south(mid - w / 2, porchFront - 0.03, top + 17, w, 23, 0.06, S.mandir.edge, false, mandirBoard(name)), edgeH: 17 }] };
     }
     case 'arcade':
-      return { faces: [south(mid - 2.5, y1 + 0.02, 57, 5, 24, 0.04, S.neon.edge, true, neonBoard(name))] };
+      return { faces: [south(mid - 2.5, y1 + 0.02, 86, 5, 24, 0.04, S.neon.edge, true, neonBoard(name))] };
     case 'fishMarket':
       return { faces: [south(mid - 1.3, y1 + 0.02, 86, 2.6, 30, 0.05, S.fish.edge, true, fishBoard(name))] };
     case 'office':
-      return { faces: [south(mid - 1.45, y1, 49, 2.9, 20, 0.03, S.brass.edge, true, brassPlate(name, 16))] };
+      return { faces: [south(mid - 1.45, y1, 69, 2.9, 20, 0.03, S.brass.edge, true, brassPlate(name, 16))] };
     case 'flat':
       return homePlan(name, b.kind === 'mansion', mid, x1, y1);
   }
@@ -183,7 +183,7 @@ function south(x: number, y: number, top: number, w: number, h: number, t: numbe
 function shopPlan(name: string, trade: ShopTrade, x0: number, x1: number, y1: number, height: number): Plan {
   const T = SIGN_STYLE.trades[trade];
   const narrow = x1 - x0 < 2.5;
-  const fascia = south(x0 + 0.1, y1, narrow ? 64 : 61, x1 - x0 - 0.2, narrow ? 22 : 19, 0.05, T.frame, true, shopFascia(name, trade));
+  const fascia = south(x0 + 0.1, y1, Math.min(height - 1, narrow ? 81 : 79), x1 - x0 - 0.2, narrow ? 22 : 19, 0.05, T.frame, true, shopFascia(name, trade));
   const arm = Math.min(height - 8, 94);
   const bx = x0 + 0.12;
   const out0 = y1 + 0.14;
@@ -224,7 +224,7 @@ function homePlan(name: string, mansion: boolean, mid: number, x1: number, y1: n
   const S = SIGN_STYLE;
   const front = y1 - 0.1;
   const num = /^(\d+)\s+(.+)$/.exec(name);
-  const start = mansion ? mid + 0.62 : mid + 0.26;
+  const start = mansion ? mid + 0.62 : mid + 0.36;
   const room = x1 - 0.18 - start;
   const paint = num !== null ? enamelPlate(num[1] ?? '', num[2] ?? '') : brassPlate(name);
   const edge = num !== null ? S.enamel.edge : S.brass.edge;

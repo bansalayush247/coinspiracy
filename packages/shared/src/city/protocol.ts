@@ -60,10 +60,13 @@ export const PunchLineSchema = z.strictObject({
 });
 export type PunchLine = z.infer<typeof PunchLineSchema>;
 
-// Where the driver points the car: the same world-space direction as walking, no sequence numbers.
-/** A driver's input: a direction to head for (the touch stick), or pedal and wheel (the keyboard). */
+const DriveSeq = z.int().min(1).max(0xffffffff).optional();
+/**
+ * A driver's input for one tick: a direction to head for (the touch stick), or pedal and wheel (the keyboard). `seq`
+ * numbers it so the server can say which inputs it has run and the driver's client can replay the rest.
+ */
 export const DrivePayloadSchema = z.union([
-  z.strictObject({ dx: z.number().min(-1).max(1), dy: z.number().min(-1).max(1) }),
-  z.strictObject({ throttle: z.number().min(-1).max(1), steer: z.number().min(-1).max(1) }),
+  z.strictObject({ dx: z.number().min(-1).max(1), dy: z.number().min(-1).max(1), seq: DriveSeq }),
+  z.strictObject({ throttle: z.number().min(-1).max(1), steer: z.number().min(-1).max(1), seq: DriveSeq }),
 ]);
 export type DrivePayload = z.infer<typeof DrivePayloadSchema>;

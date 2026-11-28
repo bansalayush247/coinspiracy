@@ -39,7 +39,15 @@
                 <option value="off" data-i18n="music.off">Off</option>
               </select>
             </label>
-            <button id="vocals" type="button" class="corner-toggle" aria-pressed="true" aria-label="Vocals: On. Change vocals">Vocals: On</button>
+            <label class="music-picker">
+              <span data-i18n="settings.soundtrack">Soundtrack</span>
+              <select id="music-style">
+                <option value="auto" data-i18n="musicStyle.auto">Auto</option>
+                <option value="western" data-i18n="musicStyle.western">Western Instrumental</option>
+                <option value="indian" data-i18n="musicStyle.indian">Indian Instrumental</option>
+                <option value="hindi" data-i18n="musicStyle.hindi">Hindi Songs</option>
+              </select>
+            </label>
             <button id="text-speed" type="button" class="corner-toggle">Text speed: Normal</button>
             <button id="beeps" type="button" class="corner-toggle" aria-pressed="true">Talk beeps: On</button>
             <label class="music-picker">

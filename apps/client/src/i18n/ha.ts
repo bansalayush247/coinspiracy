@@ -30,10 +30,14 @@ export const ha: Messages = {
   'settings.soundOff': 'Sauti a kashe',
   'settings.musicOff': 'Kiɗa a kashe',
   'settings.soundAria': '{label}. Canza sauti',
-  'settings.vocalsOn': 'Murya: A kunne',
-  'settings.vocalsOff': 'Murya: A kashe',
-  'settings.vocalsAria': '{label}. Canza murya',
+  'settings.soundtrack': 'Salon kiɗa',
+  'settings.soundtrackAria': 'Salon kiɗa: {style}',
   'settings.musicAria': 'Kiɗa: {choice}',
+
+  'musicStyle.auto': 'Kai tsaye',
+  'musicStyle.western': 'Kayan kiɗan Yamma',
+  'musicStyle.indian': 'Kayan kiɗan Indiya',
+  'musicStyle.hindi': 'Waƙoƙin Hindi',
 
   'music.dynamic': 'Mai sauyawa',
   'music.menu': 'Mint Citadel',

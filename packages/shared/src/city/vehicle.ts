@@ -14,6 +14,8 @@ export const CAR_TURN = 2.8;
 export const ENTER_RANGE = 1.8;
 // A driver whose input stops arriving (a dropped connection, a closed tab) lets go of the pedal this soon.
 export const DRIVE_INPUT_TTL_MS = 300;
+// Numbered driving inputs the server holds for a driver, a few ticks' worth; older ones are dropped.
+export const DRIVE_QUEUE_MAX = 6;
 // An abandoned car away from its spot is towed back after this long.
 export const CAR_TOW_MS = 240_000;
 export const CAR_COLORS = 8;
@@ -80,6 +82,12 @@ export function stepCar(car: CarBody, throttle: number, steer: number, dt: numbe
 }
 
 export const carBlockedByMap = (p: Vec2): boolean => isBlocked(CITY_MAP, p, CAR_RADIUS);
+
+/** One tick of driving from a driver's input, the same on the server and in the driver's own prediction. */
+export function driveTick(car: CarBody, input: { dx: number; dy: number } | { throttle: number; steer: number }, dt: number, blocked: (p: Vec2, heading: number) => boolean): CarBody & { bumped: boolean } {
+  const c = driveControls(car.heading, car.speed, input);
+  return stepCar(car, c.throttle, c.steer, dt, blocked);
+}
 
 /** Half the length and half the width of a car's body, in tiles: the box the art draws. */
 export const CAR_HALF_LENGTH = 0.75;
