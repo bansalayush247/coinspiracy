@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SHOP_IDS } from '../src/economy/catalog.js';
+import { BEACH_SHOP_IDS } from '../src/economy/catalog.js';
 import { canStand, findPathNear } from '../src/pathfinding.js';
 import { BEACH_MAP, BEACH_SPAWNS, COURIER_MAX_REWARD, COURIER_MIN_REWARD, courierReward, HOME_RANGE, SHOP_RANGE, atHome, homeDoor, minDeliveryMs, pickDestination, shopAt, shopCounter } from '../src/hub/index.js';
 import { cryptoRandom } from '../src/roles.js';
@@ -7,7 +7,7 @@ import { cryptoRandom } from '../src/roles.js';
 describe('Beach Town map', () => {
   it('lets every spawn reach every shop counter', () => {
     for (const s of BEACH_SPAWNS) expect(canStand(BEACH_MAP, s)).toBe(true);
-    for (const shop of SHOP_IDS) {
+    for (const shop of BEACH_SHOP_IDS) {
       const path = findPathNear(BEACH_MAP, BEACH_SPAWNS[0] ?? { x: 15, y: 9 }, shopCounter(shop), 1.2);
       expect(path.ok, shop).toBe(true);
     }
@@ -18,7 +18,7 @@ describe('Beach Town map', () => {
     expect(canStand(BEACH_MAP, door)).toBe(true);
     expect(atHome(door)).toBe(true);
     expect(shopAt(door)).toBeNull();
-    for (const shop of SHOP_IDS) {
+    for (const shop of BEACH_SHOP_IDS) {
       const c = shopCounter(shop);
       expect(Math.hypot(c.x - door.x, c.y - door.y), shop).toBeGreaterThan(HOME_RANGE + SHOP_RANGE - 1);
     }
@@ -28,8 +28,8 @@ describe('Beach Town map', () => {
 
 describe('courier jobs', () => {
   it('pay more for longer walks, within bounds, and never send a parcel to its own shop', () => {
-    for (const a of SHOP_IDS) {
-      for (const b of SHOP_IDS) {
+    for (const a of BEACH_SHOP_IDS) {
+      for (const b of BEACH_SHOP_IDS) {
         if (a === b) continue;
         const r = courierReward(a, b);
         expect(r).toBeGreaterThanOrEqual(COURIER_MIN_REWARD);

@@ -231,6 +231,12 @@ class Controller {
     this.#progressPage.onClosed = () => {
       this.#city?.holdStill(false);
     };
+    // Drills played at an arcade cabinet hand the guardian back to the city, with its music.
+    this.#academy.onClosed = () => {
+      if (this.#city?.active !== true) return;
+      this.#city.holdStill(false);
+      audio.setMood('beach');
+    };
     this.#world.onNewChapter = (chapter) => {
       audio.play('rankUp');
       this.#hud.toast(t('world.newChapter', { title: chapter.title }));
@@ -548,6 +554,9 @@ class Controller {
       };
       controller.onBoard = () => {
         this.#progressPage.open('quests');
+      };
+      controller.onArcade = () => {
+        this.#academy.open();
       };
       this.#city = controller;
     }

@@ -14,7 +14,12 @@ export type OptionalSlot = (typeof OPTIONAL_SLOTS)[number];
 export const ITEM_CATEGORIES = Object.freeze([...COSMETIC_SLOTS, 'food'] as const);
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 
-export const SHOP_IDS = Object.freeze(['tailor', 'barber', 'hats', 'surf', 'cafe', 'pupusa-stand', 'coconut-stand'] as const);
+/** The stalls along Beach Town's boardwalk, each with its booth and courier runs. */
+export const BEACH_SHOP_IDS = Object.freeze(['tailor', 'barber', 'hats', 'surf', 'cafe', 'pupusa-stand', 'coconut-stand'] as const);
+/** A Beach Town stall. */
+export type BeachShopId = (typeof BEACH_SHOP_IDS)[number];
+/** Every shop that sells: Beach Town's stalls and the Port Concord shops with wares of their own. */
+export const SHOP_IDS = Object.freeze([...BEACH_SHOP_IDS, 'fish-market'] as const);
 export type ShopId = (typeof SHOP_IDS)[number];
 
 export interface ShopInfo {
@@ -116,6 +121,9 @@ const ITEM_SPECS = [
   { id: 'food:coffee', name: 'Coffee', shop: 'cafe', price: 30, swatch: '#8A5E44' },
   { id: 'food:pupusa', name: 'Pupusa', shop: 'pupusa-stand', price: 60, swatch: '#FFC896' },
   { id: 'food:coconut', name: 'Coconut', shop: 'coconut-stand', price: 40, swatch: '#A8DDA0' },
+  { id: 'food:fishcake', name: 'Fishcakes', shop: 'fish-market', price: 45, swatch: '#E8B87A' },
+  { id: 'food:grilled-fish', name: 'Grilled fish', shop: 'fish-market', price: 70, swatch: '#C98A4E' },
+  { id: 'food:chowder', name: 'Harbour chowder', shop: 'fish-market', price: 55, swatch: '#F2E2C0' },
   // Match rewards, never sold.
   { id: 'outfit:genesis', name: 'Genesis Robe', reward: 'firstMatch', colors: ['#3A3348', '#221D2C', '#FFD27A'] },
   { id: 'hat:threshold', name: 'Threshold Crown', reward: 'honestWin', colors: ['#FFD27A', '#B8903A'] },
@@ -186,6 +194,7 @@ export const SHOPS: readonly ShopInfo[] = deepFreeze([
   { id: 'cafe', name: 'Lightning Café', sells: 'Coffee', color: '#7FD8FF' },
   { id: 'pupusa-stand', name: 'Pupusa Stand', sells: 'Pupusas fresh off the griddle', color: '#FF9A6A' },
   { id: 'coconut-stand', name: 'Coconut Stand', sells: 'Ice-cold coconuts', color: '#A8DDA0' },
+  { id: 'fish-market', name: 'Fish Hall', sells: 'Fishcakes, grilled fish and harbour chowder', color: '#5FA8C8' },
 ]);
 
 export const CATALOG: readonly CatalogItem[] = Object.freeze(ITEM_SPECS.map((spec) => buildItem(spec)));
@@ -218,6 +227,9 @@ export const CosmeticSlotSchema = z.enum(COSMETIC_SLOTS);
 export const OptionalSlotSchema = z.enum(OPTIONAL_SLOTS);
 export const ItemCategorySchema = z.enum(ITEM_CATEGORIES);
 export const ShopIdSchema = z.enum(SHOP_IDS);
+/** Whether a shop is one of Beach Town's stalls. */
+export const isBeachShop = (id: ShopId): id is BeachShopId => (BEACH_SHOP_IDS as readonly ShopId[]).includes(id);
+export const BeachShopIdSchema = z.enum(BEACH_SHOP_IDS);
 export const RewardIdSchema = z.enum(REWARD_IDS);
 export const ItemIdSchema = z.enum(ITEM_IDS);
 export const CosmeticIdSchema = z.enum(COSMETIC_IDS);

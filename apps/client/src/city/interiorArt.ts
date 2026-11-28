@@ -19,7 +19,7 @@ interface Pt {
 }
 
 const S = ART_SCALE;
-const WALL_H: Readonly<Record<RoomKind, number>> = { shop: 120, mintHall: 136, hospital: 120, flat: 112 };
+const WALL_H: Readonly<Record<RoomKind, number>> = { shop: 120, mintHall: 136, hospital: 120, flat: 112, cityHall: 140, chapel: 148, arcade: 112, fishMarket: 116, office: 112, temple: 136 };
 const WALL_T = 0.2;
 const STUB_H = 18;
 const STUB_T = 0.24;
@@ -51,6 +51,13 @@ const BOARDS = [0xf2e6d0, 0x3fa7b5, 0xff8a5c, 0xffc860, 0xe0574b, 0x7fc86a, 0x5a
 const HATS = [0x3a3036, 0x6a4a34, 0xe8d49a, 0x2f3a4a, 0x8a2f3a, 0xc8a070, 0x4a5e48, 0xf2ece0] as const;
 const LEATHER = [0xb8323a, 0x2f8a86] as const;
 const CLOTH: readonly number[] = [...FABRIC, ...SUITS];
+const HARBOUR = 0x2f5a8a;
+const NEON = [0xff4fa8, 0x3ff0e0, 0xffd83a, 0x8a6aff, 0x6aff7a] as const;
+const CABINETS = [0xe0574b, 0x2f7ad0, 0xffb830, 0x8a4ad8, 0x2fa87a, 0xff7a3a, 0xd83a8a, 0x1e2a44] as const;
+const GLASS = [0x9fc8e8, 0xf2b8c8, 0xf6d88a, 0xb8d8a8, 0xc8b8e8] as const;
+const FISH = [0x9aaabb, 0x8a9aae, 0xd88a7a, 0xc8505a, 0xb8c4c8, 0x7a8aa0] as const;
+const ICE = 0xe8f2f6;
+const FLAME = 0xffc860;
 
 const DADO_Z = 40;
 const PANEL_Z = 56;
@@ -93,6 +100,9 @@ const UPPER_H = 26;
 const FRIDGE_H = 88;
 const WARDROBE_H = 94;
 const TV_UNIT_H = 15;
+const CABINET_H = 98;
+const ALTAR_H = 30;
+const TILE_Z = 64;
 
 const WALL_TOP = 470;
 const FADE_FROM = 10;
@@ -100,7 +110,7 @@ const DROP = 160;
 const REACH = 6;
 const BANDS = 18;
 
-const TALL: ReadonlySet<Piece> = new Set(['shelf', 'bookcase', 'vaultDoor', 'noticeBoard', 'rack', 'mirror', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv']);
+const TALL: ReadonlySet<Piece> = new Set(['shelf', 'bookcase', 'vaultDoor', 'noticeBoard', 'rack', 'mirror', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv', 'cabinet', 'bell']);
 
 const pick = (list: readonly number[], rand: () => number): number => list[Math.floor(rand() * list.length)] ?? list[0] ?? 0;
 const quad = (x0: number, y0: number, x1: number, y1: number, z = 0): Pt[] => [P(x0, y0, z), P(x1, y0, z), P(x1, y1, z), P(x0, y1, z)];
@@ -261,11 +271,11 @@ function floorTiles(g: G, x1: number, y1: number, pal: readonly [number, number]
   }
 }
 
-function floorMarble(g: G, x1: number, y1: number, rand: () => number): void {
+function floorMarble(g: G, x1: number, y1: number, rand: () => number, edge: { field: number; joint: number; line: number } = { field: 0x4a5e58, joint: 0x3e504b, line: GOLD }): void {
   const B = MARBLE_BORDER;
-  fan(g, 0x4a5e58, quad(1, 1, x1, y1));
-  for (let x = 1; x < x1 - 0.01; x += 1) fan(g, 0x3e504b, quad(x, 1, x + 0.02, 1 + B));
-  fan(g, GOLD, quad(1 + B - 0.06, 1 + B - 0.06, x1 - B + 0.06, y1 - B + 0.06));
+  fan(g, edge.field, quad(1, 1, x1, y1));
+  for (let x = 1; x < x1 - 0.01; x += 1) fan(g, edge.joint, quad(x, 1, x + 0.02, 1 + B));
+  fan(g, edge.line, quad(1 + B - 0.06, 1 + B - 0.06, x1 - B + 0.06, y1 - B + 0.06));
   fan(g, 0xb8ae9e, quad(1 + B, 1 + B, x1 - B, y1 - B));
   for (let j = 0; 1 + B + j < y1 - B - 0.01; j++) {
     for (let i = 0; 1 + B + i < x1 - B - 0.01; i++) {
@@ -318,6 +328,82 @@ function floorCarpet(g: G, x1: number, y1: number, base: number, rand: () => num
   }
 }
 
+// Arcade carpet: deep blue with neon confetti, squiggles and rings scattered over it.
+function floorArcade(g: G, x1: number, y1: number, rand: () => number): void {
+  const base = 0x1e1a3a;
+  fan(g, base, quad(1, 1, x1, y1));
+  const area = (x1 - 1) * (y1 - 1);
+  for (let i = 0; i < area * 1.2; i++) floorEllipse(g, 1.3 + rand() * (x1 - 2.6), 1.3 + rand() * (y1 - 2.6), 0.3 + rand() * 0.4, rand() > 0.5 ? 0x3a2a6a : 0x141028, 0.35);
+  for (let i = 0; i < area * 7; i++) {
+    const x = 1.08 + rand() * (x1 - 1.16);
+    const y = 1.08 + rand() * (y1 - 1.16);
+    const col = pick(NEON, rand);
+    const k = rand();
+    if (k < 0.35) {
+      const a = rand() * Math.PI * 2;
+      const r = 0.06 + rand() * 0.04;
+      fan(g, col, [0, 1, 2].map((i2) => P(x + Math.cos(a + (i2 * Math.PI * 2) / 3) * r, y + Math.sin(a + (i2 * Math.PI * 2) / 3) * r)), 0.85);
+    } else if (k < 0.65) {
+      const a = rand() * Math.PI;
+      g.lineStyle(1.6 * S, col, 0.8);
+      g.beginPath();
+      for (let j = 0; j <= 6; j++) {
+        const t = j / 6 - 0.5;
+        const q = P(x + Math.cos(a) * t * 0.3 - Math.sin(a) * Math.sin(j * 1.6) * 0.03, y + Math.sin(a) * t * 0.3 + Math.cos(a) * Math.sin(j * 1.6) * 0.03);
+        if (j === 0) g.moveTo(q.x, q.y);
+        else g.lineTo(q.x, q.y);
+      }
+      g.strokePath();
+    } else if (k < 0.85) {
+      const c = P(x, y);
+      g.lineStyle(1.4 * S, col, 0.8);
+      g.strokeEllipse(c.x, c.y, 0.09 * 2 * RX, 0.09 * 2 * RY, 12);
+    } else {
+      fan(g, col, quad(x - 0.025, y - 0.025, x + 0.025, y + 0.025), 0.9);
+    }
+  }
+  fan(g, WHITE, quad(1, 1, x1, y1), 0.02);
+}
+
+// Office carpet tiles, each laid at right angles to its neighbours so the pile reads as a soft chequer.
+function floorCarpetTiles(g: G, x1: number, y1: number, base: number, rand: () => number): void {
+  fan(g, shade(base, 0.25), quad(1, 1, x1, y1));
+  for (let y = 1; y < y1 - 0.01; y += 0.5) {
+    for (let x = 1; x < x1 - 0.01; x += 0.5) {
+      const xe = Math.min(x1, x + 0.5) - 0.008;
+      const ye = Math.min(y1, y + 0.5) - 0.008;
+      const odd = (Math.round((x - 1) * 2) + Math.round((y - 1) * 2)) % 2 === 1;
+      const col = jitter(odd ? shade(base, 0.06) : lit(base, 0.04), rand, 0.03);
+      fan(g, col, quad(x + 0.008, y + 0.008, xe, ye));
+      for (let k = 0.08; k < 0.46; k += 0.09) {
+        if (odd) line(g, P(x + k, y + 0.03), P(x + k, ye - 0.03), 1, shade(col, 0.12), 0.35);
+        else line(g, P(x + 0.03, y + k), P(xe - 0.03, y + k), 1, shade(col, 0.12), 0.35);
+      }
+    }
+  }
+}
+
+// A slatted cast-iron drain in the tiled floor, with the wet sheen spread round it.
+function floorDrain(g: G, x: number, y: number, rand: () => number): void {
+  for (let i = 0; i < 5; i++) floorEllipse(g, x + (rand() - 0.5) * 1.6, y + (rand() - 0.5) * 1.2, 0.25 + rand() * 0.45, WHITE, 0.08);
+  floorEllipse(g, x, y, 0.55, 0x6a8a9a, 0.12);
+  fan(g, 0x5a6670, quad(x - 0.2, y - 0.2, x + 0.2, y + 0.2));
+  fan(g, 0x2a3036, quad(x - 0.16, y - 0.16, x + 0.16, y + 0.16));
+  for (let k = -0.12; k < 0.13; k += 0.06) fan(g, 0x7a868e, quad(x - 0.15, y + k - 0.012, x + 0.15, y + k + 0.012));
+}
+
+// A worn runner up the middle of the chapel, from the doorway to where the candles stand.
+function aisleRunner(g: G, layout: RoomLayout, x: number, y0: number, y1: number): void {
+  const z = 0.4;
+  fan(g, SHADOW, quad(x - 0.36, y0 + 0.04, x + 0.42, y1 + 0.03), 0.12);
+  fan(g, 0x6a2a3a, quad(x - 0.38, y0, x + 0.38, y1, z));
+  fan(g, 0xe8c070, quad(x - 0.3, y0, x + 0.3, y1, z));
+  fan(g, 0x8a3a4a, quad(x - 0.27, y0, x + 0.27, y1, z));
+  for (let y = y0 + 0.5; y < y1 - 0.3; y += 1) fan(g, 0xe8c070, [P(x - 0.12, y, z), P(x, y - 0.14, z), P(x + 0.12, y, z), P(x, y + 0.14, z)], 0.8);
+  fan(g, WHITE, quad(x - 0.38, y0, x - 0.2, y1, z), 0.06);
+  if (y1 >= layout.d - 1.01) fan(g, 0xb8a890, quad(x - 0.38, y1 - 0.02, x + 0.38, y1, z));
+}
+
 // ---------- Walls ----------
 
 interface WallLook {
@@ -328,7 +414,45 @@ interface WallLook {
   readonly frame: number;
 }
 
+// The finishes of the civic and trade rooms, by their wall; null leaves the room to the plain finishes below.
+function roomWallLook(layout: RoomLayout, room: RoomKind): WallLook | null {
+  const stone = layout.wall === 'stone';
+  const brick = layout.wall === 'brick';
+  switch (room) {
+    case 'cityHall':
+      return layout.wall === 'panel'
+        ? { upper: 0xe2e6ea, lower: 0x5e3c28, trim: 0x7a5034, skirt: 0x3e2a1e, frame: 0xf2f0ea }
+        : { upper: 0xe6e2da, lower: 0xc8c2b6, trim: 0xf6f4ee, skirt: 0x8a8a90, frame: 0xf4f2ec };
+    case 'chapel':
+      return stone
+        ? { upper: 0xece2cc, lower: 0xd8ccb4, trim: 0xf6f0e2, skirt: 0xb4a68e, frame: 0xf4ecdc }
+        : { upper: 0xf6f0e4, lower: 0xe0d4be, trim: 0xfbf8f0, skirt: 0xc8b89a, frame: 0xece2cc };
+    case 'arcade':
+      return brick
+        ? { upper: 0x4a2e48, lower: 0x1e1a2e, trim: 0x2e2640, skirt: 0x120f1e, frame: 0x2e2640 }
+        : { upper: 0x2c2448, lower: 0x1c1832, trim: 0x3a3060, skirt: 0x120f1e, frame: 0x3a3060 };
+    case 'fishMarket':
+      return brick
+        ? { upper: 0xa85a3e, lower: 0xf2f4f2, trim: 0xf4f6f6, skirt: 0x3f6f8e, frame: 0xf4f6f6 }
+        : { upper: 0xdbe8e6, lower: 0xf2f4f2, trim: 0xfafcfc, skirt: 0x3f6f8e, frame: 0xf4f6f6 };
+    case 'office':
+      return layout.wall === 'panel'
+        ? { upper: 0xe6e2d8, lower: 0xb08a62, trim: 0xc89a6a, skirt: 0x5e4a3a, frame: 0xf4f4f0 }
+        : { upper: 0xeeebe4, lower: 0x8a9cae, trim: 0xfaf8f4, skirt: 0x4a4e58, frame: 0xf4f4f0 };
+    case 'temple':
+      return stone
+        ? { upper: 0xd6d4c6, lower: 0xaaac9e, trim: 0xe8e4d4, skirt: 0x8a8c80, frame: 0x6a4630 }
+        : layout.wall === 'panel'
+          ? { upper: 0xf0e4c8, lower: 0x7a4e32, trim: 0x8e6040, skirt: 0x4a3022, frame: 0x6a4430 }
+          : { upper: 0xf2e8d4, lower: 0x3f7472, trim: 0xe6d6b4, skirt: 0x4e3626, frame: 0x6e4830 };
+    default:
+      return null;
+  }
+}
+
 function wallLook(layout: RoomLayout, room: RoomKind, rand: () => number): WallLook {
+  const special = roomWallLook(layout, room);
+  if (special !== null) return special;
   switch (layout.wall) {
     case 'brick':
       return { upper: 0xb0603f, lower: 0xd8c2a6, trim: 0xf0e2c8, skirt: 0x5a3a2a, frame: 0xf4ecdc };
@@ -433,6 +557,35 @@ function stoneWall(g: G, side: Side, u1: number, h: number, look: WallLook, rand
   plate(g, side, pl, 1, u1, h - 4, h, onWall(side, lit(look.trim, 0.25)));
 }
 
+// The fishmonger's wall: white glazed tiles from the floor to shoulder height, with a band of harbour blue near the top.
+function tiledWainscot(g: G, side: Side, u1: number, look: WallLook, rand: () => number): void {
+  const pl = 1 + FACE * 0.4;
+  const TW = 0.25;
+  const TH = 9;
+  plate(g, side, pl, 1, u1, 0, TILE_Z, onWall(side, 0xb8c8cc));
+  for (let k = 0; k * TH < TILE_Z - 1; k++) {
+    const z0 = k * TH + 0.6;
+    const z1 = Math.min(TILE_Z, (k + 1) * TH) - 0.6;
+    const band = k === Math.floor(TILE_Z / TH) - 2;
+    for (let u = 1; u < u1; u += TW) {
+      const b = Math.min(u1, u + TW) - 0.012;
+      const col = band ? jitter(0x3f7fae, rand, 0.06) : jitter(look.lower, rand, 0.025);
+      plate(g, side, pl, u + 0.012, b, z0, z1, onWall(side, col));
+      plate(g, side, pl, u + 0.03, u + 0.08, z1 - 3, z1 - 1, onWall(side, WHITE), 0.5);
+    }
+  }
+  plate(g, side, pl, 1, u1, TILE_Z, TILE_Z + 3, onWall(side, 0x3f6f8e));
+  plate(g, side, pl, 1, u1, TILE_Z + 3, TILE_Z + 4, SHADOW, 0.15);
+}
+
+// A neon tube run along a wall at height z, its colour bleeding onto the wall round it.
+function neonStrip(g: G, side: Side, u1: number, z: number, col: number): void {
+  const pl = 1 + FACE * 0.8;
+  for (const [k, alpha] of [[14, 0.06], [9, 0.08], [5, 0.12]] as const) plate(g, side, pl, 1, u1, z - k, z + k, col, alpha);
+  plate(g, side, pl + 0.001, 1, u1, z - 1.6, z + 1.6, lit(col, 0.2));
+  plate(g, side, pl + 0.002, 1, u1, z - 0.5, z + 0.5, WHITE, 0.85);
+}
+
 function skirting(g: G, side: Side, u1: number, look: WallLook): void {
   const pl = 1 + FACE * 0.5;
   plate(g, side, pl, 1, u1, 0, SKIRT_H, onWall(side, look.skirt));
@@ -441,7 +594,7 @@ function skirting(g: G, side: Side, u1: number, look: WallLook): void {
 
 // ---------- Wall decor ----------
 
-type DecorKind = 'window' | 'arch' | 'curtains' | 'picture' | 'cross' | 'clock';
+type DecorKind = 'window' | 'arch' | 'curtains' | 'picture' | 'cross' | 'clock' | 'lancet' | 'rose' | 'crest' | 'neon' | 'poster' | 'chart' | 'slate' | 'buoy' | 'lattice' | 'hanging';
 interface Decor {
   readonly kind: DecorKind;
   readonly side: Side;
@@ -492,7 +645,49 @@ function planWalls(layout: RoomLayout, room: RoomKind, seed: number): Decor[] {
     put('picture', 'n', north);
     if (rand() < 0.7) put('picture', 'n', north);
   }
-  const kind: DecorKind = room === 'mintHall' ? 'arch' : 'window';
+  if (room === 'cityHall') {
+    const centre = north.reduce<number | null>((best, u) => (best === null || Math.abs(u + 0.5 - layout.w / 2) < Math.abs(best + 0.5 - layout.w / 2) ? u : best), null);
+    if (centre !== null) {
+      out.push({ kind: 'crest', side: 'n', u: centre });
+      claim(north, centre);
+    }
+    put('clock', 'w', west);
+  }
+  if (room === 'chapel') {
+    const altar = layout.furniture.find((f) => f.piece === 'candles');
+    const side: Side = altar !== undefined && altar.c === 1 && altar.r > 1 ? 'w' : 'n';
+    const list = side === 'w' ? west : north;
+    const want = altar === undefined ? Math.floor(layout.w / 2) : side === 'w' ? altar.r : altar.r === 1 ? altar.c : Math.floor(layout.w / 2);
+    const u = list.includes(want) ? want : list.reduce<number | null>((best, v) => (best === null || Math.abs(v - want) < Math.abs(best - want) ? v : best), null);
+    if (u !== null) {
+      out.push({ kind: 'rose', side, u });
+      claim(list, u);
+    }
+  }
+  if (room === 'arcade') {
+    put('neon', 'n', north);
+    put('poster', 'w', west);
+    put('neon', 'w', west);
+    put('poster', 'n', north);
+    if (rand() < 0.6) put('poster', 'n', north);
+    if (rand() < 0.6) put('neon', 'w', west);
+    return out;
+  }
+  if (room === 'fishMarket') {
+    put('slate', 'n', north);
+    put('buoy', west.length > 0 ? 'w' : 'n', west.length > 0 ? west : north);
+  }
+  if (room === 'office') {
+    put('chart', 'n', north);
+    put('clock', 'n', north);
+    put('chart', 'w', west);
+  }
+  if (room === 'temple') {
+    put('hanging', 'n', north);
+    put('hanging', 'n', north);
+    put('hanging', west.length > 0 ? 'w' : 'n', west.length > 0 ? west : north);
+  }
+  const kind: DecorKind = room === 'mintHall' || room === 'cityHall' ? 'arch' : room === 'chapel' ? 'lancet' : room === 'temple' ? 'lattice' : 'window';
   const spaced = (side: Side, list: number[], max: number): void => {
     const phase = rand() < 0.5 ? 0 : 1;
     let placed = 0;
@@ -503,8 +698,8 @@ function planWalls(layout: RoomLayout, room: RoomKind, seed: number): Decor[] {
       placed++;
     }
   };
-  spaced('w', west, room === 'flat' ? 1 : 3);
-  spaced('n', north, room === 'mintHall' ? 4 : room === 'flat' ? 0 : 2);
+  spaced('w', west, room === 'flat' ? 1 : room === 'office' || room === 'fishMarket' || room === 'temple' ? 2 : 3);
+  spaced('n', north, room === 'mintHall' ? 4 : room === 'flat' ? 0 : room === 'chapel' ? 3 : 2);
   return out;
 }
 
@@ -520,7 +715,7 @@ function windowOutline(u0: number, u1: number, z0: number, z1: number, arch: boo
   return pts;
 }
 
-function drawWindow(g: G, d: Decor, h: number, look: WallLook, rand: () => number): void {
+function drawWindow(g: G, d: Decor, h: number, look: WallLook, rand: () => number, blinds = false): void {
   const { side } = d;
   const arch = d.kind === 'arch';
   const pl = 1 + FACE;
@@ -556,6 +751,15 @@ function drawWindow(g: G, d: Decor, h: number, look: WallLook, rand: () => numbe
   fan(g, lit(look.frame, 0.2), [fp(side, u0 - 0.08, pl, z0 - 3), fp(side, u1 + 0.08, pl, z0 - 3), fp(side, u1 + 0.08, out, z0 - 3), fp(side, u0 - 0.08, out, z0 - 3)]);
   plate(g, side, out, u0 - 0.08, u1 + 0.08, z0 - 7, z0 - 3, tone(side, look.frame, 0.3));
   if (d.kind === 'curtains') curtains(g, side, u0, u1, z0, z1, rand);
+  if (blinds) {
+    const low = z1 - (z1 - z0) * (0.3 + rand() * 0.25);
+    for (let z = z1 - 1; z > low; z -= 3.2) {
+      plate(g, side, pl + 0.002, u0 + 0.01, u1 - 0.01, z - 2.4, z, onWall(side, 0xf2f0ea));
+      plate(g, side, pl + 0.002, u0 + 0.01, u1 - 0.01, z - 2.4, z - 1.8, SHADOW, 0.2);
+    }
+    plate(g, side, pl + 0.003, u0, u1, low - 1.5, low + 0.6, onWall(side, 0xd8d4cc));
+    plate(g, side, pl + 0.003, u1 - 0.08, u1 - 0.07, low - 14, low, onWall(side, 0x8a8a90));
+  }
 }
 
 function curtains(g: G, side: Side, u0: number, u1: number, z0: number, z1: number, rand: () => number): void {
@@ -697,21 +901,529 @@ function mintCrest(g: G, uc: number, h: number): void {
   for (const du of [-0.26, 0, 0.26]) poly(g, 'n', pl, [[uc + du - 0.08, zc + 18], [uc + du + 0.08, zc + 18], [uc + du, zc + 25]], GOLD);
 }
 
-function banner(g: G, u0: number, u1: number, h: number): void {
+function banner(g: G, u0: number, u1: number, h: number, cloth = 0x8a2a32): void {
   const pl = 1 + FACE * 3;
   const z0 = 34;
   const z1 = h - 24;
   const uc = (u0 + u1) / 2;
   const shape = (i: number): [number, number][] => [[u0 + i, z1], [u1 - i, z1], [u1 - i, z0 + i * 20], [uc, z0 + 9 + i * 20], [u0 + i, z0 + i * 20]];
   poly(g, 'n', pl, shape(0), onWall('n', GOLD));
-  poly(g, 'n', pl, shape(0.03), onWall('n', 0x8a2a32));
-  plate(g, 'n', pl, u0 + 0.03, uc - 0.04, z0 + 6, z1, lit(0x8a2a32, 0.12), 0.5);
+  poly(g, 'n', pl, shape(0.03), onWall('n', cloth));
+  plate(g, 'n', pl, u0 + 0.03, uc - 0.04, z0 + 6, z1, lit(cloth, 0.12), 0.5);
   fan(g, GOLD, ring('n', pl, uc, z1 - 22, 0.12, 16));
-  fan(g, 0x8a2a32, ring('n', pl, uc, z1 - 22, 0.07, 12));
+  fan(g, cloth, ring('n', pl, uc, z1 - 22, 0.07, 12));
+  if (cloth === HARBOUR) for (const dz of [-34, -40]) plate(g, 'n', pl + 0.001, u0 + 0.06, u1 - 0.06, z1 + dz, z1 + dz + 2, onWall('n', 0xf4f2ec), 0.85);
   plate(g, 'n', pl + 0.002, u0 - 0.06, u1 + 0.06, z1, z1 + 2.5, 0x4a3426);
 }
 
+function lancetOutline(u0: number, u1: number, z0: number, z1: number): [number, number][] {
+  const w = u1 - u0;
+  const rz = w * ROUND;
+  const zs = z1 - rz * Math.sin(Math.PI / 3);
+  const pts: [number, number][] = [[u0, z0], [u1, z0], [u1, zs]];
+  for (let i = 1; i <= 8; i++) {
+    const t = ((Math.PI / 3) * i) / 8;
+    pts.push([u0 + w * Math.cos(t), zs + rz * Math.sin(t)]);
+  }
+  for (let i = 1; i <= 8; i++) {
+    const t = (2 * Math.PI) / 3 + ((Math.PI / 3) * i) / 8;
+    pts.push([u1 + w * Math.cos(t), zs + rz * Math.sin(t)]);
+  }
+  return pts;
+}
+
+// A tall pointed chapel window of soft coloured quarries in lead, two lights wide.
+function drawLancet(g: G, d: Decor, h: number, look: WallLook, rand: () => number): void {
+  const { side } = d;
+  const pl = 1 + FACE;
+  const u0 = d.u + 0.27;
+  const u1 = d.u + 0.73;
+  const z0 = 34;
+  const z1 = h - 20;
+  const zs = z1 - (u1 - u0) * ROUND * Math.sin(Math.PI / 3);
+  const lead = onWall(side, 0x4a4450);
+  poly(g, side, pl, lancetOutline(u0 - 0.06, u1 + 0.06, z0 - 5, z1 + 6), onWall(side, shade(look.frame, 0.06)));
+  poly(g, side, pl, lancetOutline(u0 - 0.03, u1 + 0.03, z0 - 2, z1 + 3), onWall(side, lit(look.frame, 0.2)));
+  poly(g, side, pl, lancetOutline(u0, u1, z0, z1), lead);
+  const mid = (u0 + u1) / 2;
+  const rowH = 8;
+  for (let z = z0 + 1; z < zs - 1; z += rowH) {
+    for (const [a, b] of [[u0 + 0.012, mid - 0.012], [mid + 0.012, u1 - 0.012]] as const) {
+      const col = mix(pick(GLASS, rand), WHITE, 0.25 + rand() * 0.15);
+      plate(g, side, pl, a, b, z + 0.6, Math.min(zs - 1, z + rowH) - 0.6, onWall(side, col));
+      plate(g, side, pl, a, b, Math.min(zs - 1, z + rowH) - 2.2, Math.min(zs - 1, z + rowH) - 0.6, WHITE, 0.25);
+    }
+  }
+  poly(g, side, pl, lancetOutline(u0 + 0.02, u1 - 0.02, zs + 0.5, z1 - 2).slice(2), onWall(side, mix(0xf6d88a, WHITE, 0.2)));
+  const head = fp(side, mid, pl, zs + (z1 - zs) * 0.45);
+  for (const [r, col] of [[3.6, 0x4a4450], [2.6, mix(0xf2b8c8, WHITE, 0.1)], [1, WHITE]] as const) {
+    g.fillStyle(onWall(side, col), 1);
+    g.fillCircle(head.x, head.y, r * S);
+  }
+  plate(g, side, pl + 0.0005, mid - 0.012, mid + 0.012, z0, zs + 2, lead);
+  poly(g, side, pl + 0.001, [[u0 + 0.04, z0 + 8], [u0 + 0.1, z0 + 8], [u0 + 0.16, zs - 10], [u0 + 0.1, zs - 10]], WHITE, 0.18);
+  plate(g, side, 1 + 0.08, u0 - 0.1, u1 + 0.1, z0 - 9, z0 - 5, onWall(side, look.trim));
+  fan(g, lit(look.trim, 0.15), [fp(side, u0 - 0.1, pl, z0 - 5), fp(side, u1 + 0.1, pl, z0 - 5), fp(side, u1 + 0.1, 1.08, z0 - 5), fp(side, u0 - 0.1, 1.08, z0 - 5)]);
+}
+
+// A round window of coloured petals set high over the candles: a plain flower of glass, no emblem.
+function drawRose(g: G, d: Decor, h: number, look: WallLook): void {
+  const { side } = d;
+  const pl = 1 + FACE * 2;
+  const uc = d.u + 0.5;
+  const zc = h - 38;
+  const r = 0.44;
+  fan(g, onWall(side, shade(look.frame, 0.08)), ring(side, pl, uc, zc, r + 0.07, 32));
+  fan(g, onWall(side, lit(look.frame, 0.2)), ring(side, pl, uc, zc, r + 0.04, 32));
+  fan(g, onWall(side, 0x4a4450), ring(side, pl, uc, zc, r, 32));
+  fan(g, onWall(side, mix(0x9fc8e8, WHITE, 0.3)), ring(side, pl, uc, zc, r - 0.02, 32));
+  for (let i = 0; i < 8; i++) {
+    const t = (i / 8) * Math.PI * 2;
+    const col = mix(GLASS[i % GLASS.length] ?? WHITE, WHITE, 0.15);
+    fan(g, onWall(side, 0x4a4450), ring(side, pl, uc + Math.cos(t) * 0.25, zc + Math.sin(t) * 0.25 * ROUND, 0.135, 16));
+    fan(g, onWall(side, col), ring(side, pl, uc + Math.cos(t) * 0.25, zc + Math.sin(t) * 0.25 * ROUND, 0.115, 16));
+  }
+  fan(g, onWall(side, 0x4a4450), ring(side, pl, uc, zc, 0.13, 18));
+  fan(g, onWall(side, 0xf6d88a), ring(side, pl, uc, zc, 0.11, 18));
+  fan(g, WHITE, ring(side, pl, uc, zc, 0.05, 12), 0.7);
+  for (const [k, alpha] of [[0.75, 0.06], [0.6, 0.06]] as const) fan(g, WARM, ring(side, pl, uc, zc, r * k + 0.2, 24), alpha);
+}
+
+// The city's crest over the council: a harbour-blue shield with a ship on the waves, a walled crown and a ribbon.
+function cityCrest(g: G, uc: number, h: number): void {
+  const pl = 1 + FACE * 4;
+  const zc = h - 44;
+  const shield = (k: number): [number, number][] => [[uc - 0.36 * k, zc + 15 * k], [uc + 0.36 * k, zc + 15 * k], [uc + 0.36 * k, zc - 3 * k], [uc + 0.2 * k, zc - 13 * k], [uc, zc - 17 * k], [uc - 0.2 * k, zc - 13 * k], [uc - 0.36 * k, zc - 3 * k]];
+  poly(g, 'n', pl - FACE, shield(1.16).map(([u, z]) => [u + 0.05, z - 3] as [number, number]), SHADOW, 0.18);
+  poly(g, 'n', pl, shield(1.16), 0x8a6a2a);
+  poly(g, 'n', pl, shield(1.08), GOLD);
+  poly(g, 'n', pl, shield(0.94), HARBOUR);
+  plate(g, 'n', pl, uc - 0.3, uc + 0.3, zc + 6, zc + 13, lit(HARBOUR, 0.12));
+  for (const dz of [-9, -5]) {
+    for (let u = uc - 0.26; u < uc + 0.24; u += 0.13) poly(g, 'n', pl + 0.001, [[u, zc + dz], [u + 0.065, zc + dz + 2.4], [u + 0.13, zc + dz], [u + 0.13, zc + dz + 1.4], [u + 0.065, zc + dz + 3.8], [u, zc + dz + 1.4]], onWall('n', 0xf4f2ec));
+  }
+  poly(g, 'n', pl + 0.001, [[uc - 0.2, zc - 2], [uc + 0.22, zc - 2], [uc + 0.15, zc - 7], [uc - 0.14, zc - 7]], 0x6e4430);
+  plate(g, 'n', pl + 0.001, uc - 0.012, uc + 0.012, zc - 2, zc + 12, 0x4a3426);
+  poly(g, 'n', pl + 0.002, [[uc + 0.02, zc + 11], [uc + 0.17, zc - 0.5], [uc + 0.02, zc - 0.5]], 0xf6f4ee);
+  poly(g, 'n', pl + 0.002, [[uc - 0.02, zc + 8], [uc - 0.13, zc], [uc - 0.02, zc]], 0xe8e2d4);
+  plate(g, 'n', pl, uc - 0.3, uc + 0.3, zc + 17, zc + 22, GOLD);
+  for (const du of [-0.26, -0.1, 0.06, 0.22]) plate(g, 'n', pl, uc + du - 0.02, uc + du + 0.06, zc + 22, zc + 27, GOLD);
+  plate(g, 'n', pl, uc - 0.3, uc + 0.3, zc + 17, zc + 18.5, lit(GOLD, 0.3));
+  for (const s of [-1, 1] as const) {
+    poly(g, 'n', pl + 0.001, [[uc + s * 0.62, zc - 18], [uc + s * 0.42, zc - 16], [uc + s * 0.42, zc - 22], [uc + s * 0.62, zc - 24], [uc + s * 0.54, zc - 21]], onWall('n', 0xd8d0c0));
+  }
+  poly(g, 'n', pl + 0.002, [[uc - 0.46, zc - 17], [uc + 0.46, zc - 17], [uc + 0.46, zc - 23], [uc - 0.46, zc - 23]], onWall('n', 0xf6f2e8));
+  plate(g, 'n', pl + 0.003, uc - 0.36, uc + 0.36, zc - 20.6, zc - 19.4, HARBOUR, 0.7);
+}
+
+// The glow a run of neon tube throws, then the tube, along a path drawn on the wall in (u, z).
+function neonPath(g: G, side: Side, pl: number, pts: readonly (readonly [number, number])[], col: number, closed = false): void {
+  const screen = pts.map(([u, z]) => fp(side, u, pl, z));
+  if (closed && screen[0] !== undefined) screen.push(screen[0]);
+  for (const [w, c, alpha] of [[9, col, 0.08], [5, col, 0.18], [2.4, lit(col, 0.25), 1], [0.9, WHITE, 0.9]] as const) {
+    g.lineStyle(w * S, c, alpha);
+    g.beginPath();
+    screen.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)));
+    g.strokePath();
+  }
+}
+
+// A neon sign on the arcade wall: a star, a bolt, a heart or a joystick in glowing tube.
+function drawNeon(g: G, d: Decor, h: number, rand: () => number): void {
+  const { side } = d;
+  const pl = 1 + FACE * 3;
+  const uc = d.u + 0.5;
+  const zc = h - 46;
+  const col = pick(NEON, rand);
+  const kind = Math.floor(rand() * 4);
+  plate(g, side, pl - FACE, uc - 0.4, uc + 0.4, zc - 18, zc + 18, 0x0b0814, 0.35);
+  for (const [k, alpha] of [[1.4, 0.05], [1, 0.06]] as const) fan(g, col, ring(side, pl - FACE, uc, zc, 0.42 * k, 20), alpha);
+  if (kind === 0) {
+    const pts: [number, number][] = [];
+    for (let i = 0; i < 10; i++) {
+      const t = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+      const r = i % 2 === 0 ? 0.3 : 0.13;
+      pts.push([uc + Math.cos(t) * r, zc - Math.sin(t) * r * ROUND]);
+    }
+    neonPath(g, side, pl, pts, col, true);
+  } else if (kind === 1) {
+    neonPath(g, side, pl, [[uc + 0.08, zc + 15], [uc - 0.14, zc - 1], [uc + 0.03, zc - 1], [uc - 0.1, zc - 16], [uc + 0.16, zc + 3], [uc - 0.01, zc + 3], [uc + 0.08, zc + 15]], col);
+  } else if (kind === 2) {
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 24; i++) {
+      const t = (i / 24) * Math.PI * 2;
+      pts.push([uc + 0.17 * Math.pow(Math.sin(t), 3) * 1.6, zc + (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) * 0.9]);
+    }
+    neonPath(g, side, pl, pts, col, true);
+  } else {
+    neonPath(g, side, pl, [[uc - 0.3, zc - 14], [uc + 0.3, zc - 14], [uc + 0.24, zc - 4], [uc - 0.24, zc - 4]], col, true);
+    neonPath(g, side, pl, [[uc - 0.06, zc - 4], [uc - 0.02, zc + 9]], col);
+    neonPath(g, side, pl, Array.from({ length: 12 }, (_, i) => [uc - 0.01 + Math.cos((i / 12) * Math.PI * 2) * 0.07, zc + 12 + Math.sin((i / 12) * Math.PI * 2) * 0.07 * ROUND] as const), pick(NEON, rand), true);
+    neonPath(g, side, pl, [[uc + 0.12, zc - 9], [uc + 0.14, zc - 9]], pick(NEON, rand));
+  }
+}
+
+// A framed game poster: a bright field with a rocket, planets and stars, and a title bar.
+function drawPoster(g: G, d: Decor, rand: () => number): void {
+  const { side } = d;
+  const pl = 1 + FACE * 2;
+  const u0 = d.u + 0.22;
+  const u1 = d.u + 0.78;
+  const z0 = 50 + rand() * 6;
+  const z1 = z0 + 40;
+  const field = pick([0x2a2a6a, 0x5a1a4a, 0x1a4a5a, 0x3a1a6a], rand);
+  plate(g, side, pl - FACE, u0 + 0.04, u1 + 0.05, z0 - 3, z1 - 3, SHADOW, 0.3);
+  plate(g, side, pl, u0, u1, z0, z1, onWall(side, 0x14101e));
+  plate(g, side, pl, u0 + 0.03, u1 - 0.03, z0 + 2, z1 - 2, onWall(side, field));
+  plate(g, side, pl, u0 + 0.03, u1 - 0.03, z0 + 2, z0 + 12, onWall(side, lit(field, 0.15)));
+  for (let i = 0; i < 9; i++) {
+    const p = fp(side, u0 + 0.06 + rand() * (u1 - u0 - 0.12), pl, z0 + 14 + rand() * 18);
+    g.fillStyle(WHITE, 0.8);
+    g.fillCircle(p.x, p.y, (0.6 + rand() * 0.6) * S);
+  }
+  const planet = pick(NEON, rand);
+  fan(g, onWall(side, planet), ring(side, pl, u0 + (u1 - u0) * 0.7, z0 + 24, 0.09, 16));
+  fan(g, onWall(side, lit(planet, 0.4)), ring(side, pl, u0 + (u1 - u0) * 0.68, z0 + 25, 0.04, 10));
+  const rc = u0 + (u1 - u0) * 0.35;
+  poly(g, side, pl, [[rc - 0.05, z0 + 14], [rc + 0.05, z0 + 14], [rc + 0.05, z0 + 26], [rc, z0 + 33], [rc - 0.05, z0 + 26]], onWall(side, 0xf2ece0));
+  poly(g, side, pl, [[rc - 0.05, z0 + 14], [rc - 0.1, z0 + 12], [rc - 0.05, z0 + 20]], onWall(side, 0xe0574b));
+  poly(g, side, pl, [[rc + 0.05, z0 + 14], [rc + 0.1, z0 + 12], [rc + 0.05, z0 + 20]], onWall(side, 0xe0574b));
+  poly(g, side, pl, [[rc - 0.03, z0 + 14], [rc + 0.03, z0 + 14], [rc, z0 + 7]], onWall(side, 0xffc860));
+  plate(g, side, pl, u0 + 0.06, u1 - 0.06, z1 - 9, z1 - 4, onWall(side, pick([0xffd83a, 0xff4fa8, 0x3ff0e0], rand)));
+  plate(g, side, pl, u0 + 0.1, u1 - 0.1, z0 + 4, z0 + 6, onWall(side, WHITE), 0.6);
+}
+
+// A framed chart on the office wall: bars or a rising line on white paper.
+function drawChart(g: G, d: Decor, rand: () => number): void {
+  const { side } = d;
+  const pl = 1 + FACE * 2;
+  const u0 = d.u + 0.16;
+  const u1 = d.u + 0.84;
+  const z0 = 56 + rand() * 4;
+  const z1 = z0 + 30;
+  const frame = rand() < 0.5 ? 0x2a2a30 : 0xb8bcc4;
+  plate(g, side, pl - FACE, u0 + 0.04, u1 + 0.05, z0 - 3, z1 - 3, SHADOW, 0.16);
+  plate(g, side, pl, u0, u1, z0, z1, onWall(side, frame));
+  plate(g, side, pl, u0 + 0.025, u1 - 0.025, z0 + 1.5, z1 - 1.5, onWall(side, 0xfbfaf6));
+  plate(g, side, pl, u0 + 0.06, u0 + 0.32, z1 - 6, z1 - 4.5, onWall(side, 0x3a3e46));
+  const a = u0 + 0.08;
+  const b = u1 - 0.06;
+  const base = z0 + 5;
+  plate(g, side, pl, a - 0.01, b, base - 0.6, base + 0.4, onWall(side, 0x6a6e78));
+  plate(g, side, pl, a - 0.01, a + 0.004, base, z1 - 9, onWall(side, 0x6a6e78));
+  if (rand() < 0.55) {
+    const n = 5;
+    const w = (b - a) / n;
+    for (let i = 0; i < n; i++) {
+      const top = base + 3 + (i + 1) * 2.6 + rand() * 4;
+      plate(g, side, pl, a + i * w + 0.02, a + (i + 1) * w - 0.02, base + 0.5, Math.min(z1 - 9, top), onWall(side, i === n - 1 ? 0xe0574b : pick([0x3f7fae, 0x3fa7a0], rand)));
+    }
+    return;
+  }
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 6; i++) pts.push([a + ((b - a - 0.02) * i) / 6, base + 2 + i * 2.2 + (rand() - 0.4) * 3]);
+  g.lineStyle(1.6 * S, onWall(side, 0x3f7fae), 1);
+  g.beginPath();
+  pts.forEach(([u, z], i) => {
+    const q = fp(side, u, pl, z);
+    if (i === 0) g.moveTo(q.x, q.y);
+    else g.lineTo(q.x, q.y);
+  });
+  g.strokePath();
+  for (const [u, z] of pts) {
+    const q = fp(side, u, pl, z);
+    g.fillStyle(onWall(side, 0xe0574b), 1);
+    g.fillCircle(q.x, q.y, 1.1 * S);
+  }
+}
+
+// The fishmonger's chalk slate: a fish drawn at the top and the day's prices under it.
+function drawSlate(g: G, d: Decor, rand: () => number): void {
+  const { side } = d;
+  const pl = 1 + FACE * 2;
+  const u0 = d.u + 0.12;
+  const u1 = d.u + 0.88;
+  const z0 = 70;
+  const z1 = 104;
+  const chalk = onWall(side, 0xeef2ee);
+  plate(g, side, pl - FACE, u0 + 0.04, u1 + 0.05, z0 - 3, z1 - 3, SHADOW, 0.2);
+  plate(g, side, pl, u0, u1, z0, z1, onWall(side, 0x8a5a3a));
+  plate(g, side, pl, u0 + 0.04, u1 - 0.04, z0 + 2.5, z1 - 2.5, onWall(side, 0x2a3230));
+  for (let i = 0; i < 4; i++) plate(g, side, pl, u0 + 0.06 + rand() * 0.4, u0 + 0.3 + rand() * 0.4, z0 + 4 + rand() * 24, z0 + 7 + rand() * 24, WHITE, 0.04);
+  const fc = (u0 + u1) / 2;
+  const fz = z1 - 9;
+  const body: [number, number][] = [];
+  for (let i = 0; i <= 14; i++) {
+    const t = (i / 14) * Math.PI * 2;
+    body.push([fc + Math.cos(t) * 0.16, fz + Math.sin(t) * 3.6]);
+  }
+  g.lineStyle(1.1 * S, chalk, 0.9);
+  g.beginPath();
+  body.forEach(([u, z], i) => {
+    const q = fp(side, u, pl + 0.001, z);
+    if (i === 0) g.moveTo(q.x, q.y);
+    else g.lineTo(q.x, q.y);
+  });
+  for (const [u, z] of [[fc - 0.16, fz], [fc - 0.26, fz + 4], [fc - 0.26, fz - 4], [fc - 0.16, fz]] as const) {
+    const q = fp(side, u, pl + 0.001, z);
+    g.lineTo(q.x, q.y);
+  }
+  g.strokePath();
+  const eye = fp(side, fc + 0.09, pl + 0.001, fz + 1);
+  g.fillStyle(chalk, 1);
+  g.fillCircle(eye.x, eye.y, 0.7 * S);
+  for (let k = 0; k < 3; k++) {
+    const z = fz - 8 - k * 6;
+    plate(g, side, pl + 0.001, u0 + 0.08, u0 + 0.08 + 0.18 + rand() * 0.14, z, z + 1.2, chalk, 0.8);
+    plate(g, side, pl + 0.001, u1 - 0.2, u1 - 0.08, z, z + 1.2, onWall(side, pick([0xffe27a, 0xf2b8c8, 0xeef2ee], rand)), 0.85);
+  }
+}
+
+// A red and white life ring hung on a peg, with its rope looped round it.
+function drawBuoy(g: G, d: Decor): void {
+  const { side } = d;
+  const pl = 1 + FACE * 2;
+  const uc = d.u + 0.5;
+  const zc = 90;
+  const ro = 0.36;
+  const ri = 0.2;
+  fan(g, SHADOW, ring(side, pl - FACE, uc + 0.04, zc - 3, ro, 24), 0.18);
+  const n = 32;
+  for (let j = 0; j < n; j++) {
+    const t0 = (j / n) * Math.PI * 2;
+    const t1 = ((j + 1) / n) * Math.PI * 2;
+    const at = (t: number, r: number): [number, number] => [uc + Math.cos(t) * r, zc + Math.sin(t) * r * ROUND];
+    const col = Math.floor((j * 4) / n) % 2 === 0 ? 0xe0473b : 0xf6f2ea;
+    const shadeK = 0.12 * (1 - Math.cos(t0 + Math.PI * 0.75));
+    poly(g, side, pl, [at(t0, ro), at(t1, ro), at(t1, ri), at(t0, ri)], onWall(side, shade(col, shadeK)));
+  }
+  strokeRing(g, ring(side, pl + 0.001, uc, zc, (ro + ri) / 2, 32), 1 * S, onWall(side, 0xc8a070), 0.9);
+  const peg = fp(side, uc, pl + 0.002, zc + ro * ROUND - 1);
+  g.fillStyle(onWall(side, 0x4a3426), 1);
+  g.fillCircle(peg.x, peg.y, 1.8 * S);
+}
+
+function wallPath(g: G, side: Side, pl: number, pts: readonly (readonly [number, number])[], width: number, col: number, alpha = 1): void {
+  g.lineStyle(width, col, alpha);
+  g.beginPath();
+  pts.forEach(([u, z], i) => {
+    const q = fp(side, u, pl, z);
+    if (i === 0) g.moveTo(q.x, q.y);
+    else g.lineTo(q.x, q.y);
+  });
+  g.strokePath();
+}
+
+// A temple window of plain square timber lattice over a view of the harbour: sky, a far headland and the sea.
+function drawLattice(g: G, d: Decor, h: number, look: WallLook): void {
+  const { side } = d;
+  const pl = 1 + FACE;
+  const u0 = d.u + 0.16;
+  const u1 = d.u + 0.84;
+  const z0 = 42;
+  const z1 = h - 34;
+  const zh = z0 + (z1 - z0) * 0.34;
+  const glass = (col: number): number => (side === 'n' ? mix(col, 0x6a6a9a, 0.12) : mix(col, SUN, 0.12));
+  const frame = onWall(side, look.frame);
+  plate(g, side, pl, u0 - 0.06, u1 + 0.06, z0 - 5, z1 + 5, frame);
+  plate(g, side, pl, u0 - 0.06, u1 + 0.06, z1 + 3, z1 + 5, onWall(side, lit(look.frame, 0.3)));
+  plate(g, side, pl, u0, u1, zh, z1, glass(SKY.top));
+  plate(g, side, pl, u0, u1, zh, zh + (z1 - zh) * 0.55, glass(SKY.mid));
+  plate(g, side, pl, u0, u1, zh, zh + (z1 - zh) * 0.22, glass(SKY.low));
+  poly(g, side, pl, [[u0, zh], [u0 + 0.22, zh], [u0 + 0.14, zh + 4], [u0 + 0.06, zh + 5.5], [u0, zh + 4]], glass(SKY.roofs), 0.8);
+  plate(g, side, pl, u0, u1, z0, zh, glass(0x3f7f9c));
+  plate(g, side, pl, u0, u1, zh - 5, zh, glass(0x6aaac0));
+  for (let k = 0; k < 4; k++) plate(g, side, pl, u0 + 0.3 + k * 0.03, u0 + 0.38 + k * 0.025, zh - 3 - k * 4, zh - 2.2 - k * 4, WHITE, 0.5 - k * 0.1);
+  poly(g, side, pl, [[u0 + 0.05, z0 + 6], [u0 + 0.17, z0 + 6], [u0 + 0.34, z1 - 8], [u0 + 0.22, z1 - 8]], WHITE, 0.12);
+  const cols = 3;
+  for (let i = 1; i < cols; i++) {
+    const u = u0 + ((u1 - u0) * i) / cols;
+    plate(g, side, pl, u - 0.012, u + 0.012, z0, z1, frame);
+  }
+  for (let z = z0 + 12; z < z1 - 4; z += 12) {
+    plate(g, side, pl, u0, u1, z - 1, z + 1, frame);
+    plate(g, side, pl, u0, u1, z + 1, z + 1.6, onWall(side, lit(look.frame, 0.25)), 0.7);
+  }
+  const out = 1 + 0.09;
+  fan(g, lit(look.frame, 0.2), [fp(side, u0 - 0.09, pl, z0 - 4), fp(side, u1 + 0.09, pl, z0 - 4), fp(side, u1 + 0.09, out, z0 - 4), fp(side, u0 - 0.09, out, z0 - 4)]);
+  plate(g, side, out, u0 - 0.09, u1 + 0.09, z0 - 8, z0 - 4, tone(side, look.frame, 0.3));
+}
+
+const HANGINGS = [
+  { cloth: 0x2f4a7a, ink: 0xf0e6cc },
+  { cloth: 0x2f7470, ink: 0xf2e8d0 },
+  { cloth: 0xd89a3a, ink: 0x7a2e24 },
+  { cloth: 0xa8503a, ink: 0xf4e4c4 },
+] as const;
+
+// A long cloth hanging on a timber rod: waves, chevrons or a column of diamonds in a plain second colour, fringed below.
+function drawHanging(g: G, d: Decor, h: number, rand: () => number): void {
+  const { side } = d;
+  const pl = 1 + FACE * 3;
+  const u0 = d.u + 0.29;
+  const u1 = d.u + 0.71;
+  const uc = (u0 + u1) / 2;
+  const zt = h - 32;
+  const zb = 34 + rand() * 6;
+  const { cloth, ink } = HANGINGS[Math.floor(rand() * HANGINGS.length)] ?? HANGINGS[0];
+  const c = onWall(side, cloth);
+  const k = onWall(side, ink);
+  plate(g, side, pl - FACE, u0 + 0.04, u1 + 0.05, zb - 3, zt - 2, SHADOW, 0.16);
+  plate(g, side, pl, u0, u1, zb, zt, c);
+  plate(g, side, pl, u0, u0 + 0.06, zb, zt, onWall(side, lit(cloth, 0.12)), 0.6);
+  plate(g, side, pl, u1 - 0.05, u1, zb, zt, onWall(side, shade(cloth, 0.14)), 0.6);
+  for (const u of [u0 + 0.025, u1 - 0.035]) plate(g, side, pl + 0.001, u, u + 0.01, zb + 4, zt - 4, k, 0.8);
+  const kind = Math.floor(rand() * 3);
+  const a = u0 + 0.06;
+  const b = u1 - 0.06;
+  if (kind === 2) {
+    for (let z = zb + 12; z < zt - 10; z += 15) {
+      poly(g, side, pl + 0.001, [[uc - 0.09, z], [uc, z - 6], [uc + 0.09, z], [uc, z + 6]], k);
+      poly(g, side, pl + 0.002, [[uc - 0.045, z], [uc, z - 3], [uc + 0.045, z], [uc, z + 3]], c);
+    }
+  } else {
+    for (let z = zb + 9; z < zt - 6; z += 9) {
+      const pts: [number, number][] = [];
+      if (kind === 0) for (let u = a; u <= b + 0.001; u += 0.02) pts.push([u, z + 2 * Math.sin(((u - a) / 0.14) * Math.PI * 2)]);
+      else for (let i = 0; i <= 6; i++) pts.push([a + ((b - a) * i) / 6, z + (i % 2 === 0 ? -2.4 : 2.4)]);
+      wallPath(g, side, pl + 0.001, pts, 1.3 * S, k, 0.9);
+    }
+  }
+  for (let u = u0 + 0.02; u < u1 - 0.01; u += 0.045) line(g, fp(side, u, pl + 0.001, zb), fp(side, u, pl + 0.001, zb - 5), 1.4, k, 0.9);
+  plate(g, side, pl + 0.002, u0 - 0.02, u1 + 0.02, zb - 0.5, zb + 2, onWall(side, 0x4a3426));
+  wallPath(g, side, pl + 0.001, [[u0 - 0.02, zt + 2], [uc, zt + 13], [u1 + 0.02, zt + 2]], 1.1, onWall(side, 0xc8a070));
+  plate(g, side, pl + 0.003, u0 - 0.08, u1 + 0.08, zt - 0.5, zt + 3, onWall(side, 0x4a3426));
+  for (const u of [u0 - 0.08, u1 + 0.08]) {
+    const p = fp(side, u, pl + 0.004, zt + 1.2);
+    g.fillStyle(onWall(side, BRASS), 1);
+    g.fillCircle(p.x, p.y, 2.2 * S);
+  }
+  const peg = fp(side, uc, pl + 0.004, zt + 13);
+  g.fillStyle(onWall(side, 0x4a3426), 1);
+  g.fillCircle(peg.x, peg.y, 1.6 * S);
+}
+
+// A teal band under the temple's cornice with a single running wave painted along it.
+function waveFrieze(g: G, side: Side, u1: number, h: number, look: WallLook): void {
+  const pl = 1 + FACE * 0.7;
+  const z0 = h - CORNICE_H - 12;
+  const z1 = h - CORNICE_H - 2;
+  const band = look.lower === 0x3f7472 ? shade(look.lower, 0.25) : 0x3f7472;
+  plate(g, side, pl, 1, u1, z0, z1, onWall(side, band));
+  plate(g, side, pl, 1, u1, z0, z0 + 1, onWall(side, GOLD), 0.7);
+  plate(g, side, pl, 1, u1, z1 - 1, z1, onWall(side, GOLD), 0.7);
+  const pts: [number, number][] = [];
+  for (let u = 1; u <= u1; u += 0.02) pts.push([u, (z0 + z1) / 2 + 2.4 * Math.sin(((u - 1) / 0.32) * Math.PI * 2)]);
+  wallPath(g, side, pl + 0.001, pts, 1.3 * S, onWall(side, 0xf2e8d0), 0.85);
+}
+
+// A string of round paper lanterns sagging along the top of a temple wall, each glowing warm.
+function lanternGarland(g: G, side: Side, u1: number, h: number, rand: () => number): void {
+  const pl = 1 + 0.06;
+  const top = h - CORNICE_H - 16;
+  const span = 2;
+  const papers = [0xfff0cc, 0xf6c46a, 0xf2a07a] as const;
+  for (let u = 1.15; u < u1 - 0.4; u += span) {
+    const e = Math.min(u1, u + span);
+    const sag = 9 * ((e - u) / span);
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12;
+      pts.push([u + (e - u) * t, top - sag * 4 * t * (1 - t)]);
+    }
+    wallPath(g, side, pl, pts, 1, onWall(side, 0x4a3426), 0.8);
+    for (const p of [u, e]) {
+      const q = fp(side, p, pl, top);
+      g.fillStyle(onWall(side, 0x4a3426), 1);
+      g.fillCircle(q.x, q.y, 1.4 * S);
+    }
+    const mu = (u + e) / 2;
+    const mz = top - sag - 3;
+    line(g, fp(side, mu, pl, top - sag), fp(side, mu, pl, mz), 1, onWall(side, 0x4a3426));
+    const c = fp(side, mu, pl, mz - 6);
+    for (const [r, alpha] of [[22, 0.04], [14, 0.06], [9, 0.09]] as const) {
+      g.fillStyle(WARM, alpha);
+      g.fillCircle(c.x, c.y, r * S);
+    }
+    const paper = pick(papers, rand);
+    g.fillStyle(0x4a3426, 1);
+    g.fillRect(c.x - 2.4 * S, c.y - 7.4 * S, 4.8 * S, 2 * S);
+    g.fillRect(c.x - 2.4 * S, c.y + 5.4 * S, 4.8 * S, 2 * S);
+    g.fillStyle(paper, 1);
+    g.fillEllipse(c.x, c.y, 10 * S, 11.5 * S, 16);
+    g.fillStyle(WHITE, 0.4);
+    g.fillEllipse(c.x - 1.2 * S, c.y - 0.6 * S, 5 * S, 7.5 * S, 12);
+    g.lineStyle(0.9, shade(paper, 0.3), 0.55);
+    for (const dy of [-2.8, 0, 2.8]) g.strokeEllipse(c.x, c.y + dy * S, (dy === 0 ? 10 : 8.6) * S, 1.6 * S, 12);
+  }
+}
+
 // ---------- Room shell ----------
+
+// Tile pairs and grout by room, for the rooms whose tiled floors are their own.
+const FLOOR_TILES: Partial<Record<RoomKind, readonly [number, number, number]>> = {
+  hospital: [0xeef2ee, 0xcfe3dc, 0xb4c2be],
+  cityHall: [0xeeeae2, 0x3a3e4a, 0x8a8a90],
+  chapel: [0xe8d8bc, 0xd2b48c, 0xb49a78],
+  arcade: [0x2a2448, 0x161226, 0x0e0b18],
+  fishMarket: [0xf0f4f4, 0xcfe2ea, 0x9fb4bc],
+  temple: [0xccd2c6, 0xa2b6ac, 0x7a867e],
+};
+const MARBLE_EDGES: Partial<Record<RoomKind, { field: number; joint: number; line: number }>> = {
+  cityHall: { field: 0x2f4a6a, joint: 0x243a56, line: 0xdcd8cc },
+  chapel: { field: 0xb4a68e, joint: 0x9a8a72, line: 0xe8dcc4 },
+  temple: { field: 0x3f6a62, joint: 0x335850, line: 0xd8c08a },
+};
+
+function drawDecor(g: G, d: Decor, room: RoomKind, h: number, look: WallLook, rand: () => number): void {
+  switch (d.kind) {
+    case 'picture':
+      drawPicture(g, d, rand);
+      return;
+    case 'cross':
+      drawCross(g, d, h);
+      return;
+    case 'clock':
+      drawClock(g, d, h, rand);
+      return;
+    case 'lancet':
+      drawLancet(g, d, h, look, rand);
+      return;
+    case 'rose':
+      drawRose(g, d, h, look);
+      return;
+    case 'crest': {
+      const uc = d.u + 0.5;
+      banner(g, uc - 1.14, uc - 0.7, h, HARBOUR);
+      banner(g, uc + 0.7, uc + 1.14, h, HARBOUR);
+      cityCrest(g, uc, h);
+      return;
+    }
+    case 'neon':
+      drawNeon(g, d, h, rand);
+      return;
+    case 'poster':
+      drawPoster(g, d, rand);
+      return;
+    case 'chart':
+      drawChart(g, d, rand);
+      return;
+    case 'slate':
+      drawSlate(g, d, rand);
+      return;
+    case 'buoy':
+      drawBuoy(g, d);
+      return;
+    case 'lattice':
+      drawLattice(g, d, h, look);
+      return;
+    case 'hanging':
+      drawHanging(g, d, h, rand);
+      return;
+    default:
+      drawWindow(g, d, h, look, rand, room === 'office');
+  }
+}
 
 /**
  * Floor, back walls with windows/skirting/decor, and the front stub walls with the doorway; drawn in room-local tile
@@ -730,19 +1442,25 @@ export function drawRoomShell(floor: G, backWalls: G, frontStub: G, layout: Room
   exterior(floor, layout, room, h, rng((seed * 69621 + 5) >>> 0));
   switch (layout.floor) {
     case 'planks':
-      floorPlanks(floor, x1, y1, room === 'shop' ? 0xb07a4e : pick([0xb98552, 0x9a6a44, 0xc89a68], rand), rand);
+      floorPlanks(floor, x1, y1, room === 'shop' ? 0xb07a4e : room === 'chapel' ? 0xc8a070 : room === 'temple' ? 0xa8744a : pick([0xb98552, 0x9a6a44, 0xc89a68], rand), rand);
       break;
-    case 'tile':
-      if (room === 'hospital') floorTiles(floor, x1, y1, [0xeef2ee, 0xcfe3dc], 0xb4c2be, rand);
-      else floorTiles(floor, x1, y1, [0xd99a6e, 0xf0e2c8], 0x9a7a60, rand);
+    case 'tile': {
+      const [a, b, grout] = FLOOR_TILES[room] ?? [0xd99a6e, 0xf0e2c8, 0x9a7a60];
+      floorTiles(floor, x1, y1, [a, b], grout, rand);
+      if (room === 'cityHall') for (let i = 0; i < 4; i++) fan(floor, WHITE, [P(1.5 + i * 2, 1), P(1.8 + i * 2, 1), P(3.4 + i * 2, y1), P(3.1 + i * 2, y1)], 0.05);
       break;
+    }
     case 'marble':
-      floorMarble(floor, x1, y1, rand);
+      floorMarble(floor, x1, y1, rand, MARBLE_EDGES[room]);
       break;
     case 'carpet':
-      floorCarpet(floor, x1, y1, pick([0x7a5a7e, 0x5f7f6a, 0x6a7fa0, 0xa0605a], rand), rand);
+      if (room === 'arcade') floorArcade(floor, x1, y1, rand);
+      else if (room === 'office') floorCarpetTiles(floor, x1, y1, pick([0x5a6474, 0x6a6670, 0x4e5e6e], rand), rand);
+      else floorCarpet(floor, x1, y1, pick([0x7a5a7e, 0x5f7f6a, 0x6a7fa0, 0xa0605a], rand), rand);
       break;
   }
+  if (room === 'fishMarket') floorDrain(floor, layout.w / 2 + 0.5, (1 + y1) / 2 + 0.5, rand);
+  if (room === 'chapel') aisleRunner(floor, layout, door + 0.5, 2.15, y1);
   fan(floor, 0xb8a890, quad(door, y1, door + 1, y1 + STUB_T));
   fan(floor, shade(0xb8a890, 0.3), [P(door, y1 + STUB_T, 0), P(door + 1, y1 + STUB_T, 0), P(door + 1, y1 + STUB_T, -4), P(door, y1 + STUB_T, -4)]);
   fan(floor, lit(0xb8a890, 0.3), quad(door, y1, door + 1, y1 + 0.04));
@@ -755,23 +1473,26 @@ export function drawRoomShell(floor: G, backWalls: G, frontStub: G, layout: Room
   fan(floor, 0x6a4a2e, quad(mat.x0, mat.y0, mat.x1, mat.y1, 0.5));
   fan(floor, 0xa8794a, quad(mat.x0 + 0.06, mat.y0 + 0.06, mat.x1 - 0.06, mat.y1 - 0.06, 0.5));
   for (let x = mat.x0 + 0.1; x < mat.x1 - 0.08; x += 0.06) line(floor, P(x, mat.y0 + 0.08, 0.5), P(x, mat.y1 - 0.08, 0.5), 1, 0x7a5434, 0.45);
-  for (const d of decor) {
-    if (d.kind !== 'window' && d.kind !== 'arch' && d.kind !== 'curtains') continue;
-    const a = d.u + 0.2;
-    const b = d.u + 0.8;
+  decor.forEach((d, i) => {
+    if (d.kind !== 'window' && d.kind !== 'arch' && d.kind !== 'curtains' && d.kind !== 'lancet' && d.kind !== 'lattice') return;
+    const lancet = d.kind === 'lancet';
+    const a = d.u + (lancet ? 0.27 : d.kind === 'lattice' ? 0.16 : 0.2);
+    const b = d.u + (lancet ? 0.73 : d.kind === 'lattice' ? 0.84 : 0.8);
     const m = (a + b) / 2;
     for (const [k, alpha] of [[1, 0.09], [0.7, 0.08]] as const) {
-      for (const [p, q] of [[a, m - 0.03], [m + 0.03, b]] as const) {
+      for (const [j, [p, q]] of ([[a, m - 0.03], [m + 0.03, b]] as const).entries()) {
+        const light = lancet ? mix(GLASS[(i * 2 + j) % GLASS.length] ?? SUN, SUN, 0.3) : SUN;
+        const glow = lancet ? alpha * 1.3 : alpha;
         if (d.side === 'w') {
           const far = Math.min(x1 - 0.1, 1 + 2.4 * k);
-          fan(floor, SUN, [P(1.15, p + 0.15), P(1.15, q + 0.15), P(far, Math.min(y1, q + 0.15 + 0.5 * k)), P(far, Math.min(y1, p + 0.15 + 0.5 * k))], alpha);
+          fan(floor, light, [P(1.15, p + 0.15), P(1.15, q + 0.15), P(far, Math.min(y1, q + 0.15 + 0.5 * k)), P(far, Math.min(y1, p + 0.15 + 0.5 * k))], glow);
         } else {
           const far = Math.min(y1 - 0.1, 1 + 1.8 * k);
-          fan(floor, SUN, [P(p + 0.25, 1.15), P(q + 0.25, 1.15), P(Math.min(x1, q + 0.25 + 0.9 * k), far), P(Math.min(x1, p + 0.25 + 0.9 * k), far)], alpha * 0.7);
+          fan(floor, light, [P(p + 0.25, 1.15), P(q + 0.25, 1.15), P(Math.min(x1, q + 0.25 + 0.9 * k), far), P(Math.min(x1, p + 0.25 + 0.9 * k), far)], glow * 0.7);
         }
       }
     }
-  }
+  });
   for (const [k, alpha] of [[1, 0.07], [0.65, 0.08], [0.35, 0.09]] as const) {
     const top = Math.max(1.2, y1 - 2.8 * k);
     fan(floor, WARM, [P(door + 0.04, y1 + STUB_T), P(door + 0.96, y1 + STUB_T), P(door + 1 + 0.6 * k, top), P(door - 0.6 * k, top)], alpha);
@@ -794,17 +1515,21 @@ export function drawRoomShell(floor: G, backWalls: G, frontStub: G, layout: Room
         stoneWall(backWalls, side, u1, h, look, rand);
         break;
     }
+    if (room === 'fishMarket') tiledWainscot(backWalls, side, u1, look, rand);
     if (layout.wall !== 'stone') skirting(backWalls, side, u1, look);
+    if (room === 'arcade') {
+      neonStrip(backWalls, side, u1, h - 12, NEON[0]);
+      neonStrip(backWalls, side, u1, 58, NEON[1]);
+    }
+    if (room === 'temple') waveFrieze(backWalls, side, u1, h, look);
     plate(backWalls, side, 1 + FACE * 0.6, 1, 1.12, 0, WALL_TOP, SHADOW, 0.1);
     for (const d of decor) {
       if (d.side !== side) continue;
-      if (d.kind === 'picture') drawPicture(backWalls, d, rand);
-      else if (d.kind === 'cross') drawCross(backWalls, d, h);
-      else if (d.kind === 'clock') drawClock(backWalls, d, h, rand);
-      else drawWindow(backWalls, d, h, look, rand);
+      drawDecor(backWalls, d, room, h, look, rand);
     }
   }
   if (room === 'shop') shopSign(backWalls, layout, h, rand);
+  if (room === 'temple') for (const side of ['w', 'n'] as const) lanternGarland(backWalls, side, wallU[side] - 0.3, h, rand);
   const vault = layout.furniture.find((f) => f.piece === 'vaultDoor');
   if (room === 'mintHall' && vault !== undefined) {
     mintCrest(backWalls, vault.c + vault.w / 2, h);
@@ -850,8 +1575,11 @@ function exteriorOf(layout: RoomLayout, room: RoomKind): number {
 
 /** The deep tone round a room while you are inside it, from its own walls and floor; the camera's background is set to it so the edges of the view read as more of the building. */
 export function roomBackdrop(layout: RoomLayout, room: RoomKind): number {
-  const wall = layout.wall === 'brick' ? 0xb0603f : layout.wall === 'panel' ? 0x8a5a3a : layout.wall === 'stone' ? 0xb4a68e : room === 'hospital' ? 0x8fc7bd : room === 'flat' ? 0xa89488 : 0xc77f5a;
-  const floor = layout.floor === 'planks' ? 0xb07a4e : layout.floor === 'tile' ? (room === 'hospital' ? 0xcfe3dc : 0xd99a6e) : layout.floor === 'marble' ? 0x8a8a80 : 0x6f6070;
+  const special = roomWallLook(layout, room);
+  const plain = layout.wall === 'brick' ? 0xb0603f : layout.wall === 'panel' ? 0x8a5a3a : layout.wall === 'stone' ? 0xb4a68e : room === 'hospital' ? 0x8fc7bd : room === 'flat' ? 0xa89488 : 0xc77f5a;
+  const wall = special === null ? plain : room === 'fishMarket' ? special.upper : special.lower;
+  const carpet = room === 'arcade' ? 0x1e1a3a : room === 'office' ? 0x5a6474 : 0x6f6070;
+  const floor = layout.floor === 'planks' ? 0xb07a4e : layout.floor === 'tile' ? (FLOOR_TILES[room]?.[1] ?? 0xd99a6e) : layout.floor === 'marble' ? 0x8a8a80 : carpet;
   return mix(mix(wall, floor, 0.35), NIGHT, 0.86);
 }
 
@@ -941,6 +1669,10 @@ function exterior(g: G, layout: RoomLayout, room: RoomKind, h: number, rand: () 
 // ---------- Furniture ----------
 
 function counter(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, trade: Trade, rand: () => number): void {
+  if (room === 'fishMarket') {
+    fishCounter(g, f, layout, rand);
+    return;
+  }
   const fr = frameOf(f, layout);
   const { a0, a1, b0, b1 } = span(f, fr);
   const mint = room === 'mintHall';
@@ -1083,10 +1815,14 @@ function tradeStock(g: G, fr: Fr, trade: ShopTrade, a: number, a1: number, b0: n
 }
 
 function shelf(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, trade: Trade, rand: () => number): void {
-  const carcass = room === 'mintHall' ? 0x5a3326 : 0x9a6a44;
+  const carcass = room === 'mintHall' ? 0x5a3326 : room === 'fishMarket' ? 0xa8b0b8 : 0x9a6a44;
   shelving(g, f, layout, SHELF_H, 4, carcass, (fr, a0, a1, b0, b1, z, gap) => {
     let a = a0 + 0.04 + rand() * 0.05;
     while (a < a1 - 0.12) {
+      if (room === 'fishMarket') {
+        a += fishStock(g, fr, a, a1, b0, b1, z, gap, rand);
+        continue;
+      }
       if (trade !== null && rand() < 0.75) {
         a += tradeStock(g, fr, trade, a, a1, b0, b1, z, gap, rand);
         continue;
@@ -1116,10 +1852,35 @@ function shelf(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, trade: Tr
   });
 }
 
-function bookcase(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void {
-  shelving(g, f, layout, BOOKCASE_H, 5, 0x6e4430, (fr, a0, a1, b0, b1, z, gap) => {
+// Books by room: the council keeps tall bound ledgers, an office keeps lever-arch binders, everyone else a mix.
+function bookcase(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, rand: () => number): void {
+  const carcass = room === 'cityHall' ? 0x4a2e22 : room === 'office' ? 0xd8d4cc : 0x6e4430;
+  shelving(g, f, layout, BOOKCASE_H, 5, carcass, (fr, a0, a1, b0, b1, z, gap) => {
     let a = a0 + 0.02;
     while (a < a1 - 0.05) {
+      if (room === 'office') {
+        const w = Math.min(a1 - a, 0.075 + rand() * 0.02);
+        const hh = gap * 0.86;
+        const col = pick([0x2f5a8a, 0xe0574b, 0x3fa7a0, 0xffc860, 0x2a2a30, 0x2f5a8a], rand);
+        box(g, fr, a, b0 + 0.08, a + w, b1 - 0.03, z, hh, col, lit(col, 0.25));
+        plate(g, fr, b1 - 0.03 + 0.002, a + 0.012, a + w - 0.012, z + hh * 0.5, z + hh * 0.72, tone(fr, 0xfaf8f2), 0.95);
+        const hole = fp(fr, a + w / 2, b1 - 0.028, z + hh * 0.25);
+        if (fr !== 'e') {
+          g.fillStyle(shade(col, 0.5), 1);
+          g.fillCircle(hole.x, hole.y, 1.2 * S);
+        }
+        a += w + 0.008 + (rand() < 0.1 ? 0.1 : 0);
+        continue;
+      }
+      if (room === 'cityHall') {
+        const w = 0.05 + rand() * 0.015;
+        const hh = gap * (0.82 + rand() * 0.1);
+        const col = pick([0x6a1f2a, 0x2f4a6a, 0x2f5a3a, 0x5a3a2a, 0x6a1f2a], rand);
+        box(g, fr, a, b0 + 0.08, Math.min(a1, a + w), b1 - 0.03, z, hh, col, lit(col, 0.2));
+        for (const k of [0.18, 0.78]) plate(g, fr, b1 - 0.03 + 0.002, a + 0.006, Math.min(a1, a + w) - 0.006, z + hh * k, z + hh * k + 1.4, tone(fr, GOLD), 0.9);
+        a += w + 0.004;
+        continue;
+      }
       if (rand() < 0.08) {
         a += 0.08 + rand() * 0.08;
         continue;
@@ -1140,9 +1901,18 @@ function rug(g: G, f: Furniture, room: RoomKind, rand: () => number): void {
   const x1 = f.c + f.w - 0.1;
   const y1 = f.r + f.d - 0.1;
   const z = 0.5;
+  if (room === 'fishMarket') {
+    fan(g, SHADOW, quad(x0 + 0.03, y0 + 0.04, x1 + 0.05, y1 + 0.04), 0.18);
+    fan(g, 0x2a2e34, quad(x0, y0, x1, y1, z));
+    for (let y = y0 + 0.08; y < y1 - 0.04; y += 0.12) for (let x = x0 + 0.08; x < x1 - 0.04; x += 0.12) fan(g, 0x14161a, quad(x - 0.03, y - 0.03, x + 0.03, y + 0.03, z));
+    fan(g, WHITE, quad(x0, y0, x1, y0 + 0.04, z), 0.12);
+    return;
+  }
   const pal = room === 'mintHall'
     ? { border: 0x5a1a24, field: 0x8a2a32, line: GOLD, motif: 0xe8c070 }
-    : room === 'shop'
+    : room === 'cityHall'
+      ? { border: 0x1e3450, field: HARBOUR, line: GOLD, motif: 0xe8d8b0 }
+      : room === 'shop'
       ? { border: 0x2f5068, field: 0x3f6f8a, line: 0xe9d8b0, motif: 0xd98a4a }
       : pick([0, 1, 2], rand) === 0
         ? { border: 0x2a4a5a, field: 0x3f7f86, line: 0xf0e2c0, motif: 0xd9a54a }
@@ -1213,10 +1983,12 @@ function leaf(g: G, base: Pt, ang: number, len: number, wid: number, light: numb
   fan(g, dark, [base, tip, { x: mid.x - px, y: mid.y - py }]);
 }
 
+const POTS: Partial<Record<RoomKind, number>> = { mintHall: 0xd8ccb4, hospital: 0xf2f2ee, cityHall: 0xd8d4cc, chapel: 0xd8ccb4, arcade: 0x2a2438, fishMarket: 0x3f6f8e, office: 0xf2f2ee, temple: 0x5f8f80 };
+
 function plant(g: G, f: Furniture, room: RoomKind, rand: () => number): void {
   const x = f.c + f.w / 2;
   const y = f.r + f.d / 2;
-  const pot = room === 'mintHall' ? 0xd8ccb4 : room === 'hospital' ? 0xf2f2ee : 0xc0704a;
+  const pot = POTS[room] ?? 0xc0704a;
   const leafs = LEAVES[Math.floor(rand() * LEAVES.length)] ?? LEAVES[0];
   floorEllipse(g, x + 0.12, y + 0.02, 0.3, SHADOW, 0.2);
   tube(g, x, y, 0.15, 0.2, 0, POT_H - 3, pot, null);
@@ -1264,10 +2036,14 @@ function plant(g: G, f: Furniture, room: RoomKind, rand: () => number): void {
 }
 
 function lamp(g: G, f: Furniture, layout: RoomLayout, room: RoomKind): void {
+  if (room === 'temple') {
+    paperLantern(g, f, layout);
+    return;
+  }
   const x = f.c + f.w / 2;
   const y = f.r + f.d / 2;
-  const metal = room === 'mintHall' ? BRASS : 0x4a4450;
-  const cloth = room === 'hospital' ? 0xf4f0e4 : 0xf3dcae;
+  const metal = room === 'mintHall' || room === 'cityHall' || room === 'chapel' ? BRASS : room === 'arcade' ? 0x2a2438 : 0x4a4450;
+  const cloth = room === 'hospital' || room === 'office' ? 0xf4f0e4 : room === 'arcade' ? 0xffb8e0 : 0xf3dcae;
   const bounds = { x1: layout.w - 1, y1: layout.d - 1 };
   for (const [r, alpha] of [[1.5, 0.05], [1.15, 0.05], [0.8, 0.06], [0.45, 0.07]] as const) floorPool(g, x, y, r, WARM, alpha, bounds);
   const head = P(x, y, LAMP_H + 8);
@@ -1455,10 +2231,15 @@ function sofa(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void 
 }
 
 function column(g: G, f: Furniture, room: RoomKind): void {
+  if (room === 'temple') {
+    timberColumn(g, f);
+    return;
+  }
   const x = f.c + f.w / 2;
   const y = f.r + f.d / 2;
   const h = WALL_H[room];
-  const stone = 0xf1e8d8;
+  const stone = room === 'cityHall' ? 0xeeebe4 : 0xf1e8d8;
+  const band = room === 'cityHall' ? HARBOUR : GOLD;
   const r = COLUMN_R * Math.min(f.w, f.d);
   fan(g, SHADOW, [P(x - 0.3, y - 0.3), P(x + 0.9, y - 0.2), P(x + 1, y + 0.3), P(x - 0.3, y + 0.42)], 0.12);
   prism(g, x - 0.42, y - 0.42, x + 0.42, y + 0.42, 0, 8, shade(stone, 0.08), lit(stone, 0.2));
@@ -1466,7 +2247,7 @@ function column(g: G, f: Furniture, room: RoomKind): void {
   tube(g, x, y, r + 0.02, r, 13, h - 31, stone, null, 14, true);
   tube(g, x, y, r, r + 0.1, h - 18, 7, stone, null, 10);
   prism(g, x - 0.42, y - 0.42, x + 0.42, y + 0.42, h - 11, 9, stone, lit(stone, 0.25));
-  fan(g, GOLD, [P(x - 0.42, y + 0.42, h - 8), P(x + 0.42, y + 0.42, h - 8), P(x + 0.42, y + 0.42, h - 6), P(x - 0.42, y + 0.42, h - 6)], 0.8);
+  fan(g, band, [P(x - 0.42, y + 0.42, h - 8), P(x + 0.42, y + 0.42, h - 8), P(x + 0.42, y + 0.42, h - 6), P(x - 0.42, y + 0.42, h - 6)], 0.8);
 }
 
 function vaultDoor(g: G, f: Furniture, layout: RoomLayout): void {
@@ -1535,7 +2316,7 @@ function noticeBoard(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, ran
   const { a0: s0, a1: s1, b0 } = span(f, side);
   const a0 = s0 + 0.1;
   const a1 = s1 - 0.1;
-  const frame = room === 'hospital' ? 0xd8dce0 : 0x6e4430;
+  const frame = room === 'hospital' || room === 'office' ? 0xd8dce0 : room === 'cityHall' ? 0x4a2e22 : 0x6e4430;
   const z0 = 30;
   const z1 = 88;
   if (side === 'n') contact(g, f.c + 0.04, f.r + 0.06, f.c + f.w, f.r + 0.4, 0.16);
@@ -1545,6 +2326,15 @@ function noticeBoard(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, ran
   box(g, side, a0, b0 + 0.08, a1, b0 + 0.18, z0, z1 - z0, frame, lit(frame, 0.3));
   if (side === 'e') return;
   const pl = b0 + 0.182;
+  if (room === 'office') {
+    whiteboard(g, side, pl, a0, a1, z0, z1, rand);
+    return;
+  }
+  if (room === 'cityHall') {
+    plate(g, side, pl, a0 + 0.2, a1 - 0.2, z1 + 1, z1 + 9, tone(side, HARBOUR, 0.25));
+    plate(g, side, pl + 0.001, a0 + 0.22, a1 - 0.22, z1 + 2, z1 + 3, tone(side, GOLD, 0.25));
+    plate(g, side, pl + 0.001, a0 + 0.22, a1 - 0.22, z1 + 7, z1 + 8, tone(side, GOLD, 0.25));
+  }
   plate(g, side, pl, a0 + 0.05, a1 - 0.05, z0 + 3, z1 - 3, tone(side, 0xc89a62, 0.3));
   for (let i = 0; i < (a1 - a0) * 30; i++) {
     const u = a0 + 0.06 + rand() * (a1 - a0 - 0.12);
@@ -1578,14 +2368,18 @@ function noticeBoard(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, ran
 }
 
 function bench(g: G, f: Furniture, layout: RoomLayout, room: RoomKind): void {
+  if (room === 'chapel') {
+    pew(g, f, layout);
+    return;
+  }
   const fr = frameOf(f, layout);
   const s = span(f, fr);
   const a0 = s.a0 + 0.06;
   const a1 = s.a1 - 0.06;
   const b0 = s.b0 + 0.22;
   const b1 = s.b1 - 0.22;
-  const wood = room === 'mintHall' ? 0x6a3e2a : room === 'hospital' ? 0xc8a070 : 0xa8714a;
-  const iron = room === 'hospital' ? 0x9aa4ae : 0x3a3640;
+  const wood = room === 'mintHall' || room === 'cityHall' ? 0x6a3e2a : room === 'hospital' ? 0xc8a070 : room === 'arcade' ? 0xd83a8a : room === 'office' ? 0x6a6e78 : 0xa8714a;
+  const iron = room === 'hospital' ? 0x9aa4ae : room === 'arcade' ? CHROME : 0x3a3640;
   contact(g, f.c + 0.06, f.r + 0.2, f.c + f.w - 0.06, f.r + f.d - 0.2, 0.18);
   for (const a of [a0 + 0.12, a1 - 0.2]) {
     box(g, fr, a, b0 + 0.02, a + 0.06, b0 + 0.08, 0, BENCH_H, iron);
@@ -1598,11 +2392,16 @@ function bench(g: G, f: Furniture, layout: RoomLayout, room: RoomKind): void {
 }
 
 function desk(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, rand: () => number): void {
+  if (room === 'cityHall') {
+    councilDesk(g, f, layout, rand);
+    return;
+  }
   const fr = frameOf(f, layout);
   const { a0, a1, b0, b1 } = span(f, fr);
   const hospital = room === 'hospital';
-  const body = hospital ? 0xf2f2ee : 0x8a5a3a;
-  const top = hospital ? 0xc8d8d4 : 0xb88a5a;
+  const office = room === 'office';
+  const body = hospital ? 0xf2f2ee : office ? pick([0xe4e2dc, 0x6a6e78, 0xb08a62], rand) : 0x8a5a3a;
+  const top = hospital ? 0xc8d8d4 : office ? pick([0xf2f0ea, 0xd8b88a, 0xe8e4dc], rand) : 0xb88a5a;
   contact(g, f.c + 0.06, f.r + 0.08, f.c + f.w - 0.06, f.r + f.d - 0.04, 0.2);
   box(g, fr, a0 + 0.06, b0 + 0.14, a1 - 0.06, b1 - 0.06, 0, DESK_H, body);
   const front = b1 - 0.06 + 0.002;
@@ -1611,6 +2410,12 @@ function desk(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, rand: () =
     const m = (a0 + a1) / 2;
     plate(g, fr, front + 0.001, m - 6.5 / ROUND, m + 6.5 / ROUND, 17.5, 22.5, tone(fr, 0xe0574b));
     plate(g, fr, front + 0.001, m - 2.5 / ROUND, m + 2.5 / ROUND, 13.5, 26.5, tone(fr, 0xe0574b));
+  } else if (office) {
+    plate(g, fr, front, a0 + 0.56, a1 - 0.06, 6, DESK_H - 4, tone(fr, shade(body, 0.22)));
+    for (let k = 0; k < 3; k++) {
+      plate(g, fr, front + 0.001, a0 + 0.1, a0 + 0.5, 3 + k * 9, 10.5 + k * 9, tone(fr, lit(body, 0.06)));
+      plate(g, fr, front + 0.002, a0 + 0.24, a0 + 0.36, 8 + k * 9, 9 + k * 9, tone(fr, CHROME));
+    }
   } else {
     for (const a of [a0 + 0.12, a1 - 0.62]) for (let k = 0; k < 3; k++) plate(g, fr, front, a, a + 0.5, 4 + k * 8.5, 11 + k * 8.5, tone(fr, shade(body, 0.1)));
   }
@@ -1622,7 +2427,11 @@ function desk(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, rand: () =
   box(g, fr, am - 0.03, bm - 0.04, am + 0.03, bm, zt + 1.5, 7, 0x3a3e46);
   box(g, fr, am - 0.27, bm - 0.02, am + 0.27, bm + 0.03, zt + 8, 22, 0x2e323a, 0x4a4e58);
   plate(g, fr, bm + 0.032, am - 0.24, am + 0.24, zt + 10.5, zt + 27.5, tone(fr, 0x5aa8d0, 0.1));
-  for (let k = 0; k < 3; k++) plate(g, fr, bm + 0.033, am - 0.2, am - 0.2 + 0.18 + rand() * 0.2, zt + 23 - k * 4, zt + 24.5 - k * 4, tone(fr, 0xd8f0ff, 0.1), 0.8);
+  if (office && rand() < 0.6) {
+    plate(g, fr, bm + 0.033, am - 0.22, am + 0.22, zt + 12, zt + 26, tone(fr, 0xf4f8fa, 0.1));
+    for (let k = 0; k < 4; k++) plate(g, fr, bm + 0.034, am - 0.22, am + 0.22, zt + 15 + k * 3, zt + 15.4 + k * 3, tone(fr, 0xa8c8d8, 0.1));
+    for (let i = 0; i < 4; i++) plate(g, fr, bm + 0.035, am - 0.16 + i * 0.09, am - 0.1 + i * 0.09, zt + 13, zt + 15 + (i + 1) * 2.2 + rand() * 2, tone(fr, i === 3 ? 0x3fa7a0 : 0x3f7fae, 0.1));
+  } else for (let k = 0; k < 3; k++) plate(g, fr, bm + 0.033, am - 0.2, am - 0.2 + 0.18 + rand() * 0.2, zt + 23 - k * 4, zt + 24.5 - k * 4, tone(fr, 0xd8f0ff, 0.1), 0.8);
   box(g, fr, am - 0.2, bm + 0.14, am + 0.2, bm + 0.28, zt, 1.5, 0xd9dde2, 0xeef0f2);
   for (let i = 0; i < 3; i++) {
     const pa = a0 + 0.2 + i * 0.16 + rand() * 0.06;
@@ -1631,6 +2440,13 @@ function desk(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, rand: () =
     fan(g, i === 2 ? 0xfff4c8 : 0xfafaf6, [fp(fr, pa, pb, zt + 0.3 + i * 0.3), fp(fr, pa + 0.26, pb + sk, zt + 0.3 + i * 0.3), fp(fr, pa + 0.26 - sk, pb + 0.32 + sk, zt + 0.3 + i * 0.3), fp(fr, pa - sk, pb + 0.32, zt + 0.3 + i * 0.3)]);
   }
   const [cx, cy] = xy(fr, a1 - 0.25, b0 + 0.4);
+  if (office) {
+    const mug = pick([0xe0574b, 0xf2ece0, 0x3f7fae, 0xffc860], rand);
+    tube(g, cx, cy + 0.04, 0.055, 0.055, zt, 7, mug, 0x4a2e20, 8);
+    line(g, P(cx + 0.055, cy + 0.04, zt + 5.5), P(cx + 0.09, cy + 0.05, zt + 3), 1.6 * S, mug);
+    if (a1 - a0 > 1.6) box(g, fr, a0 + 0.1, b0 + 0.2, a0 + 0.36, b0 + 0.5, zt, 6, pick([0x2f5a8a, 0x3a3640], rand), lit(0xf2f0ea, 0.1));
+    return;
+  }
   tube(g, cx, cy, 0.06, 0.06, zt, 8, 0x3fa7b5, 0x2a3040, 6);
   const top0 = P(cx, cy, zt + 8);
   line(g, top0, { x: top0.x - 2 * S, y: top0.y - 7 * S }, 1.4, 0xe0574b);
@@ -2107,16 +2923,17 @@ function mirror(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, trade: T
   }
 }
 
-function displayCase(g: G, f: Furniture, layout: RoomLayout, trade: Trade, rand: () => number): void {
+function displayCase(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, trade: Trade, rand: () => number): void {
   const fr = frameOf(f, layout);
   const s = span(f, fr);
   const a0 = s.a0 + 0.08;
   const a1 = s.a1 - 0.08;
   const b0 = s.b0 + 0.12;
   const b1 = s.b1 - 0.1;
-  const body = trade === 'cafe' ? 0xf2ece0 : trade === 'surf' ? 0x3f8a8a : trade === 'barber' ? 0x2a2a30 : trade === null ? 0xa8714a : 0x6e4430;
-  const lining = trade === 'cafe' ? 0xfaf6ee : trade === 'tailor' ? 0x2f5a4a : trade === 'hats' ? 0x6a1f2a : trade === 'surf' ? 0xe8d8b0 : trade === 'barber' ? 0x1e2228 : 0xd8c8a8;
-  const trim = trade === 'barber' || trade === 'surf' ? CHROME : BRASS;
+  const fishy = room === 'fishMarket';
+  const body = fishy ? 0xe8ecee : trade === 'cafe' ? 0xf2ece0 : trade === 'surf' ? 0x3f8a8a : trade === 'barber' ? 0x2a2a30 : trade === null ? 0xa8714a : 0x6e4430;
+  const lining = fishy ? ICE : trade === 'cafe' ? 0xfaf6ee : trade === 'tailor' ? 0x2f5a4a : trade === 'hats' ? 0x6a1f2a : trade === 'surf' ? 0xe8d8b0 : trade === 'barber' ? 0x1e2228 : 0xd8c8a8;
+  const trim = fishy || trade === 'barber' || trade === 'surf' ? CHROME : BRASS;
   contact(g, f.c + 0.06, f.r + 0.08, f.c + f.w - 0.06, f.r + f.d - 0.06, 0.2);
   box(g, fr, a0 + 0.03, b0 + 0.03, a1 - 0.03, b1 - 0.03, 0, 3, shade(body, 0.45));
   box(g, fr, a0, b0, a1, b1, 3, CASE_BASE - 3, body, lit(body, 0.2));
@@ -2127,11 +2944,13 @@ function displayCase(g: G, f: Furniture, layout: RoomLayout, trade: Trade, rand:
     plate(g, fr, b1 + 0.002, a0 + i * pw + 0.06, a0 + (i + 1) * pw - 0.06, 6, 7, tone(fr, lit(body, 0.3)));
   }
   plate(g, fr, b1 + 0.003, a0, a1, CASE_BASE - 2, CASE_BASE, tone(fr, trim));
+  if (fishy) plate(g, fr, b1 + 0.004, a0, a1, 3, 6, tone(fr, 0x3f7fae));
   const r = rectOf(fr, a0, b0, a1, b1);
   fan(g, lining, quad(r.x0 + 0.02, r.y0 + 0.02, r.x1 - 0.02, r.y1 - 0.02, CASE_BASE));
   const post = (x: number, y: number): void => { prism(g, x - 0.015, y - 0.015, x + 0.015, y + 0.015, CASE_BASE, CASE_H - CASE_BASE, trim, lit(trim, 0.3)); };
   post(r.x0 + 0.015, r.y0 + 0.015);
-  const goods = caseGoods(g, fr, trade, a0, a1, b0, b1, CASE_BASE, rand);
+  if (fishy) iceBed(g, r.x0 + 0.02, r.y0 + 0.02, r.x1 - 0.02, r.y1 - 0.02, CASE_BASE, rand);
+  const goods = fishy ? seafood(g, fr, a0, a1, b0, b1, CASE_BASE + 1.5, rand) : caseGoods(g, fr, trade, a0, a1, b0, b1, CASE_BASE, rand);
   goods.sort((p, q) => p.x + p.y - (q.x + q.y));
   for (const item of goods) item.draw();
   const GLASS = 0xd8eef4;
@@ -2488,6 +3307,798 @@ function tv(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void {
   }
 }
 
+// ---------- Civic, chapel, arcade, market and office pieces ----------
+
+// A whiteboard on the notice board's stand: marker notes, a bar chart, an arrow and a few sticky notes.
+function whiteboard(g: G, side: Fr, pl: number, a0: number, a1: number, z0: number, z1: number, rand: () => number): void {
+  plate(g, side, pl, a0 + 0.04, a1 - 0.04, z0 + 2, z1 - 2, tone(side, 0xf8f8f6, 0.2));
+  poly(g, side, pl + 0.0005, [[a0 + 0.1, z0 + 4], [a0 + 0.22, z0 + 4], [a0 + 0.42, z1 - 4], [a0 + 0.3, z1 - 4]], WHITE, 0.5);
+  const ink = [0x2a3a8a, 0x2a2a30, 0xc8323a, 0x2f8a5a] as const;
+  const left = a0 + 0.1;
+  for (let k = 0; k < 5; k++) {
+    const z = z1 - 9 - k * 6;
+    plate(g, side, pl + 0.001, left, left + 0.2 + rand() * 0.3, z, z + 1.2, tone(side, k === 0 ? ink[2] : pick(ink, rand), 0.2), 0.85);
+  }
+  const cx = a1 - 0.5;
+  if (cx > left + 0.4) {
+    plate(g, side, pl + 0.001, cx, cx + 0.38, z0 + 8, z0 + 8.8, tone(side, ink[1], 0.2));
+    plate(g, side, pl + 0.001, cx, cx + 0.008, z0 + 8, z0 + 40, tone(side, ink[1], 0.2));
+    for (let i = 0; i < 4; i++) {
+      const top = z0 + 12 + i * 6 + rand() * 4;
+      const u = cx + 0.04 + i * 0.085;
+      for (const [p0, p1, q0, q1] of [[u, u + 0.06, top - 0.8, top], [u, u + 0.008, z0 + 8.8, top], [u + 0.052, u + 0.06, z0 + 8.8, top]] as const) plate(g, side, pl + 0.001, p0, p1, q0, q1, tone(side, ink[0], 0.2));
+    }
+    line(g, fp(side, cx + 0.04, pl + 0.002, z0 + 30), fp(side, cx + 0.3, pl + 0.002, z0 + 42), 1.4 * S, tone(side, ink[2], 0.2));
+    poly(g, side, pl + 0.002, [[cx + 0.33, z0 + 44], [cx + 0.24, z0 + 42], [cx + 0.3, z0 + 37]], tone(side, ink[2], 0.2));
+  }
+  for (let i = 0; i < 2; i++) {
+    const u = left + 0.05 + i * 0.22 + rand() * 0.05;
+    const z = z0 + 6 + rand() * 6;
+    plate(g, side, pl + 0.001, u + 0.01, u + 0.17, z - 1, z + 11, SHADOW, 0.15);
+    plate(g, side, pl + 0.002, u, u + 0.16, z, z + 12, tone(side, pick(NOTES, rand), 0.2));
+  }
+  plate(g, side, pl + 0.003, a0 + 0.1, a1 - 0.1, z0 - 1, z0 + 2, tone(side, 0xb8bcc4, 0.2));
+  for (const [u, col] of [[a0 + 0.2, ink[0]], [a0 + 0.3, ink[2]], [a0 + 0.36, ink[1]]] as const) plate(g, side, pl + 0.004, u, u + 0.08, z0 + 2, z0 + 3.6, tone(side, col, 0.2));
+}
+
+// A chapel pew: a seat and a high back between two shaped ends, turned to face the candles.
+function pew(g: G, f: Furniture, layout: RoomLayout): void {
+  const fr = frameOf(f, layout);
+  const s = span(f, fr);
+  const altar = layout.furniture.find((p) => p.piece === 'candles');
+  const backFront = fr === 'n' && f.r > 1 && (altar === undefined || altar.r < f.r);
+  const a0 = s.a0 + 0.06;
+  const a1 = s.a1 - 0.06;
+  const b0 = s.b0 + 0.16;
+  const b1 = s.b1 - 0.14;
+  const wood = 0x8a5a3a;
+  const flip = (b: number): number => (backFront ? b : b0 + b1 - b);
+  const end = ([[b0, 0], [b1, 0], [b1, 46], [b1 - 0.07, 49], [b1 - 0.13, 45], [b1 - 0.13, 22], [b0 + 0.05, 20], [b0, 17]] as const).map(([b, z]) => [flip(b), z] as [number, number]);
+  const ends = (a: number): void => {
+    across(g, fr, a, end, shade(wood, 0.3));
+    across(g, fr, a + 0.05, end, acrossTone(fr, wood));
+    across(g, fr, a + 0.051, end.map(([b, z]) => [b, z > 40 ? z - 2 : z] as [number, number]).filter((_, i) => i >= 2 && i <= 4), lit(wood, 0.25), 0.6);
+  };
+  const [backB0, backB1] = backFront ? [b1 - 0.12, b1 - 0.05] : [b0 + 0.05, b0 + 0.12];
+  const [seatB0, seatB1] = backFront ? [b0 + 0.02, b1 - 0.12] : [b0 + 0.12, b1 - 0.02];
+  const seat = (): void => {
+    box(g, fr, a0 + 0.05, seatB0, a1 - 0.05, seatB1, 15, 3, wood, lit(wood, 0.22));
+    box(g, fr, a0 + 0.05, (seatB0 + seatB1) / 2 - 0.02, a1 - 0.05, (seatB0 + seatB1) / 2 + 0.02, 0, 15, shade(wood, 0.25));
+  };
+  const back = (): void => {
+    box(g, fr, a0 + 0.05, backB0, a1 - 0.05, backB1, 18, 26, wood, lit(wood, 0.2));
+    box(g, fr, a0 + 0.04, backB0 - 0.01, a1 - 0.04, backB1 + 0.01, 44, 3, lit(wood, 0.06), lit(wood, 0.3));
+    if (backFront) for (let a = a0 + 0.2; a < a1 - 0.1; a += 0.4) plate(g, fr, backB1 + 0.002, a, a + 0.28, 22, 40, tone(fr, shade(wood, 0.12)));
+  };
+  contact(g, f.c + 0.06, f.r + 0.14, f.c + f.w - 0.06, f.r + f.d - 0.12, 0.2);
+  ends(a0);
+  const backNear = fr === 'e' ? !backFront : backFront;
+  if (backNear) {
+    seat();
+    back();
+  } else {
+    back();
+    seat();
+  }
+  ends(a1 - 0.05);
+}
+
+// The council's presiding desk: dark carved wood, a green leather top, a banker's lamp, an open ledger and an inkwell.
+function councilDesk(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void {
+  const fr = frameOf(f, layout);
+  const { a0, a1, b0, b1 } = span(f, fr);
+  const body = 0x5a3326;
+  contact(g, f.c + 0.04, f.r + 0.06, f.c + f.w - 0.04, f.r + f.d - 0.02, 0.24);
+  box(g, fr, a0 + 0.03, b0 + 0.1, a1 - 0.03, b1 - 0.03, 0, 5, shade(body, 0.3));
+  box(g, fr, a0 + 0.06, b0 + 0.14, a1 - 0.06, b1 - 0.07, 5, DESK_H - 5, body);
+  const front = b1 - 0.07 + 0.002;
+  const panels = Math.max(2, Math.round((a1 - a0) / 0.6));
+  const pw = (a1 - a0 - 0.12) / panels;
+  for (let i = 0; i < panels; i++) {
+    const u = a0 + 0.06 + i * pw;
+    plate(g, fr, front, u + 0.06, u + pw - 0.06, 9, DESK_H - 5, tone(fr, shade(body, 0.16)));
+    plate(g, fr, front + 0.001, u + 0.06, u + pw - 0.06, DESK_H - 6.5, DESK_H - 5, tone(fr, BRASS), 0.8);
+  }
+  const am = (a0 + a1) / 2;
+  poly(g, fr, front + 0.002, [[am - 0.09, DESK_H - 9], [am + 0.09, DESK_H - 9], [am + 0.09, 15], [am, 11], [am - 0.09, 15]], tone(fr, GOLD));
+  poly(g, fr, front + 0.003, [[am - 0.065, DESK_H - 10.5], [am + 0.065, DESK_H - 10.5], [am + 0.065, 16], [am, 13], [am - 0.065, 16]], tone(fr, HARBOUR));
+  box(g, fr, a0, b0 + 0.08, a1, b1, DESK_H, 3, shade(body, 0.2), lit(body, 0.12));
+  const zt = DESK_H + 3;
+  const pad = rectOf(fr, a0 + 0.14, b0 + 0.2, a1 - 0.14, b1 - 0.12);
+  fan(g, 0x2f5a3a, quad(pad.x0, pad.y0, pad.x1, pad.y1, zt));
+  fan(g, GOLD, quad(pad.x0, pad.y1 - 0.02, pad.x1, pad.y1, zt), 0.6);
+  const pg = rectOf(fr, am - 0.24, b0 + 0.34, am + 0.24, b1 - 0.2);
+  fan(g, 0x6a1f2a, quad(pg.x0 - 0.02, pg.y0 - 0.02, pg.x1 + 0.02, pg.y1 + 0.02, zt + 0.5));
+  fan(g, 0xfaf6ea, quad(pg.x0, pg.y0, (pg.x0 + pg.x1) / 2 - 0.01, pg.y1, zt + 1.4));
+  fan(g, 0xf2ecdc, quad((pg.x0 + pg.x1) / 2 + 0.01, pg.y0, pg.x1, pg.y1, zt + 1.4));
+  for (let k = 0; k < 4; k++) {
+    const t = 0.2 + k * 0.17;
+    const yy = pg.y0 + (pg.y1 - pg.y0) * t;
+    const xx = pg.x0 + (pg.x1 - pg.x0) * t;
+    if (fr === 'n') line(g, P(pg.x0 + 0.04, yy, zt + 1.5), P(pg.x1 - 0.04, yy, zt + 1.5), 1, 0x8a8a9a, 0.5);
+    else line(g, P(xx, pg.y0 + 0.04, zt + 1.5), P(xx, pg.y1 - 0.04, zt + 1.5), 1, 0x8a8a9a, 0.5);
+  }
+  const [lx, ly] = xy(fr, a0 + 0.26, b0 + 0.34);
+  const lampTop = P(lx, ly, zt + 16);
+  for (const [r, alpha] of [[24, 0.05], [16, 0.07]] as const) {
+    g.fillStyle(WARM, alpha);
+    g.fillCircle(lampTop.x, lampTop.y + 4 * S, r * S);
+  }
+  tube(g, lx, ly, 0.1, 0.08, zt, 2, BRASS, lit(BRASS, 0.3), 10);
+  tube(g, lx, ly, 0.015, 0.015, zt + 2, 12, BRASS, null, 4);
+  tube(g, lx, ly, 0.16, 0.12, zt + 12, 6, 0x2f7a4a, lit(0x2f7a4a, 0.35), 12);
+  g.fillStyle(0xfff1c9, 0.9);
+  g.fillEllipse(lampTop.x, lampTop.y + 6 * S, 0.24 * 2 * RX * 0.9, 0.06 * RY, 12);
+  const [ix, iy] = xy(fr, a1 - 0.28, b0 + 0.36);
+  tube(g, ix, iy, 0.05, 0.04, zt, 5, 0x1e2230, 0x0e1018, 8);
+  line(g, P(ix, iy, zt + 4), P(ix + 0.08, iy - 0.08, zt + 22), 1.4 * S, 0xf6f2ea);
+  line(g, P(ix + 0.03, iy - 0.03, zt + 10), P(ix + 0.08, iy - 0.08, zt + 22), 3 * S, 0xf6f2ea, 0.7);
+  if (a1 - a0 > 1.4 && rand() < 0.7) {
+    for (let i = 0; i < 3; i++) box(g, fr, a1 - 0.62 + i * 0.01, b0 + 0.26, a1 - 0.36 + i * 0.01, b0 + 0.6, zt + i * 0.8, 0.8, 0xfafaf6, 0xfafaf6);
+  }
+}
+
+// A fish lying on its side at (x, y, z), nose along `ang` on the floor plane, `len` tiles long.
+function fish(g: G, x: number, y: number, z: number, ang: number, len: number, col: number): void {
+  const dx = Math.cos(ang);
+  const dy = Math.sin(ang);
+  const at = (t: number, s: number, dz = 1.2): Pt => P(x + (dx * t - dy * s) * len, y + (dy * t + dx * s) * len, z + dz);
+  const half = (t: number): number => 0.17 * Math.pow(Math.max(0, Math.sin((Math.PI * (t + 0.38)) / 0.9)), 0.75);
+  const ts = Array.from({ length: 11 }, (_, i) => -0.38 + (0.9 * i) / 10);
+  fan(g, SHADOW, ts.map((t) => at(t + 0.02, half(t) + 0.03, 0)), 0.18);
+  fan(g, shade(col, 0.12), [at(-0.34, 0), at(-0.56, 0.17, 1), at(-0.49, 0, 1), at(-0.56, -0.17, 1)]);
+  fan(g, col, [...ts.map((t) => at(t, half(t))), ...[...ts].reverse().map((t) => at(t, -half(t)))]);
+  for (let i = 0; i < ts.length - 1; i++) {
+    const t0 = ts[i] ?? 0;
+    const t1 = ts[i + 1] ?? 0;
+    fan(g, shade(col, 0.28), [at(t0, half(t0)), at(t1, half(t1)), at(t1, half(t1) * 0.35), at(t0, half(t0) * 0.35)]);
+    fan(g, lit(col, 0.45), [at(t0, -half(t0) * 0.25), at(t1, -half(t1) * 0.25), at(t1, -half(t1) * 0.8), at(t0, -half(t0) * 0.8)], 0.6);
+  }
+  line(g, at(0.26, half(0.26) * 0.9), at(0.29, -half(0.29) * 0.9), 1, shade(col, 0.45), 0.7);
+  line(g, at(-0.2, half(-0.2) * 0.1), at(0.2, half(0.2) * 0.1), 1, WHITE, 0.45);
+  const eye = at(0.39, half(0.39) * 0.25);
+  g.fillStyle(WHITE, 1);
+  g.fillCircle(eye.x, eye.y, 1.3 * S);
+  g.fillStyle(0x1e1e26, 1);
+  g.fillCircle(eye.x, eye.y, 0.7 * S);
+}
+
+// A bed of crushed ice, white with blue shadow flecks and wet glints.
+function iceBed(g: G, x0: number, y0: number, x1: number, y1: number, z: number, rand: () => number): void {
+  fan(g, ICE, quad(x0, y0, x1, y1, z));
+  const n = Math.round((x1 - x0) * (y1 - y0) * 260);
+  for (let i = 0; i < n; i++) {
+    const x = x0 + 0.01 + rand() * (x1 - x0 - 0.04);
+    const y = y0 + 0.01 + rand() * (y1 - y0 - 0.04);
+    const k = rand();
+    fan(g, k < 0.5 ? 0xb8d0dc : WHITE, quad(x, y, x + 0.025, y + 0.025, z + 0.4), k < 0.5 ? 0.6 : 0.9);
+  }
+}
+
+// One thing on a fishmonger's shelf, starting at `a`: a crate of fish on ice, a stack of tins or a jar; how far along it took.
+function fishStock(g: G, fr: Fr, a: number, a1: number, b0: number, b1: number, z: number, gap: number, rand: () => number): number {
+  const k = rand();
+  const [ux, uy] = xy(fr, 1, 0);
+  const along = Math.atan2(uy, ux);
+  if (k < 0.5 && a1 - a > 0.42) {
+    const w = 0.38;
+    const hh = Math.min(gap - 7, 10);
+    const wood = pick([0xc8a070, 0xb08a5a, 0x8aa0a8], rand);
+    box(g, fr, a, b0 + 0.08, a + w, b1 - 0.02, z, hh, wood, lit(wood, 0.2));
+    plate(g, fr, b1 - 0.02 + 0.002, a + 0.01, a + w - 0.01, z + hh * 0.48, z + hh * 0.56, tone(fr, shade(wood, 0.3)));
+    const r = rectOf(fr, a + 0.03, b0 + 0.11, a + w - 0.03, b1 - 0.05);
+    iceBed(g, r.x0, r.y0, r.x1, r.y1, z + hh, rand);
+    for (const [ta, tb, dir] of [[0.3, 0.35, 1], [0.7, 0.65, -1]] as const) {
+      const [fx, fy] = xy(fr, a + w * ta, b0 + 0.08 + (b1 - b0 - 0.1) * tb);
+      fish(g, fx, fy, z + hh, along + (dir < 0 ? Math.PI : 0), 0.3, pick(FISH, rand));
+    }
+    return w + 0.04;
+  }
+  const [cx, cy] = xy(fr, a + 0.07, b1 - 0.2);
+  if (k < 0.8) {
+    const label = pick([0xe0574b, 0x3f7fae, 0xffc860, 0x3fa7a0], rand);
+    for (let i = 0; i < 2 + Math.floor(rand() * 2) && 2 + (i + 1) * 5 < gap; i++) {
+      tube(g, cx, cy, 0.06, 0.06, z + i * 5, 4.6, CHROME, lit(CHROME, 0.3), 8);
+      tube(g, cx, cy, 0.061, 0.061, z + i * 5 + 1, 2.6, label, null, 8);
+    }
+    return 0.16;
+  }
+  const hh = Math.min(gap - 4, 10);
+  tube(g, cx, cy, 0.06, 0.06, z, hh, 0xd8e8e0, null, 6);
+  tube(g, cx, cy, 0.05, 0.05, z + 1, hh * 0.6, pick([0xc8504a, 0xe8c070, 0x8a9aae], rand), null, 6);
+  tube(g, cx, cy, 0.063, 0.063, z + hh, 2.5, 0xd9a440, 0xe8c070, 6);
+  return 0.16;
+}
+
+// What lies on the ice in a fishmonger's case: whole fish, a heap of prawns, a crab or mussels, with lemon between.
+function seafood(g: G, fr: Fr, a0: number, a1: number, b0: number, b1: number, z: number, rand: () => number): { x: number; y: number; draw: () => void }[] {
+  const out: { x: number; y: number; draw: () => void }[] = [];
+  const [ux, uy] = xy(fr, 0, 1);
+  const across0 = Math.atan2(uy, ux);
+  const bm = (b0 + b1) / 2;
+  let a = a0 + 0.16;
+  let i = 0;
+  while (a < a1 - 0.12) {
+    const [x, y] = xy(fr, a, bm);
+    const k = rand();
+    const col = pick(FISH, rand);
+    const flip = i % 2 === 0 ? 0 : Math.PI;
+    let step = 0.2;
+    let draw: () => void;
+    if (k < 0.55) draw = () => { fish(g, x, y, z, across0 + flip + (rand() - 0.5) * 0.5, Math.min(0.5, (b1 - b0) * 0.82), col); };
+    else if (k < 0.75) {
+      step = 0.26;
+      draw = () => {
+        for (let j = 0; j < 7; j++) {
+          const c = P(x + (rand() - 0.5) * 0.18, y + (rand() - 0.5) * 0.18, z + 1 + rand() * 2);
+          g.lineStyle(2.4 * S, j % 2 === 0 ? 0xf2907a : 0xe87a64, 1);
+          g.beginPath();
+          g.arc(c.x, c.y, 3 * S, rand() * Math.PI, rand() * Math.PI + Math.PI * 1.3);
+          g.strokePath();
+        }
+      };
+    } else if (k < 0.88) {
+      step = 0.3;
+      draw = () => {
+        for (let j = 0; j < 6; j++) {
+          const t = (j / 6) * Math.PI * 2;
+          line(g, P(x, y, z + 2), P(x + Math.cos(t) * 0.17, y + Math.sin(t) * 0.17, z + 1), 1.4 * S, 0xc84a2a);
+        }
+        floorEllipse(g, x, y, 0.12, 0xd8603a, 1, z + 3);
+        floorEllipse(g, x - 0.02, y - 0.02, 0.06, 0xf08a5a, 1, z + 3.5);
+      };
+    } else {
+      step = 0.26;
+      draw = () => {
+        for (let j = 0; j < 8; j++) {
+          const c = P(x + (rand() - 0.5) * 0.2, y + (rand() - 0.5) * 0.2, z + 1 + rand() * 2);
+          g.fillStyle(0x1e2436, 1);
+          g.fillEllipse(c.x, c.y, 5 * S, 3 * S, 8);
+          g.fillStyle(0x4a5a7a, 1);
+          g.fillEllipse(c.x - 0.8 * S, c.y - 0.6 * S, 2.4 * S, 1.2 * S, 6);
+        }
+      };
+    }
+    out.push({ x, y, draw });
+    if (rand() < 0.5) {
+      const [lx, ly] = xy(fr, a + step / 2, b1 - 0.08);
+      out.push({ x: lx, y: ly, draw: () => {
+        floorEllipse(g, lx, ly, 0.045, 0xffd83a, 1, z + 1.5);
+        floorEllipse(g, lx, ly, 0.03, 0xfff4b0, 1, z + 1.8);
+        g.fillStyle(0x4b8a4e, 1);
+        const q = P(lx + 0.05, ly - 0.03, z + 1);
+        g.fillCircle(q.x, q.y, 2 * S);
+      } });
+    }
+    a += step + rand() * 0.04;
+    i++;
+  }
+  return out;
+}
+
+// The fishmonger's counter: blue and white tiles below, a steel top heaped with crushed ice and fish, a scale at one end.
+function fishCounter(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void {
+  const fr = frameOf(f, layout);
+  const { a0, a1, b0, b1 } = span(f, fr);
+  const white = 0xf2f4f4;
+  contact(g, f.c + 0.05, f.r + 0.05, f.c + f.w - 0.05, f.r + f.d - 0.05, 0.22);
+  box(g, fr, a0 + 0.1, b0 + 0.12, a1 - 0.1, b1 - 0.06, 0, 4, 0x4a5660);
+  box(g, fr, a0 + 0.08, b0 + 0.1, a1 - 0.08, b1 - 0.1, 4, COUNTER_H - 4, white);
+  const front = b1 - 0.1 + 0.002;
+  for (let k = 0; k < 3; k++) {
+    for (let u = a0 + 0.08; u < a1 - 0.1; u += 0.2) plate(g, fr, front, u + 0.01, Math.min(a1 - 0.08, u + 0.2) - 0.01, 5 + k * 8, 12 + k * 8, tone(fr, k === 1 ? 0x3f7fae : jitter(white, rand, 0.02)));
+  }
+  box(g, fr, a0 + 0.03, b0 + 0.05, a1 - 0.03, b1 - 0.04, COUNTER_H, 3, CHROME, lit(CHROME, 0.25));
+  const zt = COUNTER_H + 3;
+  const scaleW = a1 - a0 > 1.6 ? 0.44 : 0;
+  const ia1 = a1 - 0.08 - scaleW;
+  const ice = rectOf(fr, a0 + 0.08, b0 + 0.1, ia1, b1 - 0.1);
+  iceBed(g, ice.x0, ice.y0, ice.x1, ice.y1, zt + 0.5, rand);
+  const items = seafood(g, fr, a0 + 0.06, ia1, b0 + 0.08, b1 - 0.1, zt + 1.5, rand);
+  items.sort((p, q) => p.x + p.y - (q.x + q.y));
+  for (const item of items) item.draw();
+  for (let a = a0 + 0.3; a < ia1 - 0.1; a += 0.62) {
+    const [px, py] = xy(fr, a, b1 - 0.13);
+    line(g, P(px, py, zt + 1), P(px, py, zt + 8), 1, 0x8a8e96);
+    box(g, fr, a - 0.06, b1 - 0.135, a + 0.06, b1 - 0.125, zt + 6, 5, 0xfafaf6, WHITE);
+    plate(g, fr, b1 - 0.125 + 0.001, a - 0.04, a + 0.03, zt + 8, zt + 9, tone(fr, 0xc8323a));
+  }
+  fan(g, 0xd8eef4, [fp(fr, a0 + 0.05, b1 - 0.05, zt + 2), fp(fr, ia1, b1 - 0.05, zt + 2), fp(fr, ia1, b1 - 0.26, zt + 20), fp(fr, a0 + 0.05, b1 - 0.26, zt + 20)], 0.13);
+  line(g, fp(fr, a0 + 0.05, b1 - 0.26, zt + 20), fp(fr, ia1, b1 - 0.26, zt + 20), 1.6 * S, CHROME);
+  line(g, fp(fr, a0 + 0.12, b1 - 0.08, zt + 4), fp(fr, a0 + 0.3, b1 - 0.22, zt + 18), 1, WHITE, 0.35);
+  if (scaleW > 0) {
+    const sa = ia1 + 0.06 + scaleW / 2 - 0.03;
+    const sb = (b0 + b1) / 2;
+    box(g, fr, sa - 0.16, sb - 0.12, sa + 0.16, sb + 0.14, zt, 8, 0xf2f2ee, lit(0xf2f2ee, 0.2));
+    if (fr !== 'e') {
+      fan(g, tone(fr, 0x2a2a30), ring(fr, sb + 0.142, sa, zt + 4.5, 0.09, 16));
+      fan(g, tone(fr, 0xfaf6ea), ring(fr, sb + 0.143, sa, zt + 4.5, 0.075, 16));
+      line(g, fp(fr, sa, sb + 0.144, zt + 4.5), fp(fr, sa + 0.05, sb + 0.144, zt + 6.5), 1, 0xc8323a);
+    }
+    const [dx, dy] = xy(fr, sa, sb - 0.02);
+    const [ux, uy] = xy(fr, 1, 0);
+    tube(g, dx, dy, 0.02, 0.02, zt + 8, 3, CHROME, null, 4);
+    tube(g, dx, dy, 0.2, 0.16, zt + 11, 2, CHROME, lit(CHROME, 0.35), 14);
+    fish(g, dx, dy, zt + 12.5, Math.atan2(uy, ux), 0.26, pick(FISH, rand));
+  }
+}
+
+// An arcade cabinet against a wall: painted sides with a stripe and lit edging, a glowing screen tilted back under a
+// lit marquee, a stick and buttons on the control deck and a coin door; seen from behind it shows its vented back.
+function cabinet(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void {
+  const fr = frameOf(f, layout);
+  const s = span(f, fr);
+  const a0 = s.a0 + 0.15;
+  const a1 = s.a1 - 0.15;
+  const bB = s.b0 + 0.08;
+  const bF = s.b1 - 0.2;
+  const H = CABINET_H;
+  const body = pick(CABINETS, rand);
+  const art = pick(NEON, rand);
+  const glow = pick([0x3ff0e0, 0xff4fa8, 0xffd83a, 0x6aff7a, 0x8a9aff], rand);
+  const am = (a0 + a1) / 2;
+  const bounds = { x1: layout.w - 1, y1: layout.d - 1 };
+  const prof: [number, number][] = [[bB, 0], [bF, 0], [bF, 38], [bF + 0.07, 44], [bF - 0.13, 50], [bF - 0.19, 52], [bF - 0.3, 80], [bF - 0.1, 84], [bF - 0.08, H], [bB, H]];
+  const quadAt = (p: readonly [number, number], q: readonly [number, number], u0 = a0, u1 = a1): Pt[] => [fp(fr, u0, p[0], p[1]), fp(fr, u1, p[0], p[1]), fp(fr, u1, q[0], q[1]), fp(fr, u0, q[0], q[1])];
+  const pt = (i: number): readonly [number, number] => prof[i] ?? [bB, 0];
+  const [gx, gy] = xy(fr, am, s.b1 + 0.3);
+  for (const [r, alpha] of [[1.2, 0.05], [0.8, 0.07], [0.45, 0.08]] as const) floorPool(g, gx, gy, r, glow, alpha, bounds);
+  contact(g, f.c + 0.12, f.r + 0.1, f.c + f.w - 0.12, f.r + f.d - 0.12, 0.26);
+  if (fr === 'e') {
+    fan(g, shade(body, 0.45), [fp(fr, a0, bB, 0), fp(fr, a1, bB, 0), fp(fr, a1, bB, H), fp(fr, a0, bB, H)]);
+    for (let z = 58; z < 80; z += 4) line(g, fp(fr, a0 + 0.12, bB, z), fp(fr, a1 - 0.12, bB, z), 1.4 * S, shade(body, 0.7), 0.8);
+    fan(g, 0xf2ece0, [fp(fr, am - 0.12, bB, 20), fp(fr, am + 0.12, bB, 20), fp(fr, am + 0.12, bB, 34), fp(fr, am - 0.12, bB, 34)], 0.8);
+    fan(g, lit(body, 0.2), quadAt([bB, H], [bF - 0.08, H]));
+    for (const [r, alpha] of [[30, 0.05], [20, 0.07]] as const) {
+      const c = fp(fr, am, bF - 0.25, 66);
+      g.fillStyle(glow, alpha);
+      g.fillCircle(c.x, c.y, r * S);
+    }
+  } else {
+    fan(g, tone(fr, body), quadAt(pt(1), pt(2)));
+    const door = (u0: number, u1: number, z0: number, z1: number, col: number, alpha = 1): void => { fan(g, col, [fp(fr, u0, bF + 0.002, z0), fp(fr, u1, bF + 0.002, z0), fp(fr, u1, bF + 0.002, z1), fp(fr, u0, bF + 0.002, z1)], alpha); };
+    door(am - 0.13, am + 0.13, 8, 30, tone(fr, 0x24222c));
+    for (const u of [am - 0.07, am + 0.03]) {
+      door(u, u + 0.04, 21, 26, 0xff8a3a);
+      door(u - 0.01, u + 0.05, 19, 28, 0xff8a3a, 0.25);
+    }
+    door(am - 0.1, am + 0.1, 11, 13, tone(fr, 0x6a6a78));
+    fan(g, tone(fr, shade(body, 0.2)), quadAt(pt(2), pt(3)));
+    fan(g, 0x22202c, quadAt(pt(3), pt(4)));
+    const deck = (t: number): readonly [number, number] => [pt(3)[0] + (pt(4)[0] - pt(3)[0]) * t, pt(3)[1] + (pt(4)[1] - pt(3)[1]) * t];
+    const decal = [deck(0.15), deck(0.85)] as const;
+    fan(g, art, [fp(fr, a0 + 0.02, decal[0][0], decal[0][1] + 0.2), fp(fr, a0 + 0.12, decal[0][0], decal[0][1] + 0.2), fp(fr, a0 + 0.12, decal[1][0], decal[1][1] + 0.2), fp(fr, a0 + 0.02, decal[1][0], decal[1][1] + 0.2)], 0.7);
+    fan(g, 0x14121c, quadAt(pt(4), pt(5)));
+    fan(g, 0x14121c, quadAt(pt(5), pt(6)));
+    const scr = (u: number, t: number): Pt => fp(fr, u, bF - 0.205 - 0.09 * t, 54 + 24 * t);
+    const su0 = a0 + 0.07;
+    const su1 = a1 - 0.07;
+    const cell = (u: number, t: number, du: number, dt: number, col: number, alpha = 1): void => { fan(g, col, [scr(u, t), scr(u + du, t), scr(u + du, t + dt), scr(u, t + dt)], alpha); };
+    cell(su0, 0, su1 - su0, 1, 0x0c1024);
+    cell(su0, 0, su1 - su0, 1, glow, 0.12);
+    const kind = Math.floor(rand() * 3);
+    const sw = su1 - su0;
+    if (kind === 0) {
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) cell(su0 + 0.02 + c * (sw - 0.04) / 6 + 0.004, 0.62 + r * 0.075, (sw - 0.04) / 6 - 0.008, 0.06, pick(NEON, rand));
+      cell(su0 + sw * 0.4, 0.1, sw * 0.2, 0.04, WHITE);
+      cell(su0 + sw * 0.55, 0.3, 0.025, 0.06, WHITE);
+    } else if (kind === 1) {
+      for (let i = 0; i < 14; i++) cell(su0 + rand() * (sw - 0.02), rand() * 0.96, 0.012, 0.03, WHITE, 0.8);
+      for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) cell(su0 + 0.06 + c * 0.1, 0.66 + r * 0.13, 0.06, 0.08, r === 0 ? 0x6aff7a : 0xff4fa8);
+      fan(g, 0x3ff0e0, [scr(am - 0.05, 0.06), scr(am + 0.05, 0.06), scr(am, 0.2)]);
+    } else {
+      fan(g, 0x2a6a3a, [scr(su0, 0), scr(su1, 0), scr(su1, 0.55), scr(su0, 0.55)]);
+      fan(g, 0x4a4a5a, [scr(su0 + sw * 0.12, 0), scr(su1 - sw * 0.12, 0), scr(am + 0.02, 0.55), scr(am - 0.02, 0.55)]);
+      for (let t = 0.04; t < 0.5; t += 0.14) cell(am - 0.006, t, 0.012, 0.06, WHITE);
+      cell(am - 0.05, 0.08, 0.1, 0.1, 0xe0574b);
+      fan(g, 0xff8a3a, [scr(su0, 0.55), scr(su1, 0.55), scr(su1, 0.75), scr(su0 + sw * 0.6, 0.6), scr(su0 + sw * 0.3, 0.72), scr(su0, 0.6)]);
+    }
+    for (let t = 0.08; t < 1; t += 0.12) cell(su0, t, sw, 0.015, WHITE, 0.07);
+    fan(g, WHITE, [scr(su0 + 0.02, 0.15), scr(su0 + 0.08, 0.15), scr(su0 + 0.2, 0.95), scr(su0 + 0.14, 0.95)], 0.12);
+    const [jp, jz] = deck(0.35);
+    const [jx, jy] = xy(fr, a0 + 0.2, jp);
+    tube(g, jx, jy, 0.04, 0.04, jz, 1, 0x2a2a30, 0x3a3a44, 8);
+    line(g, P(jx, jy, jz), P(jx, jy, jz + 8), 1.6 * S, 0x2a2a30);
+    const knob = P(jx, jy, jz + 9);
+    g.fillStyle(0xe0473b, 1);
+    g.fillCircle(knob.x, knob.y, 3 * S);
+    g.fillStyle(WHITE, 0.6);
+    g.fillCircle(knob.x - 1 * S, knob.y - 1 * S, 1 * S);
+    [0xffd83a, 0x3ff0e0, 0xff4fa8].forEach((col, i) => {
+      const [bp, bz] = deck(0.42 + (i % 2) * 0.14);
+      const [bx, by] = xy(fr, a0 + 0.38 + i * 0.075, bp);
+      floorEllipse(g, bx, by, 0.035, shade(col, 0.3), 1, bz + 0.5);
+      floorEllipse(g, bx - 0.005, by - 0.005, 0.03, col, 1, bz + 1.4);
+    });
+    fan(g, 0x1a1824, quadAt(pt(6), pt(7)));
+    fan(g, lit(art, 0.35), quadAt(pt(7), pt(8)));
+    const mq = (t: number): readonly [number, number] => [pt(7)[0] + (pt(8)[0] - pt(7)[0]) * t, pt(7)[1] + (pt(8)[1] - pt(7)[1]) * t];
+    fan(g, WHITE, quadAt(mq(0.35), mq(0.65), a0 + 0.08, a1 - 0.08), 0.55);
+    for (let u = a0 + 0.06; u < a1 - 0.08; u += 0.1) fan(g, shade(art, 0.25), [fp(fr, u, ...mq(0.12)), fp(fr, u + 0.05, ...mq(0.12)), fp(fr, u + 0.03, ...mq(0.3)), fp(fr, u - 0.02, ...mq(0.3))]);
+    fan(g, lit(body, 0.25), quadAt([bB, H], [bF - 0.08, H]));
+    for (const [r, alpha] of [[34, 0.05], [24, 0.06], [15, 0.07]] as const) {
+      const c = fp(fr, am, bF - 0.25, 66);
+      g.fillStyle(glow, alpha);
+      g.fillCircle(c.x, c.y, r * S);
+    }
+    const m = fp(fr, am, bF - 0.09, 91);
+    g.fillStyle(art, 0.08);
+    g.fillEllipse(m.x, m.y, 40 * S, 18 * S, 16);
+  }
+  across(g, fr, a1, prof, acrossTone(fr, body));
+  across(g, fr, a1 + 0.001, [[bB + 0.06, 8], [bB + 0.06, 22], [bF - 0.32, 78], [bF - 0.32, 62]], acrossTone(fr, art));
+  across(g, fr, a1 + 0.001, [[bB + 0.06, 28], [bB + 0.06, 33], [bF - 0.36, 82], [bF - 0.36, 77]], acrossTone(fr, lit(art, 0.4)));
+  const edge = prof.map(([b, z]) => fp(fr, a1 + 0.002, b, z));
+  for (const [w, alpha] of [[4, 0.15], [1.6, 1]] as const) {
+    g.lineStyle(w * S, w > 2 ? art : lit(art, 0.2), alpha);
+    g.beginPath();
+    edge.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)));
+    g.strokePath();
+  }
+}
+
+// A small altar table under a white cloth with a coloured runner, crowded with lit pillar candles and glass votives.
+function candles(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void {
+  const fr = frameOf(f, layout);
+  const s = span(f, fr);
+  const a0 = s.a0 + 0.12;
+  const a1 = s.a1 - 0.12;
+  const b0 = s.b0 + 0.1;
+  const b1 = s.b0 + 0.64;
+  const am = (a0 + a1) / 2;
+  const bounds = { x1: layout.w - 1, y1: layout.d - 1 };
+  const [gx, gy] = xy(fr, am, s.b1 - 0.1);
+  for (const [r, alpha] of [[2.4, 0.035], [1.8, 0.045], [1.2, 0.06], [0.7, 0.07]] as const) floorPool(g, gx, gy, r, WARM, alpha, bounds);
+  if (fr !== 'e') {
+    const c = fp(fr, am, s.b0, 58);
+    for (const [r, alpha] of [[62, 0.04], [46, 0.05], [30, 0.07]] as const) {
+      g.fillStyle(WARM, alpha);
+      g.fillEllipse(c.x, c.y, r * 2 * S, r * 2.2 * S, 24);
+    }
+  }
+  contact(g, f.c + 0.1, f.r + 0.06, f.c + f.w - 0.1, f.r + f.d - 0.24, 0.2);
+  const wood = 0x7a4a32;
+  const cloth = 0xf6f2ea;
+  const runner = pick([0x6a2a3a, 0x2f4a7a, 0x3f6a4a, 0x8a5a2a], rand);
+  box(g, fr, a0 + 0.04, b0 + 0.04, a1 - 0.04, b1 - 0.04, 0, 4, shade(wood, 0.3));
+  box(g, fr, a0 + 0.06, b0 + 0.06, a1 - 0.06, b1 - 0.06, 4, ALTAR_H - 4, wood);
+  const front = b1 - 0.06 + 0.002;
+  plate(g, fr, front, a0 + 0.12, a1 - 0.12, 8, ALTAR_H - 12, tone(fr, shade(wood, 0.16)));
+  box(g, fr, a0 - 0.01, b0, a1 + 0.01, b1 + 0.01, ALTAR_H, 2, cloth, lit(cloth, 0.3));
+  plate(g, fr, b1 + 0.012, a0 - 0.01, a1 + 0.01, ALTAR_H - 11, ALTAR_H + 2, tone(fr, cloth));
+  for (let u = a0; u < a1 - 0.02; u += 0.06) poly(g, fr, b1 + 0.013, [[u, ALTAR_H - 11], [u + 0.06, ALTAR_H - 11], [u + 0.03, ALTAR_H - 13.5]], tone(fr, cloth));
+  plate(g, fr, b1 + 0.014, am - 0.1, am + 0.1, ALTAR_H - 16, ALTAR_H + 2, tone(fr, runner));
+  plate(g, fr, b1 + 0.015, am - 0.1, am + 0.1, ALTAR_H - 16, ALTAR_H - 14.5, tone(fr, GOLD));
+  const rr = rectOf(fr, am - 0.1, b0, am + 0.1, b1 + 0.01);
+  fan(g, runner, quad(rr.x0, rr.y0, rr.x1, rr.y1, ALTAR_H + 2.1));
+  const zt = ALTAR_H + 2;
+  const ivory = 0xf6eed8;
+  const spots = [[0.18, 0.22, 1.3], [0.5, 0.16, 1.6], [0.82, 0.22, 1.2], [0.34, 0.46, 0.9], [0.66, 0.44, 1], [0.5, 0.58, 0.6], [0.14, 0.62, 0.55], [0.86, 0.6, 0.5]] as const;
+  const lights = spots.map(([ta, tb, k]) => {
+    const [x, y] = xy(fr, a0 + 0.06 + ta * (a1 - a0 - 0.12), b0 + 0.06 + tb * (b1 - b0 - 0.1));
+    return { x, y, h: 6 + k * 12 + rand() * 4, r: 0.03 + k * 0.016, votive: false };
+  });
+  for (const t of [0.22, 0.5, 0.78]) {
+    const [x, y] = xy(fr, a0 + t * (a1 - a0), b1 - 0.04);
+    lights.push({ x, y, h: 4, r: 0.035, votive: true });
+  }
+  lights.sort((p, q) => p.x + p.y - (q.x + q.y));
+  const flames: Pt[] = [];
+  for (const c of lights) {
+    if (c.votive) {
+      const glass = pick([0xc8404a, 0xe89a3a, 0xd8b84a], rand);
+      tube(g, c.x, c.y, c.r, c.r * 1.1, zt, c.h, mix(glass, WARM, 0.3), lit(glass, 0.5), 6);
+      flames.push(P(c.x, c.y, zt + c.h + 1));
+      continue;
+    }
+    tube(g, c.x, c.y, c.r, c.r, zt, c.h, ivory, lit(ivory, 0.35), 8);
+    const lip = P(c.x, c.y, zt + c.h);
+    g.fillStyle(0xfff8e8, 0.9);
+    g.fillEllipse(lip.x - c.r * RX * 0.3, lip.y, c.r * RX, c.r * RY * 0.8, 10);
+    if (rand() < 0.5) fan(g, WHITE, [P(c.x - c.r * 0.7, c.y + c.r * 0.7, zt + c.h), P(c.x - c.r * 0.3, c.y + c.r, zt + c.h), P(c.x - c.r * 0.4, c.y + c.r * 0.9, zt + c.h - 4 - rand() * 4)], 0.8);
+    line(g, lip, P(c.x, c.y, zt + c.h + 2), 1, 0x2a2238);
+    flames.push(P(c.x, c.y, zt + c.h + 2));
+  }
+  for (const p of flames) {
+    for (const [r, alpha] of [[11, 0.08], [6, 0.16]] as const) {
+      g.fillStyle(WARM, alpha);
+      g.fillCircle(p.x, p.y - 3 * S, r * S);
+    }
+    g.fillStyle(FLAME, 0.95);
+    g.fillEllipse(p.x, p.y - 3 * S, 2.8 * S, 6 * S, 10);
+    g.fillStyle(0xfff6d8, 1);
+    g.fillEllipse(p.x, p.y - 2.2 * S, 1.3 * S, 3 * S, 8);
+  }
+}
+
+// ---------- Temple pieces ----------
+
+const BRONZE = 0xb4823e;
+const PATINA = 0x5f9a86;
+const TEAK = 0x8a5234;
+const BELL_POST = 100;
+const BELL_PROFILE = [[0, 0.3], [3, 0.29], [7, 0.25], [13, 0.215], [21, 0.195], [28, 0.18], [32, 0.14], [34, 0.06]] as const;
+
+// The near half of a level circle at height z, as a screen path: the arc that faces the eye.
+function nearArc(x: number, y: number, r: number, z: number, n = 14): Pt[] {
+  const out: Pt[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = -Math.PI / 4 + (Math.PI * i) / n;
+    out.push(P(x + Math.cos(t) * r, y + Math.sin(t) * r, z));
+  }
+  return out;
+}
+
+function strokePath(g: G, pts: readonly Pt[], width: number, col: number, alpha = 1): void {
+  g.lineStyle(width, col, alpha);
+  g.beginPath();
+  pts.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)));
+  g.strokePath();
+}
+
+// A plain bronze bell hung in a timber frame on stone footings, its clapper showing and a pull rope hanging to hand height.
+function bell(g: G, f: Furniture, layout: RoomLayout): void {
+  const fr = frameOf(f, layout);
+  const s = span(f, fr);
+  const am = (s.a0 + s.a1) / 2;
+  const bm = s.b0 + 0.46;
+  const [x, y] = xy(fr, am, bm);
+  const stone = 0xb8b4a4;
+  const lip = BELL_POST - 6 - (BELL_PROFILE[BELL_PROFILE.length - 1]?.[0] ?? 34);
+  contact(g, f.c + 0.06, f.r + 0.2, f.c + f.w - 0.06, f.r + f.d - 0.24, 0.16);
+  floorEllipse(g, x + 0.08, y + 0.03, 0.3, SHADOW, 0.16);
+  const post = (a: number): void => {
+    box(g, fr, a - 0.11, bm - 0.11, a + 0.11, bm + 0.11, 0, 7, stone, lit(stone, 0.25));
+    box(g, fr, a - 0.06, bm - 0.06, a + 0.06, bm + 0.06, 7, BELL_POST - 7, TEAK, lit(TEAK, 0.2));
+    box(g, fr, a - 0.075, bm - 0.075, a + 0.075, bm + 0.075, 20, 3, PATINA, lit(PATINA, 0.3));
+  };
+  const pa0 = s.a0 + 0.13;
+  const pa1 = s.a1 - 0.13;
+  post(pa0);
+  box(g, fr, pa0, bm - 0.04, pa1, bm + 0.04, 14, 4, shade(TEAK, 0.1), lit(TEAK, 0.15));
+  const hook = P(x, y, BELL_POST);
+  line(g, hook, P(x, y, BELL_POST - 7), 2 * S, 0x3a3036);
+  for (let i = 0; i < BELL_PROFILE.length - 1; i++) {
+    const [z0, r0] = BELL_PROFILE[i] ?? [0, 0.3];
+    const [z1, r1] = BELL_PROFILE[i + 1] ?? [34, 0.06];
+    const top = z1 - z0;
+    const col = mix(BRONZE, PATINA, Math.max(0, (z0 - 18) / 22));
+    if (i === 0) {
+      const ball = P(x, y, lip - 4);
+      line(g, P(x, y, lip + 6), ball, 1.6 * S, shade(BRONZE, 0.5));
+      g.fillStyle(shade(BRONZE, 0.45), 1);
+      g.fillCircle(ball.x, ball.y, 3.4 * S);
+      g.fillStyle(lit(BRONZE, 0.2), 1);
+      g.fillCircle(ball.x - 1 * S, ball.y - 1 * S, 1.3 * S);
+    }
+    tube(g, x, y, r0, r1, lip + z0, top, col, null, 16);
+  }
+  tube(g, x, y, 0.05, 0.04, lip + 34, 4, shade(BRONZE, 0.2), lit(BRONZE, 0.2), 8);
+  strokePath(g, nearArc(x, y, 0.296, lip + 1.4), 2.4 * S, lit(BRONZE, 0.45), 0.9);
+  for (const [z, r] of [[9, 0.236], [24, 0.19]] as const) {
+    strokePath(g, nearArc(x, y, r + 0.004, lip + z), 1.6 * S, lit(BRONZE, 0.3), 0.75);
+    strokePath(g, nearArc(x, y, r + 0.004, lip + z - 1.6), 1, shade(BRONZE, 0.35), 0.6);
+  }
+  fan(g, WHITE, [P(x - 0.2, y + 0.13, lip + 6), P(x - 0.15, y + 0.15, lip + 6), P(x - 0.1, y + 0.08, lip + 27), P(x - 0.13, y + 0.06, lip + 27)], 0.22);
+  const rope0 = P(x, y, lip - 7);
+  const rope1 = P(x, y, 24);
+  line(g, rope0, rope1, 2.6 * S, 0xd8c49a);
+  for (let t = 0.05; t < 0.98; t += 0.07) {
+    const p = { x: rope0.x + (rope1.x - rope0.x) * t, y: rope0.y + (rope1.y - rope0.y) * t };
+    line(g, { x: p.x - 1.2 * S, y: p.y - 1 * S }, { x: p.x + 1.2 * S, y: p.y + 1 * S }, 1, 0x9a8460, 0.8);
+  }
+  g.fillStyle(0x8a3a2a, 1);
+  g.fillRect(rope1.x - 2.2 * S, rope1.y - 1 * S, 4.4 * S, 3 * S);
+  fan(g, 0xb8503a, [{ x: rope1.x - 2 * S, y: rope1.y + 2 * S }, { x: rope1.x + 2 * S, y: rope1.y + 2 * S }, { x: rope1.x + 3.6 * S, y: rope1.y + 11 * S }, { x: rope1.x - 3.6 * S, y: rope1.y + 11 * S }]);
+  for (const dx of [-2, 0, 2]) line(g, { x: rope1.x + dx * S, y: rope1.y + 3 * S }, { x: rope1.x + dx * 1.6 * S, y: rope1.y + 10.5 * S }, 1, 0x7a2e22, 0.7);
+  post(pa1);
+  box(g, fr, s.a0 + 0.02, bm - 0.08, s.a1 - 0.02, bm + 0.08, BELL_POST, 7, TEAK, lit(TEAK, 0.22));
+  for (const a of [s.a0 + 0.02, s.a1 - 0.1]) box(g, fr, a, bm - 0.08, a + 0.08, bm + 0.08, BELL_POST + 7, 3, TEAK, lit(TEAK, 0.25));
+  box(g, fr, am - 0.18, bm - 0.085, am + 0.18, bm + 0.085, BELL_POST + 2, 3, PATINA, lit(PATINA, 0.3));
+}
+
+const CUSHIONS = [
+  { base: 0xe8d2a0, round: 0x2f4a7a },
+  { base: 0xe2c48a, round: 0x2f7470 },
+  { base: 0xead8b4, round: 0x7a3a4a },
+  { base: 0xd8b878, round: 0xa8503a },
+] as const;
+
+// A plump round cushion with a buttoned, gathered top on a flat linen one, on a reed mat: the place to sit and breathe.
+function cushion(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void {
+  const fr = frameOf(f, layout);
+  const s = span(f, fr);
+  const am = (s.a0 + s.a1) / 2;
+  const bm = s.b0 + 0.54;
+  const [x, y] = xy(fr, am, bm);
+  const { base, round } = CUSHIONS[Math.floor(rand() * CUSHIONS.length)] ?? CUSHIONS[0];
+  const reed = 0xd8c08a;
+  const mat = rectOf(fr, s.a0 + 0.06, s.b0 + 0.1, s.a1 - 0.06, s.b1 - 0.02);
+  fan(g, SHADOW, quad(mat.x0 + 0.03, mat.y0 + 0.04, mat.x1 + 0.05, mat.y1 + 0.03), 0.16);
+  fan(g, 0x3a4a5a, quad(mat.x0, mat.y0, mat.x1, mat.y1, 0.6));
+  fan(g, reed, quad(mat.x0 + 0.05, mat.y0 + 0.05, mat.x1 - 0.05, mat.y1 - 0.05, 0.6));
+  for (let k = mat.y0 + 0.09; k < mat.y1 - 0.06; k += 0.05) line(g, P(mat.x0 + 0.06, k, 0.6), P(mat.x1 - 0.06, k, 0.6), 1, shade(reed, 0.25), 0.45);
+  fan(g, WHITE, quad(mat.x0 + 0.05, mat.y0 + 0.05, mat.x1 - 0.05, mat.y0 + 0.12, 0.6), 0.12);
+  const sq = 0.36;
+  prism(g, x - sq, y - sq, x + sq, y + sq, 0.6, 2.4, shade(base, 0.1), base);
+  prism(g, x - sq + 0.03, y - sq + 0.03, x + sq - 0.03, y + sq - 0.03, 3, 2, base, lit(base, 0.2));
+  strokePath(g, [P(x - sq, y + sq, 3), P(x + sq, y + sq, 3), P(x + sq, y - sq, 3)], 1, shade(base, 0.2), 0.35);
+  floorEllipse(g, x + 0.05, y + 0.04, 0.3, SHADOW, 0.3, 5);
+  tube(g, x, y, 0.26, 0.3, 5, 3, shade(round, 0.06), null, 20);
+  tube(g, x, y, 0.3, 0.29, 8, 2, round, null, 20);
+  strokePath(g, nearArc(x, y, 0.3, 8), 1.2, lit(round, 0.35), 0.7);
+  const dome = [[0.29, 10, 0], [0.26, 11.6, 0.08], [0.21, 12.8, 0.16], [0.14, 13.6, 0.26]] as const;
+  for (const [r, z, k] of dome) floorEllipse(g, x - (0.29 - r) * 0.25, y - (0.29 - r) * 0.25, r, lit(round, k), 1, z);
+  for (let i = 0; i < 10; i++) {
+    const t = (i / 10) * Math.PI * 2 + 0.3;
+    const a = P(x + Math.cos(t) * 0.05, y + Math.sin(t) * 0.05, 13.8);
+    const b = P(x + Math.cos(t + 0.25) * 0.25, y + Math.sin(t + 0.25) * 0.25, 11);
+    line(g, a, b, 1, shade(round, 0.3), 0.45);
+  }
+  const btn = P(x, y, 13.9);
+  g.fillStyle(shade(round, 0.45), 1);
+  g.fillEllipse(btn.x, btn.y, 5 * S, 2.8 * S, 12);
+  g.fillStyle(base, 1);
+  g.fillEllipse(btn.x - 0.4 * S, btn.y - 0.4 * S, 2.6 * S, 1.4 * S, 10);
+}
+
+// A koi seen from above just under the surface, nose along `ang`: an orange, white or gold body with patches.
+function koi(g: G, x: number, y: number, z: number, ang: number, len: number, body: number, patch: number): void {
+  const ux = Math.cos(ang);
+  const uy = Math.sin(ang);
+  const at = (along: number, across: number, dz = 0): Pt => P(x + ux * along - uy * across, y + uy * along + ux * across, z + dz);
+  const w = len * 0.2;
+  const outline = [at(len * 0.5, 0), at(len * 0.36, w * 0.8), at(len * 0.1, w), at(-len * 0.2, w * 0.55), at(-len * 0.36, w * 0.2), at(-len * 0.36, -w * 0.2), at(-len * 0.2, -w * 0.55), at(len * 0.1, -w), at(len * 0.36, -w * 0.8)];
+  fan(g, 0x0e2a30, outline.map((p) => ({ x: p.x + 3 * S, y: p.y + 4 * S })), 0.25);
+  fan(g, body, [at(-len * 0.34, 0), at(-len * 0.56, w * 0.9), at(-len * 0.5, 0), at(-len * 0.56, -w * 0.9)], 0.85);
+  for (const s of [1, -1]) fan(g, body, [at(len * 0.18, s * w * 0.8), at(len * 0.02, s * w * 1.9), at(len * 0.04, s * w * 0.7)], 0.7);
+  fan(g, body, outline, 0.92);
+  fan(g, patch, [at(len * 0.2, w * 0.5), at(len * 0.02, w * 0.7), at(-len * 0.12, 0), at(len * 0.06, -w * 0.6), at(len * 0.28, -w * 0.3)], 0.9);
+  fan(g, patch, [at(-len * 0.16, w * 0.3), at(-len * 0.3, w * 0.12), at(-len * 0.28, -w * 0.25)], 0.85);
+  fan(g, WHITE, [at(len * 0.44, 0), at(len * 0.2, -w * 0.5), at(-len * 0.1, -w * 0.4)], 0.18);
+}
+
+// A round stone-rimmed reflecting pool: still dark water with the sky in it, lily pads, a koi or two and a ripple.
+function pool(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void {
+  const x = f.c + f.w / 2;
+  const y = f.r + f.d / 2;
+  const R = Math.min(f.w, f.d) / 2 - 0.08;
+  const ri = R - 0.15;
+  const rim = 7;
+  const zw = 3;
+  const stone = 0xc8c4b4;
+  const bounds = { x1: layout.w - 1, y1: layout.d - 1 };
+  for (let i = 0; i < 7; i++) {
+    const t = rand() * Math.PI * 2;
+    const d = R + 0.15 + rand() * 0.45;
+    floorPool(g, x + Math.cos(t) * d, y + Math.sin(t) * d, 0.12 + rand() * 0.16, 0xd8f4f0, 0.07, bounds);
+  }
+  floorEllipse(g, x + 0.12, y + 0.05, R + 0.06, SHADOW, 0.2);
+  tube(g, x, y, R, R, 0, rim, stone, null, 28);
+  for (let i = 0; i < 9; i++) {
+    const t = -Math.PI / 4 + (Math.PI * (i + 0.5)) / 9;
+    line(g, P(x + Math.cos(t) * R, y + Math.sin(t) * R, 0.5), P(x + Math.cos(t) * R, y + Math.sin(t) * R, rim), 1, shade(stone, 0.4), 0.45);
+  }
+  floorEllipse(g, x, y, R, lit(stone, 0.22), 1, rim);
+  for (let i = 0; i < 12; i++) {
+    const t = (i / 12) * Math.PI * 2 + 0.2;
+    line(g, P(x + Math.cos(t) * ri, y + Math.sin(t) * ri, rim), P(x + Math.cos(t) * R, y + Math.sin(t) * R, rim), 1, shade(stone, 0.25), 0.5);
+  }
+  floorEllipse(g, x, y, ri, shade(stone, 0.42), 1, rim);
+  const water: Pt[] = [];
+  for (let i = 0; i <= 18; i++) {
+    const t = (3 * Math.PI) / 4 + (Math.PI * i) / 18;
+    water.push(P(x + Math.cos(t) * ri, y + Math.sin(t) * ri, zw));
+  }
+  for (let i = 0; i <= 18; i++) {
+    const t = -Math.PI / 4 + (Math.PI * i) / 18;
+    water.push(P(x + Math.cos(t) * ri, y + Math.sin(t) * ri, rim));
+  }
+  fan(g, 0x2f6a6c, water);
+  floorEllipse(g, x + 0.04, y + 0.04, ri * 0.62, 0x1f4c52, 0.55, zw);
+  floorEllipse(g, x + 0.06, y + 0.06, ri * 0.36, 0x173e44, 0.5, zw);
+  const fish = 1 + (rand() < 0.6 ? 1 : 0);
+  const coats = [[0xf08a3a, 0xf6f0e6], [0xf6f0e6, 0xd8483a], [0xf2c05a, 0xf6f0e6]] as const;
+  for (let i = 0; i < fish; i++) {
+    const t = rand() * Math.PI * 2;
+    const d = ri * (0.2 + rand() * 0.25);
+    const [body, patch] = coats[Math.floor(rand() * coats.length)] ?? coats[0];
+    koi(g, x + Math.cos(t) * d, y + Math.sin(t) * d, zw - 0.4, t + Math.PI / 2 + (rand() - 0.5) * 0.8, 0.42, body, patch);
+  }
+  fan(g, 0xc8e4ee, [P(x - ri * 0.55, y - ri * 0.2, zw + 0.1), P(x - ri * 0.38, y - ri * 0.5, zw + 0.1), P(x + ri * 0.3, y + ri * 0.12, zw + 0.1), P(x + ri * 0.12, y + ri * 0.4, zw + 0.1)], 0.12);
+  fan(g, WARM, [P(x - ri * 0.1, y - ri * 0.42, zw + 0.1), P(x + ri * 0.05, y - ri * 0.48, zw + 0.1), P(x + ri * 0.4, y - ri * 0.02, zw + 0.1), P(x + ri * 0.28, y + ri * 0.04, zw + 0.1)], 0.1);
+  const pads = 3 + Math.floor(rand() * 2);
+  for (let i = 0; i < pads; i++) {
+    const t = (i / pads) * Math.PI * 2 + rand() * 0.8;
+    const d = ri * (0.42 + rand() * 0.14);
+    const px = x + Math.cos(t) * d;
+    const py = y + Math.sin(t) * d;
+    const r = 0.08 + rand() * 0.05;
+    const leafs = LEAVES[i % LEAVES.length] ?? LEAVES[0];
+    floorEllipse(g, px + 0.02, py + 0.02, r, 0x0e2a30, 0.3, zw + 0.2);
+    floorEllipse(g, px, py, r, leafs.mid, 1, zw + 0.3);
+    floorEllipse(g, px - r * 0.2, py - r * 0.2, r * 0.6, leafs.light, 0.7, zw + 0.35);
+    const notch = rand() * Math.PI * 2;
+    fan(g, 0x2f6a6c, [P(px, py, zw + 0.4), P(px + Math.cos(notch - 0.3) * r * 1.05, py + Math.sin(notch - 0.3) * r * 1.05, zw + 0.4), P(px + Math.cos(notch + 0.3) * r * 1.05, py + Math.sin(notch + 0.3) * r * 1.05, zw + 0.4)]);
+  }
+  const rx = x - ri * 0.25 + rand() * ri * 0.3;
+  const ry = y + ri * 0.15;
+  for (const [k, alpha] of [[0.07, 0.5], [0.14, 0.32], [0.22, 0.18]] as const) {
+    const c = P(rx, ry, zw + 0.5);
+    g.lineStyle(1.2, WHITE, alpha);
+    g.strokeEllipse(c.x, c.y, k * 2 * RX, k * 2 * RY, 18);
+  }
+  for (let i = 0; i < 5; i++) {
+    const t = rand() * Math.PI * 2;
+    const d = ri * (0.25 + rand() * 0.5);
+    const p = P(x + Math.cos(t) * d, y + Math.sin(t) * d, zw + 0.5);
+    line(g, { x: p.x - 3 * S, y: p.y }, { x: p.x + 3 * S, y: p.y }, 1.2, WHITE, 0.45);
+  }
+  strokePath(g, nearArc(x, y, ri, rim), 1.2, WHITE, 0.3);
+}
+
+// A round paper lantern glowing on a slim timber post, throwing a warm pool round its stone foot.
+function paperLantern(g: G, f: Furniture, layout: RoomLayout): void {
+  const x = f.c + f.w / 2;
+  const y = f.r + f.d / 2;
+  const bounds = { x1: layout.w - 1, y1: layout.d - 1 };
+  for (const [r, alpha] of [[2, 0.045], [1.5, 0.05], [1, 0.06], [0.55, 0.08]] as const) floorPool(g, x, y, r, WARM, alpha, bounds);
+  const zc = LAMP_H + 4;
+  const c = P(x, y, zc);
+  for (const [r, alpha] of [[44, 0.04], [34, 0.05], [24, 0.07], [16, 0.09]] as const) {
+    g.fillStyle(WARM, alpha);
+    g.fillCircle(c.x, c.y, r * S);
+  }
+  const stone = 0xb8b4a4;
+  floorEllipse(g, x + 0.08, y + 0.03, 0.22, SHADOW, 0.25);
+  prism(g, x - 0.16, y - 0.16, x + 0.16, y + 0.16, 0, 6, stone, lit(stone, 0.25));
+  tube(g, x, y, 0.035, 0.03, 6, zc - 14, TEAK, null, 4);
+  tube(g, x, y, 0.07, 0.07, zc - 13, 2.5, shade(TEAK, 0.2), lit(TEAK, 0.2), 8);
+  const paper = 0xffe6b0;
+  const w = 0.25 * 2 * RX;
+  const hgt = 26 * S;
+  g.fillStyle(lit(paper, 0.3), 1);
+  g.fillEllipse(c.x, c.y, w, hgt, 24);
+  g.fillStyle(0xf2b060, 0.55);
+  g.fillEllipse(c.x + w * 0.16, c.y + hgt * 0.04, w * 0.7, hgt * 0.92, 20);
+  g.fillStyle(0xfff8e4, 0.85);
+  g.fillEllipse(c.x - w * 0.12, c.y - hgt * 0.06, w * 0.46, hgt * 0.62, 18);
+  g.lineStyle(1, 0xb87a3a, 0.45);
+  for (let k = -3; k <= 3; k++) {
+    const t = k / 4;
+    const half = Math.sqrt(1 - t * t);
+    g.strokeEllipse(c.x, c.y + t * hgt * 0.5, w * half, w * half * 0.18, 16);
+  }
+  tube(g, x, y, 0.09, 0.08, zc - 15, 3, 0x3a2a24, 0x5a4434, 10);
+  tube(g, x, y, 0.08, 0.09, zc + 12, 3, 0x3a2a24, 0x5a4434, 10);
+  line(g, P(x, y, zc + 15), P(x, y, zc + 19), 1.4 * S, 0x3a2a24);
+  for (const [dx, col] of [[-0.4, 0x8a3a2a], [0.4, 0x8a3a2a]] as const) {
+    const t0 = P(x, y, zc - 16);
+    line(g, t0, { x: t0.x + dx * 6 * S, y: t0.y + 10 * S }, 1.2, col, 0.85);
+  }
+}
+
+// A temple column: a round teak shaft on a stone drum, ringed in green copper, under a stepped timber capital.
+function timberColumn(g: G, f: Furniture): void {
+  const x = f.c + f.w / 2;
+  const y = f.r + f.d / 2;
+  const h = WALL_H.temple;
+  const stone = 0xbab6a6;
+  const r = 0.2 * Math.min(f.w, f.d);
+  fan(g, SHADOW, [P(x - 0.3, y - 0.3), P(x + 0.9, y - 0.2), P(x + 1, y + 0.3), P(x - 0.3, y + 0.42)], 0.12);
+  prism(g, x - 0.38, y - 0.38, x + 0.38, y + 0.38, 0, 7, shade(stone, 0.06), lit(stone, 0.2));
+  tube(g, x, y, 0.32, 0.29, 7, 7, stone, lit(stone, 0.25), 14);
+  tube(g, x, y, r + 0.01, r, 14, h - 40, TEAK, null, 16);
+  for (let k = 0; k < 3; k++) fan(g, WHITE, [P(x - r * 0.62, y + r * 0.62, 18 + k * 30), P(x - r * 0.5, y + r * 0.72, 18 + k * 30), P(x - r * 0.5, y + r * 0.72, 40 + k * 30), P(x - r * 0.62, y + r * 0.62, 40 + k * 30)], 0.05);
+  for (const z of [22, h - 44]) {
+    tube(g, x, y, r + 0.025, r + 0.025, z, 4, PATINA, null, 16);
+    strokePath(g, nearArc(x, y, r + 0.026, z + 4), 1.2, lit(PATINA, 0.4), 0.8);
+  }
+  prism(g, x - 0.27, y - 0.27, x + 0.27, y + 0.27, h - 26, 8, shade(TEAK, 0.08), lit(TEAK, 0.18));
+  prism(g, x - 0.36, y - 0.36, x + 0.36, y + 0.36, h - 18, 8, TEAK, lit(TEAK, 0.22));
+  fan(g, PATINA, [P(x - 0.36, y + 0.36, h - 13), P(x + 0.36, y + 0.36, h - 13), P(x + 0.36, y + 0.36, h - 11), P(x - 0.36, y + 0.36, h - 11)], 0.85);
+}
+
 /** One piece of furniture, drawn in room-local tile coordinates like the shell; `layout` is the room it stands in, so it can face its wall and keep its light on the floor. */
 export function drawPiece(g: G, f: Furniture, layout: RoomLayout, room: RoomKind, seed: number): void {
   const rand = pieceRand(f, seed);
@@ -2521,7 +4132,7 @@ export function drawPiece(g: G, f: Furniture, layout: RoomLayout, room: RoomKind
       sofa(g, f, layout, rand);
       return;
     case 'bookcase':
-      bookcase(g, f, layout, rand);
+      bookcase(g, f, layout, room, rand);
       return;
     case 'column':
       column(g, f, room);
@@ -2548,7 +4159,7 @@ export function drawPiece(g: G, f: Furniture, layout: RoomLayout, room: RoomKind
       mirror(g, f, layout, room, trade, rand);
       return;
     case 'displayCase':
-      displayCase(g, f, layout, trade, rand);
+      displayCase(g, f, layout, room, trade, rand);
       return;
     case 'barberChair':
       barberChair(g, f, layout, seed);
@@ -2568,6 +4179,21 @@ export function drawPiece(g: G, f: Furniture, layout: RoomLayout, room: RoomKind
     case 'tv':
       tv(g, f, layout, rand);
       return;
+    case 'cabinet':
+      cabinet(g, f, layout, rand);
+      return;
+    case 'candles':
+      candles(g, f, layout, rand);
+      return;
+    case 'bell':
+      bell(g, f, layout);
+      return;
+    case 'cushion':
+      cushion(g, f, layout, rand);
+      return;
+    case 'pool':
+      pool(g, f, layout, rand);
+      return;
   }
 }
 
@@ -2578,6 +4204,7 @@ export function drawPiece(g: G, f: Furniture, layout: RoomLayout, room: RoomKind
  */
 export function pieceFront(f: Furniture, layout?: RoomLayout): { x: number; y: number } {
   if (f.piece === 'rug') return { x: f.c, y: f.r };
+  if (f.piece === 'pool') return { x: f.c + f.w / 2, y: f.r + f.d / 2 };
   if (layout !== undefined && frameOf(f, layout) === 'e') return { x: f.c, y: f.r + f.d };
   return f.w >= f.d ? { x: f.c, y: f.r + f.d } : { x: f.c + f.w, y: f.r };
 }

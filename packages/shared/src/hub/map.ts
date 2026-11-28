@@ -1,12 +1,12 @@
 // Beach Town: a floating island with a lagoon, a boardwalk, seven shops and room to wander.
 import type { CitadelMap, Vec2 } from '../map.js';
-import { SHOP_IDS, type ShopId } from '../economy/catalog.js';
+import { BEACH_SHOP_IDS, type BeachShopId } from '../economy/catalog.js';
 
 export const BEACH_WIDTH = 30;
 export const BEACH_HEIGHT = 24;
 
 // Where each shop's 2x2 booth stands (top-left tile). Its counter is the tile in front.
-export const SHOP_BOOTHS: Readonly<Record<ShopId, { readonly col: number; readonly row: number }>> = Object.freeze({
+export const SHOP_BOOTHS: Readonly<Record<BeachShopId, { readonly col: number; readonly row: number }>> = Object.freeze({
   tailor: { col: 3, row: 3 },
   barber: { col: 8, row: 3 },
   hats: { col: 13, row: 3 },
@@ -59,21 +59,21 @@ function buildRows(): string[] {
 export const BEACH_MAP: CitadelMap = Object.freeze({ width: BEACH_WIDTH, height: BEACH_HEIGHT, rows: Object.freeze(buildRows()) });
 
 // The counter in front of a shop, where a guardian stands to shop or hand over a parcel.
-export function shopCounter(shop: ShopId): Vec2 {
+export function shopCounter(shop: BeachShopId): Vec2 {
   const b = SHOP_BOOTHS[shop];
   return { x: b.col + 1, y: b.row + 2.5 };
 }
 
 export const SHOP_RANGE = 1.6;
 
-export function atShop(pos: Vec2, shop: ShopId): boolean {
+export function atShop(pos: Vec2, shop: BeachShopId): boolean {
   const c = shopCounter(shop);
   return Math.hypot(pos.x - c.x, pos.y - c.y) <= SHOP_RANGE;
 }
 
 // The shop whose counter a position is at, if any.
-export function shopAt(pos: Vec2): ShopId | null {
-  return SHOP_IDS.find((s) => atShop(pos, s)) ?? null;
+export function shopAt(pos: Vec2): BeachShopId | null {
+  return BEACH_SHOP_IDS.find((s) => atShop(pos, s)) ?? null;
 }
 
 // The porch in front of the hut door.

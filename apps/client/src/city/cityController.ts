@@ -1,7 +1,7 @@
 // Runs a visit to Port Concord: the city room, the HUD, the minimap and district arrivals.
 import { Callbacks } from '@colyseus/sdk';
-import { CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, DoorResultSchema, ENTER_RANGE, PunchLineSchema, RestResultSchema, VAULT_DOOR, atExit, atVault, districtAt, doorAt, doorBySeed, isRough, layoutFor, shopTradeOf, spotAt, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId, type DoorResult, type RestResult, type RoomKind, type RoomSpot, type ShopTrade, type SpotKind } from '@byzantine-council/shared/city';
-import { getShop } from '@byzantine-council/shared/economy';
+import { CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_MESSAGES, CITY_WALKABLE, CITY_WIDTH, DepositResultSchema, DoorResultSchema, ENTER_RANGE, PunchLineSchema, RestResultSchema, VAULT_DOOR, atExit, atVault, buildingName, districtAt, doorAt, doorBySeed, isRough, layoutFor, shopTradeOf, spotAt, type CityCar, type CityDrop, type CityPlayer, type DepositResult, type DistrictId, type DoorResult, type RestResult, type RoomKind, type RoomSpot, type SpotKind } from '@byzantine-council/shared/city';
+import type { ShopId } from '@byzantine-council/shared/economy';
 import { EMOTES, EmoteLineSchema, JumpLineSchema, type Emote } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import { type PlayerInput, isEditable } from '../game/input.js';
@@ -22,7 +22,6 @@ type CityRoom = Awaited<ReturnType<Session['city']>>;
 
 // If the server's answer is lost, the door button comes back after this long.
 const DOOR_RETRY_MS = 1_500;
-const shopName = (trade: ShopTrade): string => getShop(trade)?.name ?? trade;
 
 // What can be done at each kind of spot, by its button label; the Mint Hall counter takes deposits through the vault button.
 const SPOT_LABELS: Readonly<Record<Exclude<SpotKind, 'counter'>, PlainKey>> = {
@@ -33,6 +32,10 @@ const SPOT_LABELS: Readonly<Record<Exclude<SpotKind, 'counter'>, PlainKey>> = {
   board: 'city.useBoard',
   books: 'city.useBooks',
   kitchen: 'city.useKitchen',
+  arcade: 'city.useArcade',
+  candles: 'city.useCandles',
+  bell: 'city.useBell',
+  cushion: 'city.useCushion',
 };
 // What the kitchen can make, each with the colour of its card.
 const DISHES: readonly { readonly name: PlainKey; readonly color: string }[] = [
@@ -40,9 +43,19 @@ const DISHES: readonly { readonly name: PlainKey; readonly color: string }[] = [
   { name: 'cook.toast', color: '#e0a84a' },
   { name: 'cook.soup', color: '#d9603f' },
 ];
-const WELCOME: Readonly<Record<Exclude<RoomKind, 'shop'>, PlainKey>> = { mintHall: 'city.welcomeMint', hospital: 'city.welcomeHospital', flat: 'city.welcomeFlat' };
+const WELCOME: Readonly<Record<Exclude<RoomKind, 'shop' | 'fishMarket'>, PlainKey>> = {
+  mintHall: 'city.welcomeMint',
+  hospital: 'city.welcomeHospital',
+  flat: 'city.welcomeFlat',
+  cityHall: 'city.welcomeCityHall',
+  chapel: 'city.welcomeChapel',
+  arcade: 'city.welcomeArcade',
+  office: 'city.welcomeOffice',
+  temple: 'city.welcomeTemple',
+};
 
-const ENTER_LABELS: Readonly<Record<RoomKind, PlainKey>> = { shop: 'city.enterShop', mintHall: 'city.enterMint', hospital: 'city.enterHospital', flat: 'city.enterFlat' };
+const BELL_GAP_MS = 2500;
+
 type Zone = 'rough' | 'safe' | 'indoors';
 const ZONE_LABELS: Readonly<Record<Zone, readonly [PlainKey, PlainKey | null]>> = {
   rough: ['city.rough', 'city.fightsAllowed'],
@@ -87,6 +100,10 @@ export class CityController {
   #lastRestAt = 0;
   // The dish being made, while the kitchen's answer is on its way.
   #dish: PlainKey | null = null;
+  #quiet: 'candles' | 'cushion' | null = null;
+  #lastBellAt = 0;
+  // The building whose name the HUD shows while inside it; 0 on the street.
+  #namedInside = 0;
   onLeft: () => void = () => undefined;
   onToast: (text: string) => void = () => undefined;
   onProfile: (p: ProfileSummary) => void = () => undefined;
@@ -96,6 +113,7 @@ export class CityController {
   /** Opens the Chronicle; false if there is no chapter to read yet. */
   onChronicle: () => boolean = () => false;
   onBoard: () => void = () => undefined;
+  onArcade: () => void = () => undefined;
 
   constructor(
     private readonly session: Session,
@@ -319,6 +337,7 @@ export class CityController {
       }
     }
     const indoors = this.scene.inside !== 0;
+    this.#nameInside(this.scene.inside);
     const rough = !indoors && isRough(pos);
     const zone: Zone = indoors ? 'indoors' : rough ? 'rough' : 'safe';
     if (zone !== this.#zoneShown) {
@@ -346,6 +365,19 @@ export class CityController {
     drawDots(this.#dots, pos, this.scene.others());
   }
 
+  // Inside, the HUD names the building and its district; back out, it goes back to naming the district on the street.
+  #nameInside(inside: number): void {
+    if (inside === this.#namedInside) return;
+    this.#namedInside = inside;
+    const door = doorBySeed(inside);
+    if (door === null) {
+      this.#here = null;
+      return;
+    }
+    this.#district.textContent = buildingName(inside);
+    this.#was.textContent = CITY_DISTRICTS.find((d) => d.id === door.building.district)?.name ?? '';
+  }
+
   // The door button: the way in when standing at a building's door, the way out when standing at it inside.
   #renderDoor(pos: { x: number; y: number }): void {
     const inside = this.scene.inside;
@@ -356,7 +388,7 @@ export class CityController {
       if (door !== null && atExit(pos, layoutFor(door.room, inside))) label = t('city.leaveBuilding');
     } else if (!this.scene.meDown && !this.#inCar && this.#ride.hidden) {
       const door = doorAt(pos);
-      if (door !== null) label = t(ENTER_LABELS[door.room]);
+      if (door !== null) label = t(door.room === 'flat' ? 'city.enterHome' : 'city.enterNamed', { name: buildingName(door.building.seed) });
     }
     this.#door.hidden = label === null;
     if (label !== null) this.#door.firstChild?.replaceWith(document.createTextNode(label));
@@ -378,13 +410,14 @@ export class CityController {
   // The use button's label at this spot; null where the spot has its own button (the Mint Hall counter's deposit).
   #spotLabel(spot: RoomSpot): string | null {
     if (spot.kind !== 'counter') return t(SPOT_LABELS[spot.kind]);
-    const trade = this.#tradeHere();
-    return trade === null ? null : t('city.browseShop', { name: shopName(trade) });
+    return this.#shopHere() === null ? null : t('city.browseShop', { name: buildingName(this.scene.inside) });
   }
 
-  #tradeHere(): ShopTrade | null {
+  // What the shop this guardian is inside sells from its counter: a trade's wares, or the fish hall's; null elsewhere.
+  #shopHere(): ShopId | null {
     const inside = this.scene.inside;
-    return doorBySeed(inside)?.room === 'shop' ? shopTradeOf(inside) : null;
+    const room = doorBySeed(inside)?.room;
+    return room === 'shop' ? shopTradeOf(inside) : room === 'fishMarket' ? 'fish-market' : null;
   }
 
   #useSpot(): void {
@@ -397,8 +430,18 @@ export class CityController {
         return;
       case 'bed':
       case 'reception':
+      case 'candles':
+      case 'cushion':
         this.#dish = null;
+        this.#quiet = spot.kind === 'bed' || spot.kind === 'reception' ? null : spot.kind;
         this.#rest();
+        return;
+      case 'bell':
+        this.#ringBell();
+        return;
+      case 'arcade':
+        this.holdStill(true);
+        this.onArcade();
         return;
       case 'kitchen':
         this.#withPanel(() => {
@@ -410,6 +453,7 @@ export class CityController {
               color: d.color,
               pick: () => {
                 this.#dish = d.name;
+                this.#quiet = null;
                 pickPanel().close();
                 this.#rest();
               },
@@ -439,6 +483,14 @@ export class CityController {
     }
   }
 
+  #ringBell(): void {
+    const now = performance.now();
+    if (now - this.#lastBellAt < BELL_GAP_MS) return;
+    this.#lastBellAt = now;
+    audio.play('templeBell');
+    this.onToast(t('city.bellRung'));
+  }
+
   #rest(): void {
     const now = performance.now();
     if (now - this.#lastRestAt < 500) return;
@@ -457,7 +509,17 @@ export class CityController {
 
   #rested(r: RestResult): void {
     const dish = this.#dish;
+    const quiet = this.#quiet;
     this.#dish = null;
+    this.#quiet = null;
+    if (quiet !== null) {
+      if (r.reason === 'healed' || r.reason === 'full') {
+        audio.play('chirp');
+        const healed = r.reason === 'healed';
+        this.onToast(t(quiet === 'candles' ? (healed ? 'city.candleLit' : 'city.candleCalm') : healed ? 'city.meditated' : 'city.meditateCalm'));
+      }
+      return;
+    }
     if (dish !== null) {
       if (r.reason === 'healed' || r.reason === 'full') {
         audio.play('chirp');
@@ -473,14 +535,16 @@ export class CityController {
   }
 
   async #openShop(): Promise<void> {
-    const trade = this.#tradeHere();
-    if (trade === null || shopPanel().isOpen) return;
+    const shop = this.#shopHere();
+    const inside = this.scene.inside;
+    if (shop === null || shopPanel().isOpen) return;
     this.input.enabled = false;
     this.#use.hidden = true;
     const profile = await this.profiles.profile();
     if (this.#room === null) return;
-    shopPanel().open(trade, profile, {
+    shopPanel().open(shop, profile, {
       profiles: this.profiles,
+      title: buildingName(inside),
       onProfile: (p) => {
         this.onProfile(p);
       },
@@ -514,7 +578,7 @@ export class CityController {
     if (r.ok) {
       audio.play('click');
       const door = r.inside === 0 ? null : doorBySeed(r.inside);
-      if (door?.room === 'shop') this.onToast(t('city.welcomeShop', { name: shopName(shopTradeOf(r.inside)) }));
+      if (door?.room === 'shop' || door?.room === 'fishMarket') this.onToast(t('city.welcomeShop', { name: buildingName(r.inside) }));
       else if (door !== null) this.onToast(t(WELCOME[door.room]));
       return;
     }

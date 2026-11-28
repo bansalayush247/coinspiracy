@@ -33,7 +33,8 @@ export type Sfx =
   | 'stepSand'
   | 'punch'
   | 'whiff'
-  | 'knockout';
+  | 'knockout'
+  | 'templeBell';
 
 /** Player audio preferences stored under localStorage key `bc.audio`. */
 export interface AudioSettings {
@@ -884,6 +885,10 @@ export class AudioEngine {
         this.#tone(120, t, 0.18, 0.4, 'sine', 50);
         this.#tone(1200, t + 0.1, 0.6, 0.1, 'triangle', 300);
         for (let i = 0; i < 4; i++) this.#bell(hz(91 + i * 2), t + 0.45 + i * 0.09, 0.04, out, 0.8, 2);
+        return;
+      case 'templeBell':
+        this.#bell(hz(45), t, 0.2, out, 6, 2.76, 1.2);
+        this.#bell(hz(57), t + 0.01, 0.07, out, 4, 3.1, 0.8);
         return;
       case 'chirp':
         for (let i = 0; i < 3; i++) this.#tone(2600 + Math.random() * 1200, t + i * 0.11, 0.08, 0.05, 'sine', 3800 + Math.random() * 800);

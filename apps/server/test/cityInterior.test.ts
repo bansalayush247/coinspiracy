@@ -22,6 +22,8 @@ const [shopA, shopB] = doorsOf('shop');
 const [house] = doorsOf('flat');
 const [hospital] = doorsOf('hospital');
 const [mintHall] = doorsOf('mintHall');
+const [chapel] = doorsOf('chapel');
+const [temple] = doorsOf('temple');
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 async function walkIn(name: string) {
@@ -204,6 +206,36 @@ describe('walk-in buildings', () => {
     a.client.send('rest');
     await waitFor(() => a.rests.length === 3, 'rest answered in the kitchen');
     expect(a.rests[2]).toEqual({ ok: true, reason: 'healed' });
+  });
+
+  it('lets a guardian rest by the chapel candles', async () => {
+    const a = await walkIn('Ana');
+    a.standAt(chapel);
+    a.client.send('enter');
+    await waitFor(() => a.doors.length === 1, 'in the chapel');
+    a.room.hurt(a.client.sessionId, 30);
+    a.standOn(layoutFor('chapel', chapel?.building.seed ?? 0).spots.find((s) => s.kind === 'candles'));
+    a.client.send('rest');
+    await waitFor(() => a.rests.length === 1, 'rest answered at the candles');
+    expect(a.rests[0]).toEqual({ ok: true, reason: 'healed' });
+  });
+
+  it('lets a guardian heal on a temple cushion, but not by ringing the bell', async () => {
+    const a = await walkIn('Ana');
+    a.standAt(temple);
+    a.client.send('enter');
+    await waitFor(() => a.doors.length === 1, 'in the temple');
+    a.room.hurt(a.client.sessionId, 30);
+    const layout = layoutFor('temple', temple?.building.seed ?? 0);
+    a.standOn(layout.spots.find((s) => s.kind === 'bell'));
+    a.client.send('rest');
+    await waitFor(() => a.rests.length === 1, 'rest answered at the bell');
+    expect(a.rests[0]).toEqual({ ok: false, reason: 'notHere' });
+    await sleep(DOOR_TUNING.restGapMs + 50);
+    a.standOn(layout.spots.find((s) => s.kind === 'cushion'));
+    a.client.send('rest');
+    await waitFor(() => a.rests.length === 2, 'rest answered on the cushion');
+    expect(a.rests[1]).toEqual({ ok: true, reason: 'healed' });
   });
 
   it('takes a deposit at the Mint Hall counter inside, but not elsewhere in the hall', async () => {

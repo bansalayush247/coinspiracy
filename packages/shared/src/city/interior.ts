@@ -19,14 +19,20 @@ export function shopTradeOf(seed: number): ShopTrade {
 }
 
 /** The kinds of room a building can open into. */
-export const ROOM_KINDS = ['shop', 'mintHall', 'hospital', 'flat'] as const;
+export const ROOM_KINDS = ['shop', 'mintHall', 'hospital', 'flat', 'cityHall', 'chapel', 'arcade', 'fishMarket', 'office', 'temple'] as const;
 /** A kind of room a building can open into. */
 export type RoomKind = (typeof ROOM_KINDS)[number];
+/** The rooms made up from each building's seed; the rest (the Mint Hall and the hospital) are hand-made. */
+export const GENERATED_ROOMS = ['shop', 'flat', 'cityHall', 'chapel', 'arcade', 'fishMarket', 'office', 'temple'] as const satisfies readonly RoomKind[];
+/** A room made up from its building's seed. */
+export type GeneratedRoom = (typeof GENERATED_ROOMS)[number];
+/** Whether a room is made up from its building's seed. */
+export const isGenerated = (room: RoomKind): room is GeneratedRoom => (GENERATED_ROOMS as readonly RoomKind[]).includes(room);
 
 /** Every piece of furniture a room can hold. */
 export const PIECES = [
   'counter', 'shelf', 'rug', 'plant', 'lamp', 'table', 'chair', 'bed', 'sofa', 'bookcase', 'column', 'vaultDoor', 'noticeBoard', 'bench', 'desk', 'hospitalBed',
-  'rack', 'mirror', 'displayCase', 'barberChair', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv',
+  'rack', 'mirror', 'displayCase', 'barberChair', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv', 'cabinet', 'candles', 'bell', 'cushion', 'pool',
 ] as const;
 /** A piece of furniture. */
 export type Piece = (typeof PIECES)[number];
@@ -36,8 +42,8 @@ const FLAT_PIECES: ReadonlySet<Piece> = new Set(['rug']);
 
 const FurnitureSchema = z.strictObject({ piece: z.enum(PIECES), c: z.int().min(1), r: z.int().min(1), w: z.int().min(1), d: z.int().min(1) });
 /** Every kind of spot in a room where something can be done. */
-export const SPOT_KINDS = ['counter', 'reception', 'bed', 'board', 'wardrobe', 'tv', 'books', 'kitchen'] as const;
-/** A kind of spot: a counter, the hospital desk, a bed, a notice board, a wardrobe, a TV, a bookcase, a kitchen. */
+export const SPOT_KINDS = ['counter', 'reception', 'bed', 'board', 'wardrobe', 'tv', 'books', 'kitchen', 'arcade', 'candles', 'bell', 'cushion'] as const;
+/** A kind of spot: a counter, the hospital desk, a bed, a notice board, a wardrobe, a TV, a bookcase, a kitchen, an arcade cabinet, candles. */
 export type SpotKind = (typeof SPOT_KINDS)[number];
 
 const SpotSchema = z.strictObject({ kind: z.enum(SPOT_KINDS), c: z.int().min(1), r: z.int().min(1) });
@@ -58,6 +64,8 @@ const LayoutSchema = z.strictObject({
 const SizeRange = (lo: number, hi: number) => z.tuple([z.int().min(lo).max(hi), z.int().min(lo).max(hi)]).refine(([a, b]) => a <= b, 'an empty size range');
 const RecipePieceSchema = z.strictObject({ piece: z.enum(PIECES), min: z.int().min(0).max(6), max: z.int().min(0).max(6) }).refine((p) => p.min <= p.max, 'min above max');
 const FinishSchema = z.strictObject({ floors: z.array(z.enum(FLOORS)).min(1), walls: z.array(z.enum(WALLS)).min(1), pieces: z.array(RecipePieceSchema).max(12) });
+// A room made from a recipe: its size range and finishes, its furniture, and whether it is built round a serving counter.
+const RoomRecipeSchema = FinishSchema.extend({ w: SizeRange(6, 14), d: SizeRange(6, 11), counter: z.boolean().optional() });
 
 /** The shape of `tuning/interiors.json`: doors, which buildings open into which rooms, and every room's layout. */
 export const InteriorTuningSchema = z.strictObject({
@@ -72,10 +80,16 @@ export const InteriorTuningSchema = z.strictObject({
     restGapMs: z.int().min(0).max(60_000),
   }),
   enterable: z.partialRecord(z.enum(BUILDING_KINDS), z.enum(ROOM_KINDS)),
-  layouts: z.strictObject({ shop: z.array(LayoutSchema).min(1), mintHall: z.array(LayoutSchema).min(1), hospital: z.array(LayoutSchema).min(1), flat: z.array(LayoutSchema).min(1) }),
+  layouts: z.record(z.enum(ROOM_KINDS), z.array(LayoutSchema).min(1)),
   recipes: z.strictObject({
     shop: z.strictObject({ w: SizeRange(6, 12), d: SizeRange(6, 10), trades: z.record(z.enum(SHOP_TRADES), FinishSchema) }),
-    flat: FinishSchema.extend({ w: SizeRange(6, 12), d: SizeRange(6, 10) }),
+    flat: RoomRecipeSchema,
+    cityHall: RoomRecipeSchema,
+    chapel: RoomRecipeSchema,
+    arcade: RoomRecipeSchema,
+    fishMarket: RoomRecipeSchema,
+    office: RoomRecipeSchema,
+    temple: RoomRecipeSchema,
   }),
 });
 /** The interiors' tuning, as checked by `InteriorTuningSchema`. */
@@ -133,7 +147,11 @@ export function layoutProblems(name: string, layout: RoomLayout): string[] {
     queue.push([c + 1, r], [c - 1, r], [c, r + 1], [c, r - 1]);
   }
   for (let r = 0; r < layout.d; r++) for (let c = 0; c < layout.w; c++) if (tileAt(map, c, r) === '.' && !seen.has(`${String(c)},${String(r)}`)) problems.push(`${name}: tile ${String(c)},${String(r)} can't be reached`);
-  for (const s of layout.spots) if (tileAt(map, s.c, s.r) !== '.') problems.push(`${name}: the ${s.kind} spot is not on open floor`);
+  const exit = { x: doorColumn(layout) + 0.5, y: layout.d - 1.5 };
+  for (const s of layout.spots) {
+    if (tileAt(map, s.c, s.r) !== '.') problems.push(`${name}: the ${s.kind} spot is not on open floor`);
+    if (Math.hypot(s.c + 0.5 - exit.x, s.r + 0.5 - exit.y) <= raw.door.counterReach)problems.push(`${name}: the ${s.kind} spot is in the way of the door`);
+  }
   return problems;
 }
 

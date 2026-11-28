@@ -14,7 +14,13 @@
     "mintHall": "mintHall",
     "hospital": "hospital",
     "house": "flat",
-    "mansion": "flat"
+    "mansion": "flat",
+    "cityHall": "cityHall",
+    "chapel": "chapel",
+    "arcade": "arcade",
+    "fishMarket": "fishMarket",
+    "office": "office",
+    "temple": "temple"
   },
   "layouts": {
     "shop": [
@@ -111,6 +117,87 @@
         ],
         "spots": [{ "kind": "bed", "c": 7, "r": 3 }]
       }
+    ],
+    "cityHall": [
+      {
+        "w": 10, "d": 8, "floor": "marble", "wall": "stone",
+        "furniture": [
+          { "piece": "noticeBoard", "c": 1, "r": 1, "w": 2, "d": 1 },
+          { "piece": "desk", "c": 4, "r": 1, "w": 2, "d": 1 },
+          { "piece": "bookcase", "c": 7, "r": 1, "w": 1, "d": 1 },
+          { "piece": "bench", "c": 1, "r": 5, "w": 2, "d": 1 },
+          { "piece": "plant", "c": 8, "r": 6, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "board", "c": 1, "r": 2 }, { "kind": "books", "c": 7, "r": 2 }]
+      }
+    ],
+    "chapel": [
+      {
+        "w": 9, "d": 9, "floor": "tile", "wall": "plaster",
+        "furniture": [
+          { "piece": "candles", "c": 4, "r": 1, "w": 1, "d": 1 },
+          { "piece": "bench", "c": 1, "r": 4, "w": 2, "d": 1 },
+          { "piece": "bench", "c": 6, "r": 4, "w": 2, "d": 1 },
+          { "piece": "bench", "c": 1, "r": 6, "w": 2, "d": 1 },
+          { "piece": "bench", "c": 6, "r": 6, "w": 2, "d": 1 },
+          { "piece": "plant", "c": 1, "r": 1, "w": 1, "d": 1 },
+          { "piece": "plant", "c": 7, "r": 1, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "candles", "c": 4, "r": 2 }]
+      }
+    ],
+    "arcade": [
+      {
+        "w": 9, "d": 7, "floor": "carpet", "wall": "panel",
+        "furniture": [
+          { "piece": "cabinet", "c": 1, "r": 1, "w": 1, "d": 1 },
+          { "piece": "cabinet", "c": 3, "r": 1, "w": 1, "d": 1 },
+          { "piece": "cabinet", "c": 5, "r": 1, "w": 1, "d": 1 },
+          { "piece": "cabinet", "c": 7, "r": 1, "w": 1, "d": 1 },
+          { "piece": "plant", "c": 7, "r": 5, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "arcade", "c": 1, "r": 2 }, { "kind": "arcade", "c": 3, "r": 2 }, { "kind": "arcade", "c": 5, "r": 2 }, { "kind": "arcade", "c": 7, "r": 2 }]
+      }
+    ],
+    "fishMarket": [
+      {
+        "w": 9, "d": 7, "floor": "tile", "wall": "brick",
+        "furniture": [
+          { "piece": "counter", "c": 3, "r": 2, "w": 3, "d": 1 },
+          { "piece": "shelf", "c": 1, "r": 1, "w": 2, "d": 1 },
+          { "piece": "displayCase", "c": 7, "r": 1, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "counter", "c": 4, "r": 3 }]
+      }
+    ],
+    "office": [
+      {
+        "w": 8, "d": 7, "floor": "carpet", "wall": "plaster",
+        "furniture": [
+          { "piece": "noticeBoard", "c": 1, "r": 1, "w": 2, "d": 1 },
+          { "piece": "bookcase", "c": 5, "r": 1, "w": 1, "d": 1 },
+          { "piece": "plant", "c": 6, "r": 1, "w": 1, "d": 1 },
+          { "piece": "desk", "c": 1, "r": 4, "w": 2, "d": 1 },
+          { "piece": "desk", "c": 5, "r": 4, "w": 2, "d": 1 }
+        ],
+        "spots": [{ "kind": "board", "c": 1, "r": 2 }, { "kind": "books", "c": 5, "r": 2 }]
+      }
+    ],
+    "temple": [
+      {
+        "w": 10, "d": 9, "floor": "marble", "wall": "stone",
+        "furniture": [
+          { "piece": "bell", "c": 2, "r": 1, "w": 1, "d": 1 },
+          { "piece": "cushion", "c": 5, "r": 1, "w": 1, "d": 1 },
+          { "piece": "cushion", "c": 7, "r": 1, "w": 1, "d": 1 },
+          { "piece": "plant", "c": 8, "r": 1, "w": 1, "d": 1 },
+          { "piece": "pool", "c": 4, "r": 4, "w": 2, "d": 2 },
+          { "piece": "column", "c": 2, "r": 4, "w": 1, "d": 1 },
+          { "piece": "column", "c": 7, "r": 4, "w": 1, "d": 1 },
+          { "piece": "lamp", "c": 1, "r": 6, "w": 1, "d": 1 }
+        ],
+        "spots": [{ "kind": "bell", "c": 2, "r": 2 }, { "kind": "cushion", "c": 5, "r": 2 }, { "kind": "cushion", "c": 7, "r": 2 }]
+      }
     ]
   },
   "recipes": {
@@ -161,6 +248,53 @@
         { "piece": "bed", "min": 1, "max": 1 }, { "piece": "wardrobe", "min": 1, "max": 1 }, { "piece": "kitchen", "min": 1, "max": 1 },
         { "piece": "tv", "min": 1, "max": 1 }, { "piece": "table", "min": 1, "max": 1 }, { "piece": "bookcase", "min": 1, "max": 2 },
         { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 1, "max": 1 }
+      ]
+    },
+    "cityHall": {
+      "w": [10, 13], "d": [8, 10],
+      "floors": ["marble", "tile"], "walls": ["stone", "panel"],
+      "pieces": [
+        { "piece": "noticeBoard", "min": 1, "max": 1 }, { "piece": "bookcase", "min": 1, "max": 2 }, { "piece": "desk", "min": 1, "max": 2 },
+        { "piece": "bench", "min": 1, "max": 2 }, { "piece": "column", "min": 0, "max": 2 }, { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 0, "max": 1 }
+      ]
+    },
+    "chapel": {
+      "w": [8, 10], "d": [8, 10],
+      "floors": ["tile", "marble", "planks"], "walls": ["plaster", "stone"],
+      "pieces": [
+        { "piece": "candles", "min": 1, "max": 1 }, { "piece": "bench", "min": 3, "max": 4 }, { "piece": "plant", "min": 1, "max": 2 },
+        { "piece": "lamp", "min": 0, "max": 1 }
+      ]
+    },
+    "arcade": {
+      "w": [8, 11], "d": [6, 9],
+      "floors": ["carpet", "tile"], "walls": ["panel", "brick"],
+      "pieces": [
+        { "piece": "cabinet", "min": 3, "max": 5 }, { "piece": "bench", "min": 0, "max": 1 }, { "piece": "plant", "min": 0, "max": 1 },
+        { "piece": "lamp", "min": 0, "max": 1 }
+      ]
+    },
+    "fishMarket": {
+      "w": [8, 11], "d": [6, 9], "counter": true,
+      "floors": ["tile"], "walls": ["brick", "plaster"],
+      "pieces": [
+        { "piece": "displayCase", "min": 1, "max": 2 }, { "piece": "shelf", "min": 0, "max": 1 }, { "piece": "plant", "min": 0, "max": 1 }
+      ]
+    },
+    "office": {
+      "w": [7, 10], "d": [6, 8],
+      "floors": ["carpet", "planks"], "walls": ["plaster", "panel"],
+      "pieces": [
+        { "piece": "noticeBoard", "min": 1, "max": 1 }, { "piece": "bookcase", "min": 1, "max": 1 }, { "piece": "desk", "min": 2, "max": 3 },
+        { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 0, "max": 1 }
+      ]
+    },
+    "temple": {
+      "w": [9, 12], "d": [8, 10],
+      "floors": ["marble", "planks", "tile"], "walls": ["stone", "plaster", "panel"],
+      "pieces": [
+        { "piece": "bell", "min": 1, "max": 1 }, { "piece": "cushion", "min": 2, "max": 3 }, { "piece": "pool", "min": 0, "max": 1 },
+        { "piece": "column", "min": 2, "max": 4 }, { "piece": "plant", "min": 1, "max": 2 }, { "piece": "lamp", "min": 1, "max": 2 }
       ]
     }
   }

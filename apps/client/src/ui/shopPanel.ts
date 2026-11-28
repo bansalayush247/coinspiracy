@@ -16,6 +16,8 @@ export interface ShopHost {
   readonly onProfile: (p: ProfileSummary) => void;
   readonly onToast: (text: string) => void;
   readonly onClose: () => void;
+  /** The shop's own name, over the trade's, for a shop in a named building. */
+  readonly title?: string;
   /** The colour seat the guardian wears in this place, for the try-on preview. */
   readonly seat?: number;
   /** Shows a look on the guardian in the world while it is tried on; null puts back what they wear. */
@@ -78,7 +80,7 @@ export class ShopPanel {
     this.#host = host;
     this.#profile = profile;
     this.#shop = shop;
-    this.#title.textContent = info.name;
+    this.#title.textContent = host.title ?? info.name;
     this.#sells.textContent = info.sells;
     this.#pay.hidden = true;
     this.#items.hidden = false;

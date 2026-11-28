@@ -1,7 +1,7 @@
-// Rooms made up from a building's seed, so no two shops or flats look alike: a size, finishes and furniture picked by
+// Rooms made up from a building's seed, so no two rooms look alike: a size, finishes and furniture picked by
 // the recipes in tuning/interiors.json, placed along the walls and around the floor, and checked like a hand-made
 // layout (a clear way in, every floor tile reachable). The server and every client make the same room from the seed.
-import { INTERIOR_TUNING, doorColumn, layoutProblems, shopTradeOf, type Furniture, type Piece, type RoomKind, type RoomLayout, type RoomSpot, type SpotKind } from './interior.js';
+import { INTERIOR_TUNING, doorColumn, isGenerated, layoutProblems, shopTradeOf, type Furniture, type GeneratedRoom, type Piece, type RoomKind, type RoomLayout, type RoomSpot, type SpotKind } from './interior.js';
 
 type Rand = () => number;
 
@@ -32,7 +32,7 @@ function shuffled<T>(rand: Rand, list: readonly T[]): T[] {
   return out;
 }
 
-const TALL: ReadonlySet<Piece> = new Set(['shelf', 'bookcase', 'wardrobe', 'kitchen', 'mirror', 'rack', 'boardRack', 'tv']);
+const TALL: ReadonlySet<Piece> = new Set(['shelf', 'bookcase', 'wardrobe', 'kitchen', 'mirror', 'rack', 'boardRack', 'tv', 'cabinet', 'bell']);
 
 // A room being furnished: which tiles are taken, by furniture or kept clear on purpose.
 class Plan {
@@ -110,9 +110,26 @@ function place(plan: Plan, piece: Piece): boolean {
   switch (piece) {
     case 'wardrobe':
       return plan.alongWall(piece, 2, 'wardrobe');
+    case 'noticeBoard':
+      return plan.alongWall(piece, 2, 'board');
+    case 'cabinet':
+      return plan.alongWall(piece, 1, 'arcade');
+    case 'candles':
+      return plan.alongWall(piece, 1, 'candles');
+    case 'bell':
+      return plan.alongWall(piece, 1, 'bell');
+    case 'cushion':
+      return plan.alongWall(piece, 1, 'cushion');
+    case 'pool':
+      return plan.onFloor(piece, 2, 2);
+    case 'bench':
+      return plan.onFloor(piece, 2, 1) || plan.alongWall(piece, 2);
+    case 'desk':
+      return plan.onFloor(piece, 2, 1) || plan.alongWall(piece, 2);
+    case 'column':
+      return plan.onFloor(piece, 1, 1);
     case 'rack':
     case 'boardRack':
-    case 'bench':
       return plan.alongWall(piece, 2);
     case 'shelf':
       return plan.alongWall(piece, between(rand, 2, 3));
@@ -172,48 +189,50 @@ function place(plan: Plan, piece: Piece): boolean {
   }
 }
 
-function shop(seed: number, rand: Rand): RoomLayout | null {
-  const recipe = INTERIOR_TUNING.recipes.shop;
-  const trade = recipe.trades[shopTradeOf(seed)];
-  const w = between(rand, recipe.w[0], recipe.w[1]);
-  const d = between(rand, recipe.d[0], recipe.d[1]);
-  const plan = new Plan(w, d, rand);
+// A serving counter across the room with a clear place in front of it to be served, and a mat there.
+function counter(plan: Plan): boolean {
+  const { rand, w, d } = plan;
   const long = Math.min(between(rand, 2, 3), w - 4);
   const r = d >= 8 ? between(rand, 2, 3) : 2;
   const c = between(rand, 1, w - 1 - long);
-  if (!plan.put('counter', c, r, long, 1)) return null;
+  if (!plan.put('counter', c, r, long, 1)) return false;
   const spot = { kind: 'counter' as const, c: c + Math.floor(long / 2), r: r + 1 };
   plan.keepClear(spot.c, spot.r);
   plan.spots.push(spot);
   plan.rug(c, r + 1, long, 1);
-  for (const want of trade.pieces) {
-    const n = between(rand, want.min, want.max);
-    for (let i = 0; i < n; i++) if (!place(plan, want.piece) && i < want.min) return null;
-  }
-  return { w, d, floor: choose(rand, trade.floors), wall: choose(rand, trade.walls), furniture: plan.furniture, spots: plan.spots };
+  return true;
 }
 
-function flat(rand: Rand): RoomLayout | null {
-  const recipe = INTERIOR_TUNING.recipes.flat;
+function furnish(plan: Plan, pieces: readonly { readonly piece: Piece; readonly min: number; readonly max: number }[]): boolean {
+  for (const want of pieces) {
+    const n = between(plan.rand, want.min, want.max);
+    for (let i = 0; i < n; i++) if (!place(plan, want.piece) && i < want.min) return false;
+  }
+  return true;
+}
+
+// One attempt at a room from its recipe; null when the furniture would not all fit.
+function attempt(room: GeneratedRoom, seed: number, rand: Rand): RoomLayout | null {
+  const tuning = INTERIOR_TUNING.recipes;
+  const recipe = room === 'shop' ? { ...tuning.shop, ...tuning.shop.trades[shopTradeOf(seed)], counter: true } : tuning[room];
   const w = between(rand, recipe.w[0], recipe.w[1]);
   const d = between(rand, recipe.d[0], recipe.d[1]);
   const plan = new Plan(w, d, rand);
-  for (const want of recipe.pieces) {
-    const n = between(rand, want.min, want.max);
-    for (let i = 0; i < n; i++) if (!place(plan, want.piece) && i < want.min) return null;
-  }
+  if (recipe.counter === true && !counter(plan)) return null;
+  if (!furnish(plan, recipe.pieces)) return null;
   const table = plan.furniture.find((f) => f.piece === 'table');
-  if (table !== undefined) plan.rug(table.c - 1, table.r - 1, 3, 3);
+  if (room === 'flat' && table !== undefined) plan.rug(table.c - 1, table.r - 1, 3, 3);
   return { w, d, floor: choose(rand, recipe.floors), wall: choose(rand, recipe.walls), furniture: plan.furniture, spots: plan.spots };
 }
 
 const ATTEMPTS = 80;
+const SALT: Readonly<Record<GeneratedRoom, number>> = { shop: 0x5eed5, flat: 0xf1a7, cityHall: 0xc17a1, chapel: 0xc4a9e, arcade: 0xa4cade, fishMarket: 0xf15b, office: 0x0ff1ce, temple: 0x7e3b1e };
 
-/** A shop or flat furnished from this seed, the same every time; a hand-made layout if none comes out right. */
-export function generateLayout(room: 'shop' | 'flat', seed: number): RoomLayout {
-  const rand = seeded(seed ^ (room === 'shop' ? 0x5eed5 : 0xf1a7));
+/** A room furnished from its building's seed by its recipe, the same every time; a hand-made layout if none comes out right. */
+export function generateLayout(room: GeneratedRoom, seed: number): RoomLayout {
+  const rand = seeded(seed ^ SALT[room]);
   for (let i = 0; i < ATTEMPTS; i++) {
-    const layout = room === 'shop' ? shop(seed, rand) : flat(rand);
+    const layout = attempt(room, seed, rand);
     if (layout !== null && layoutProblems(room, layout).length === 0) return Object.freeze(layout);
   }
   return handMade(room, seed);
@@ -229,9 +248,9 @@ function handMade(room: RoomKind, seed: number): RoomLayout {
 const MADE = new Map<string, RoomLayout>();
 const MADE_CAP = 512;
 
-/** The room inside the building with this seed: made up for a shop or a flat, hand-made for the Mint Hall and hospital. */
+/** The room inside the building with this seed: made up from its recipe, or hand-made for the Mint Hall and hospital. */
 export function layoutFor(room: RoomKind, seed: number): RoomLayout {
-  if (room !== 'shop' && room !== 'flat') return handMade(room, seed);
+  if (!isGenerated(room)) return handMade(room, seed);
   const key = `${room}:${String(seed)}`;
   let layout = MADE.get(key);
   if (layout === undefined) {

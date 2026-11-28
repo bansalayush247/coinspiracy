@@ -2,6 +2,21 @@
 
 ## 28 November 2026
 
+### Every building has a name, and more of them open
+- All 97 buildings in Port Concord now have their own name: shops after their keepers ("Marlow & Daughters,
+  Tailors"), homes by street address ("14 Kelp Row"), offices after the firms inside. No two share a name.
+- A name board hangs over each door as you walk up, the door button says where you are going, and inside, the top
+  of the screen names the building and its district.
+- Six more kinds of building open their doors, each furnished its own way:
+  - **City Hall**: today's quests on the notice board and the city's records on the shelf.
+  - **Harbour Chapel**: a quiet place to light a candle and rest, which puts you back to full health.
+  - **Pixel Pier Arcade**: step up to a cabinet to play the Academy drills.
+  - **Saltmarket Fish Hall**: fishcakes, grilled fish and harbour chowder at the counter, paid with your notes.
+  - **Offices**: a notice board, a bookshelf, and desks for the firms of Port Concord.
+  - **Tidewater Temple**: a new landmark in a garden in Low Tide. Ring its great bronze bell, or sit on a cushion
+    and breathe until you are back to full health.
+- A spot right inside a door no longer gets in the way of leaving: pressing E by the door always walks you out.
+
 ### Try it on, see it on you
 - Shops that sell things to wear now show your guardian at the top. Tap "Try on" next to anything to see it on
   you straight away, in the shop and out in the room, before you pay. Whatever you buy is put on at once.

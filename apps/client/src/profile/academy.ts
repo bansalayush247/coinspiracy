@@ -44,6 +44,8 @@ export class AcademyPanel {
   // Opens a solo room on the server; the caller owns the session.
   connect: () => Promise<Room> = () => Promise.reject(new Error('not connected'));
   onFinished: () => void = () => undefined;
+  /** Called each time the Academy closes. */
+  onClosed: () => void = () => undefined;
 
   constructor() {
     el('academy-close', HTMLButtonElement).addEventListener('click', () => {
@@ -67,12 +69,14 @@ export class AcademyPanel {
 
   close(): void {
     window.clearTimeout(this.#timer);
-    if (!this.#root.hidden) audio.setMood('menu');
+    const wasOpen = !this.#root.hidden;
+    if (wasOpen) audio.setMood('menu');
     this.#root.hidden = true;
     this.#drill = null;
     const room = this.#room;
     this.#room = null;
     void room?.leave();
+    if (wasOpen) this.onClosed();
   }
 
   #setStatus(text: string, tone: '' | 'good' | 'bad' = ''): void {

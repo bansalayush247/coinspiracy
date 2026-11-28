@@ -21,6 +21,7 @@ import {
   REWARD_IDS,
   RewardIdSchema,
   SHOPS,
+  BEACH_SHOP_IDS,
   SHOP_IDS,
   ShopIdSchema,
   categoryOf,
@@ -85,6 +86,9 @@ const GOLDEN_IDS = [
   'food:coffee',
   'food:pupusa',
   'food:coconut',
+  'food:fishcake',
+  'food:grilled-fish',
+  'food:chowder',
   'outfit:genesis',
   'hat:threshold',
   'shades:partition',
@@ -144,9 +148,12 @@ const CONCEPT_PRICES: readonly (readonly [string, number])[] = [
   ['food:coffee', 30],
   ['food:pupusa', 60],
   ['food:coconut', 40],
+  ['food:fishcake', 45],
+  ['food:grilled-fish', 70],
+  ['food:chowder', 55],
 ];
 
-const FOOD_SHOPS = ['cafe', 'pupusa-stand', 'coconut-stand'];
+const FOOD_SHOPS = ['cafe', 'pupusa-stand', 'coconut-stand', 'fish-market'];
 const COLOR = /^#[0-9A-F]{6}$/;
 
 // Strings that must never resolve to an item.
@@ -231,7 +238,7 @@ describe('catalogue ids', () => {
     expect(sorted([...COSMETIC_IDS, ...FOOD_IDS])).toStrictEqual(sorted(ITEM_IDS));
     expect(FOOD_IDS.every((id) => id.startsWith('food:'))).toBe(true);
     expect(COSMETIC_IDS.some((id) => id.startsWith('food:'))).toBe(false);
-    expect([...FOOD_IDS]).toStrictEqual(['food:coffee', 'food:pupusa', 'food:coconut']);
+    expect([...FOOD_IDS]).toStrictEqual(['food:coffee', 'food:pupusa', 'food:coconut', 'food:fishcake', 'food:grilled-fish', 'food:chowder']);
   });
 });
 
@@ -337,9 +344,10 @@ describe('prices and sources', () => {
 });
 
 describe('shops', () => {
-  it('lists the seven shops in order with names and sign colours', () => {
+  it('lists the seven Beach Town stalls, then the Port Concord fish hall, in order with names and sign colours', () => {
     expect(SHOPS.map((s) => s.id)).toStrictEqual([...SHOP_IDS]);
-    expect([...SHOP_IDS]).toStrictEqual(['tailor', 'barber', 'hats', 'surf', 'cafe', 'pupusa-stand', 'coconut-stand']);
+    expect([...BEACH_SHOP_IDS]).toStrictEqual(['tailor', 'barber', 'hats', 'surf', 'cafe', 'pupusa-stand', 'coconut-stand']);
+    expect([...SHOP_IDS]).toStrictEqual([...BEACH_SHOP_IDS, 'fish-market']);
     expect(new Set(SHOPS.map((s) => s.name)).size).toBe(SHOPS.length);
     for (const shop of SHOPS) {
       expect(shop.name.length).toBeGreaterThan(0);

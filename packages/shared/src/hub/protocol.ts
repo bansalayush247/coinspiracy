@@ -1,6 +1,6 @@
 // Beach Town messages. Movement reuses the match's move payload.
 import { z } from 'zod';
-import { ShopIdSchema } from '../economy/catalog.js';
+import { BeachShopIdSchema } from '../economy/catalog.js';
 import { NicknameSchema } from '../lobby.js';
 import { FerryArriveSchema } from '../city/ferry.js';
 
@@ -10,7 +10,7 @@ export const BEACH_MAX_PLAYERS = 16;
 /** Joining by nickname; `arrive: 'ferry'` lands the guardian at the ferry dock, and nothing else about it comes from the client. */
 export const BeachJoinSchema = z.strictObject({ nickname: NicknameSchema, arrive: FerryArriveSchema.optional() });
 
-export const TakeJobPayloadSchema = z.strictObject({ shop: ShopIdSchema });
+export const TakeJobPayloadSchema = z.strictObject({ shop: BeachShopIdSchema });
 
 // Friendly emotes only: no free text in the hub.
 export const EMOTES = ['wave', 'cheer', 'dance', 'heart', 'laugh', 'shaka'] as const;
@@ -33,7 +33,7 @@ export const BEACH_MESSAGES = Object.freeze({
 } as const);
 
 const JobId = z.string().regex(/^[A-Za-z0-9_-]{8,24}$/);
-export const CourierJobSchema = z.strictObject({ id: JobId, from: ShopIdSchema, to: ShopIdSchema, reward: z.number().int().min(1).max(100) });
+export const CourierJobSchema = z.strictObject({ id: JobId, from: BeachShopIdSchema, to: BeachShopIdSchema, reward: z.number().int().min(1).max(100) });
 export type CourierJob = z.infer<typeof CourierJobSchema>;
 export const CourierDoneSchema = z.strictObject({
   id: JobId,

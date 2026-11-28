@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { PLAYER_RADIUS, TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
 import { canStand } from '@byzantine-council/shared/pathfinding';
-import { INTERIOR_ORIGIN, doorBySeed, layoutFor, roomMap, type RoomSpot } from '@byzantine-council/shared/city';
+import { BUILDING_DOORS, INTERIOR_ORIGIN, buildingName, doorBySeed, layoutFor, roomMap, type RoomSpot } from '@byzantine-council/shared/city';
 import { pushClear, type CarPose, type CrowdBody } from '@byzantine-council/shared/city';
 import { CHUNK, CITY_BUILDINGS, carsSolid, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityCar, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
 import type { Emote } from '@byzantine-council/shared/hub';
@@ -36,6 +36,9 @@ const BASE_ZOOM = 0.72;
 // Indoors: how much closer the camera may come than on the street, and the room's wall height kept in view above its floor.
 const ROOM_ZOOM_MAX = 2.6;
 const ROOM_WALL_PX = 120 * ART_SCALE;
+// Name boards hang over doors within this many tiles of the guardian, refreshed this often.
+const SIGN_RANGE = 9;
+const SIGN_EVERY_MS = 250;
 const COIN = 'city-coin';
 const GHOST = { lit: 0xffd27a, shadow: 0xffb347, highlight: 0xfff1c9 };
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -181,6 +184,8 @@ export class CityScene extends Phaser.Scene {
   #queue: string[] = [];
   #entities!: Phaser.GameObjects.Layer;
   #names!: Phaser.GameObjects.Layer;
+  readonly #signs = new Map<number, Phaser.GameObjects.Text>();
+  #signsAt = 0;
   #ground!: Phaser.GameObjects.Layer;
   #physics!: PhysicsFx;
   #effects!: Effects;
@@ -272,6 +277,8 @@ export class CityScene extends Phaser.Scene {
     for (const id of [...this.#avatars.keys()]) this.removePlayer(id);
     for (const id of [...this.#piles.keys()]) this.removeDrop(id);
     for (const id of [...this.#cars.keys()]) this.removeCar(id);
+    for (const sign of this.#signs.values()) sign.destroy();
+    this.#signs.clear();
     this.#driving = false;
     this.#following = null;
     this.#myId = null;
@@ -647,8 +654,34 @@ export class CityScene extends Phaser.Scene {
     for (const c of this.#cars.values()) cars.push({ x: c.pos.x, y: c.pos.y, heading: c.heading });
     this.#traffic?.update(time, delta, people, sees, cars);
     this.#mission?.update(time, delta, (this.#myId === null ? undefined : this.#avatars.get(this.#myId))?.pos ?? eye);
+    this.#updateSigns(time, eye);
     const k = lerpFactor(0.12, delta);
     this.cameras.main.setLerp(k, k);
+  }
+
+  // A name board over each door near the guardian on the street; none indoors.
+  #updateSigns(time: number, eye: Vec2 | null): void {
+    if (time < this.#signsAt) return;
+    this.#signsAt = time + SIGN_EVERY_MS;
+    const near = new Set<number>();
+    if (eye !== null && this.#inside === 0 && this.#mission === null) {
+      for (const d of BUILDING_DOORS) if (Math.hypot(d.at.x - eye.x, d.at.y - eye.y) <= SIGN_RANGE) near.add(d.building.seed);
+    }
+    for (const [seed, sign] of this.#signs) {
+      if (near.has(seed)) continue;
+      sign.destroy();
+      this.#signs.delete(seed);
+    }
+    for (const seed of near) {
+      const door = doorBySeed(seed);
+      if (door === null || this.#signs.has(seed)) continue;
+      const at = worldToScreen(door.at.x, door.at.y);
+      const sign = this.add
+        .text(at.x, at.y - 34 * ART_SCALE, buildingName(seed), { fontFamily: FONT, fontSize: '15px', fontStyle: '700', color: '#fff6e6', backgroundColor: '#2a1a33cc', padding: { x: 8, y: 4 }, resolution: 2 })
+        .setOrigin(0.5, 1);
+      this.#names.add(sign);
+      this.#signs.set(seed, sign);
+    }
   }
 
   // Fades whatever is drawn in front of this client's guardian or anyone watching with a sight cone, and outlines any guardian the camera can't see

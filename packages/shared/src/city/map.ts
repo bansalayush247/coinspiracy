@@ -41,7 +41,7 @@ export function districtAt(pos: Vec2): District | null {
 }
 
 // A named landmark or an ordinary building, for the client to draw the right shape and height.
-export const BUILDING_KINDS = ['mintHall', 'gateTower', 'cityHall', 'hospital', 'fishMarket', 'lighthouse', 'radioMast', 'gatehouse', 'warehouse', 'office', 'tower', 'shop', 'house', 'mansion', 'stall', 'arcade', 'chapel'] as const;
+export const BUILDING_KINDS = ['mintHall', 'gateTower', 'cityHall', 'hospital', 'fishMarket', 'lighthouse', 'radioMast', 'gatehouse', 'warehouse', 'office', 'tower', 'shop', 'house', 'mansion', 'stall', 'arcade', 'chapel', 'temple'] as const;
 export type BuildingKind = (typeof BUILDING_KINDS)[number];
 
 export interface CityBuilding {
@@ -83,6 +83,7 @@ const LANDMARKS: readonly { kind: BuildingKind; at: readonly [number, number]; h
   { kind: 'fishMarket', at: [48, 64], height: 90 },
   { kind: 'arcade', at: [74, 64], height: 110 },
   { kind: 'chapel', at: [88, 32], height: 160 },
+  { kind: 'temple', at: [104, 80], height: 130 },
   { kind: 'gatehouse', at: [32, 16], height: 70 },
 ];
 

@@ -101,6 +101,7 @@ import {
   type RestReason,
   type RestResult,
   type RoomLayout,
+  type SpotKind,
 } from '@byzantine-council/shared/city';
 import { EMOTE_GAP_MS, EmotePayloadSchema, JUMP_GAP_MS, type Emote } from '@byzantine-council/shared/hub';
 import { VIEW_TAGS } from '@byzantine-council/shared/state';
@@ -189,6 +190,8 @@ interface Sim {
   // Moves sent across a doorway are acked but not applied until this time, so a late step can't land in the wrong place.
   doorLockUntil: number;
 }
+
+const REST_SPOTS: ReadonlySet<SpotKind | null | undefined> = new Set<SpotKind>(['bed', 'reception', 'kitchen', 'candles', 'cushion']);
 
 const IDLE_MS = 15 * 60_000;
 const IDLE_CHECK_MS = 30_000;
@@ -925,7 +928,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     return sim.room !== null && doorBySeed(me.inside)?.room === 'mintHall' && spotAt(me, sim.room.layout)?.kind === 'counter';
   }
 
-  // A bed or the kitchen at home, or the hospital desk: back to full health, only while standing at one.
+  // A bed or the kitchen at home, the hospital desk, the chapel's candles or a temple cushion: back to full health, only while standing at one.
   #rest(sessionId: string, now: number): void {
     const sim = this.#sims.get(sessionId);
     const me = this.state.players.get(sessionId);
@@ -933,7 +936,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     sim.lastRestMs = now;
     sim.lastActiveMs = now;
     const kind = sim.room === null ? null : spotAt(me, sim.room.layout)?.kind;
-    const reason: RestReason = me.down ? 'down' : kind !== 'bed' && kind !== 'reception' && kind !== 'kitchen' ? 'notHere' : sim.health >= MAX_HEALTH ? 'full' : 'healed';
+    const reason: RestReason = me.down ? 'down' : !REST_SPOTS.has(kind) ? 'notHere' : sim.health >= MAX_HEALTH ? 'full' : 'healed';
     if (reason === 'healed') {
       sim.health = MAX_HEALTH;
       me.health = MAX_HEALTH;

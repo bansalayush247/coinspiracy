@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { StateView } from '@colyseus/schema';
 import { ErrorCode, Room, ServerError, validate, type AuthContext, type Client } from '@colyseus/core';
 import { CLOSE_CODES, MovePayloadSchema, NoPayloadSchema, SERVER_TICK_HZ, TICK_SECONDS, cryptoRandom, stepMovement, uniqueNickname } from '@byzantine-council/shared';
-import { credit, type ShopId } from '@byzantine-council/shared/economy';
+import { credit, type BeachShopId } from '@byzantine-council/shared/economy';
 import { LOOK_GAP_MS, dress } from './look.js';
 import {
   BEACH_MAP,
@@ -79,7 +79,7 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
       sim.lastActiveMs = Date.now();
       sim.inputs.push(input);
     }),
-    takeJob: validate(TakeJobPayloadSchema, (client: BeachClient, payload: { shop: ShopId }) => {
+    takeJob: validate(TakeJobPayloadSchema, (client: BeachClient, payload: { shop: BeachShopId }) => {
       this.#takeJob(client, payload.shop);
     }),
     deliver: validate(NoPayloadSchema, (client: BeachClient) => {
@@ -229,7 +229,7 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
     client.send(BEACH_MESSAGES.REFUSED, { reason } satisfies CourierRefused);
   }
 
-  #takeJob(client: BeachClient, shop: ShopId): void {
+  #takeJob(client: BeachClient, shop: BeachShopId): void {
     const sim = this.#sims.get(client.sessionId);
     const player = this.state.players.get(client.sessionId);
     if (sim === undefined || player === undefined) return;

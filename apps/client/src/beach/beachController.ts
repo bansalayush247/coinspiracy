@@ -1,6 +1,6 @@
 // Runs a visit to Beach Town: the hub room, the HUD, the shops and courier jobs.
 import { Callbacks } from '@colyseus/sdk';
-import { SHOPS, getShop, type ShopId } from '@byzantine-council/shared/economy';
+import { SHOPS, getShop, type BeachShopId, type ShopId } from '@byzantine-council/shared/economy';
 import { BEACH_MESSAGES, CourierDoneSchema, CourierJobSchema, CourierRefusedSchema, EMOTES, EmoteLineSchema, JumpLineSchema, atHome, shopAt, type CourierJob, type Emote, type HubPlayer } from '@byzantine-council/shared/hub';
 import { audio } from '../audio/engine.js';
 import { Achievements } from '../profile/achievements.js';
@@ -47,7 +47,7 @@ export class BeachController {
   readonly #coach = new Coach();
   #room: BeachRoom | null = null;
   #profile: ProfileSummary | null = null;
-  #here: ShopId | null = null;
+  #here: BeachShopId | null = null;
   #job: CourierJob | null = null;
   #poll = 0;
   onLeft: () => void = () => undefined;

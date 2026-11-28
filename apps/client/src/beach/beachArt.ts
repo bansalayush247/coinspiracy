@@ -2,7 +2,7 @@
 // palms that sway in the sea breeze, umbrellas and rocks.
 import Phaser from 'phaser';
 import { tileAt, type CitadelMap } from '@byzantine-council/shared';
-import { SHOPS, colorNumber, getItem, type ShopId } from '@byzantine-council/shared/economy';
+import { SHOPS, colorNumber, getItem, isBeachShop, type BeachShopId } from '@byzantine-council/shared/economy';
 import { BEACH_MAP, HOME_HUT, SHOP_BOOTHS } from '@byzantine-council/shared/hub';
 import { hex, jitter, paintCliffs, paintPlanks, rng, softPatch, type Ctx } from '../game/groundPaint.js';
 import { ART_SCALE, TILE_H, TILE_W, mapScreenBounds } from '../game/iso.js';
@@ -202,7 +202,7 @@ export function createBeachProps(scene: Phaser.Scene, layer: Phaser.GameObjects.
     g.setDepth(depthSum * (TILE_H / 2));
     layer.add(g);
   };
-  SHOPS.forEach((shop, i) => {
+  SHOPS.flatMap((shop) => (isBeachShop(shop.id) ? [{ ...shop, id: shop.id }] : [])).forEach((shop, i) => {
     const b = SHOP_BOOTHS[shop.id];
     const color = colorNumber(shop.color);
     add(b.col + b.row + 2, (g) => {
@@ -372,7 +372,7 @@ function drawBoothBack(g: G, c: number, r: number, color: number): void {
 }
 
 // ...then the counter, posts, wares and a striped awning in the shop's colour in front.
-function drawBoothFront(g: G, c: number, r: number, color: number, shop: ShopId): void {
+function drawBoothFront(g: G, c: number, r: number, color: number, shop: BeachShopId): void {
   const wood = 0xb8784e;
   prism(g, c + 0.2, r + 1.45, c + 1.8, r + 1.85, 10, 30, wood, 0xd69a68);
   for (const [x, y] of [[0.15, 1.8], [1.8, 1.8], [1.8, 0.2]] as const) prism(g, c + x - 0.04, r + y - 0.04, c + x + 0.04, r + y + 0.04, 10, 88, 0x7a4e3e);

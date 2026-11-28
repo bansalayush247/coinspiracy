@@ -26,7 +26,7 @@ import {
 } from '../src/city/index.js';
 
 describe('walk-in buildings', () => {
-  it('opens shops, the Mint Hall, the hospital and houses, each with a door on open street', () => {
+  it('opens every kind of room, each building with a door on open street', () => {
     const kinds = new Set(BUILDING_DOORS.map((d) => d.room));
     expect([...kinds].sort()).toEqual([...ROOM_KINDS].sort());
     for (const d of BUILDING_DOORS) {
@@ -49,11 +49,37 @@ describe('walk-in buildings', () => {
     expect(interiorTuningProblems(blocked).some((p) => p.includes('way in is blocked'))).toBe(true);
   });
 
+  it('keeps every spot far enough from the door that pressing use there still walks out', () => {
+    const [shop] = INTERIOR_TUNING.layouts.shop;
+    if (shop === undefined) throw new Error('no shop');
+    const byDoor = { ...shop, spots: [{ kind: 'counter' as const, c: Math.floor(shop.w / 2), r: shop.d - 3 }] };
+    expect(layoutProblems('shop', byDoor).some((p) => p.includes('in the way of the door'))).toBe(true);
+  });
+
   it('makes the same room for the same building, and a different one for every building in the city', () => {
     expect(layoutFor('shop', 7)).toBe(layoutFor('shop', 7));
     expect(generateLayout('flat', 99)).toEqual(generateLayout('flat', 99));
-    const made = BUILDING_DOORS.filter((d) => d.room === 'shop' || d.room === 'flat');
-    expect(new Set(made.map((d) => JSON.stringify(layoutFor(d.room, d.building.seed)))).size).toBe(made.length);
+    expect(new Set(BUILDING_DOORS.map((d) => JSON.stringify(layoutFor(d.room, d.building.seed)))).size).toBe(BUILDING_DOORS.length);
+  });
+
+  it('makes City Hall, the chapel, the arcade, the fish hall, offices and the temple with something to do in each', () => {
+    const wants: Readonly<Record<'cityHall' | 'chapel' | 'arcade' | 'fishMarket' | 'office' | 'temple', readonly string[]>> = {
+      cityHall: ['board', 'books'],
+      chapel: ['candles'],
+      arcade: ['arcade'],
+      fishMarket: ['counter'],
+      office: ['board', 'books'],
+      temple: ['bell', 'cushion'],
+    };
+    for (const [room, kinds] of Object.entries(wants) as [keyof typeof wants, readonly string[]][]) {
+      const handMade = new Set(INTERIOR_TUNING.layouts[room]);
+      for (let seed = 1; seed < 200; seed++) {
+        const layout = generateLayout(room, seed * 53);
+        expect(handMade.has(layout)).toBe(false);
+        expect(layoutProblems(room, layout)).toEqual([]);
+        for (const kind of kinds) expect(layout.spots.some((s) => s.kind === kind)).toBe(true);
+      }
+    }
   });
 
   it('makes shops and flats that pass every layout check, with a counter in every shop and a bed, bookcase, kitchen, wardrobe and TV in every home', () => {

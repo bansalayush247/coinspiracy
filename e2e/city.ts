@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { type Browser, type Page } from 'playwright-core';
 import { createGameServer } from '../apps/server/src/app.js';
 import type { CityRoom } from '../apps/server/src/city/CityRoom.js';
-import { BUILDING_DOORS, CITY_MAP, DOOR_TUNING, PUNCH_COOLDOWN_MS, ROUGH_STREETS, VAULT_DOOR, districtAt, layoutFor, shopTradeOf, toWorld } from '@byzantine-council/shared/city';
+import { BUILDING_DOORS, CITY_MAP, DOOR_TUNING, buildingName, PUNCH_COOLDOWN_MS, ROUGH_STREETS, VAULT_DOOR, districtAt, layoutFor, shopTradeOf, toWorld } from '@byzantine-council/shared/city';
 import { canStand } from '@byzantine-council/shared/pathfinding';
 import { MemoryProfileStore } from '../apps/server/src/profile/store.js';
 import { matchMaker } from '@colyseus/core';
@@ -113,6 +113,12 @@ async function main(): Promise<void> {
         ['hospital', 'hospital', BUILDING_DOORS.find((d) => d.room === 'hospital')],
         ['flat', 'flat', flats[0]],
         ['flat', 'flat-2', flats[5]],
+        ['cityHall', 'city-hall', BUILDING_DOORS.find((d) => d.room === 'cityHall')],
+        ['chapel', 'chapel', BUILDING_DOORS.find((d) => d.room === 'chapel')],
+        ['arcade', 'arcade', BUILDING_DOORS.find((d) => d.room === 'arcade')],
+        ['fishMarket', 'fish-hall', BUILDING_DOORS.find((d) => d.room === 'fishMarket')],
+        ['office', 'office', BUILDING_DOORS.find((d) => d.room === 'office')],
+        ['temple', 'temple', BUILDING_DOORS.find((d) => d.room === 'temple')],
       ] as const;
       for (const [kind, name, door] of visits) {
         if (door === undefined) continue;
@@ -120,8 +126,13 @@ async function main(): Promise<void> {
         walker.y = door.at.y;
         await rook.waitForTimeout(900);
         const offered = await rook.isVisible('#city-door');
+        const doorLabel = (await rook.textContent('#city-door')) ?? '';
+        if (name === 'shop') await rook.screenshot({ path: `${INTERIOR_SHOTS}door-sign.png` });
         await rook.keyboard.press('e');
         check(offered && (await indoors(rook, true)), `the ${kind} door offers a way in and takes Rook inside`);
+        check(doorLabel.includes(buildingName(door.building.seed)), `the ${kind} door names the building (${doorLabel})`);
+        await rook.waitForTimeout(400);
+        check(((await rook.textContent('#city-district')) ?? '') === buildingName(door.building.seed), `inside, the HUD names ${buildingName(door.building.seed)}`);
         if (name === 'shop') {
           daniBody.x = door.at.x;
           daniBody.y = door.at.y;
@@ -236,6 +247,41 @@ async function main(): Promise<void> {
           await rook.keyboard.press('e');
           check(await toasted('you are fine'), 'the desk says a healthy guardian is fine');
           await rook.screenshot({ path: `${INTERIOR_SHOTS}hospital-desk.png` });
+        }
+        if (name === 'city-hall' || name === 'office') {
+          check((await standOn('board')).startsWith('Notice'), `the ${kind} notice board offers today’s quests`);
+          await panel('progress', `the ${kind} notice board`, `${name}-board`);
+          check((await standOn('books')).startsWith('Browse'), `the ${kind} has a shelf to read from`);
+        }
+        if (name === 'chapel') {
+          check((await standOn('candles')).startsWith('Light'), 'the chapel offers a candle to light');
+          await rook.keyboard.press('e');
+          check(await toasted('You light a candle'), 'lighting a candle says so');
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}chapel-candles.png` });
+        }
+        if (name === 'temple') {
+          check((await standOn('bell')).startsWith('Ring'), 'the temple offers its bell to ring');
+          await rook.keyboard.press('e');
+          check(await toasted('The bell hums'), 'ringing the bell says so');
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}temple-bell.png` });
+          await rook.waitForTimeout(DOOR_TUNING.restGapMs);
+          check((await standOn('cushion')).startsWith('Sit'), 'a temple cushion offers a seat');
+          await rook.keyboard.press('e');
+          check(await toasted('You sit and breathe'), 'sitting on a cushion says so');
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}temple-cushion.png` });
+        }
+        if (name === 'arcade') {
+          check((await standOn('arcade')).startsWith('Play'), 'an arcade cabinet offers the drills');
+          await panel('academy', 'the arcade cabinet', 'arcade-drills');
+        }
+        if (name === 'fish-hall') {
+          check((await standOn('counter')).includes(buildingName(door.building.seed)), 'the fish hall counter is named for the hall');
+          await rook.keyboard.press('e');
+          const open = await rook.waitForSelector('#shop:not([hidden])', { timeout: 5000 }).then(() => true).catch(() => false);
+          check(open && ((await rook.textContent('#shop-title')) ?? '') === buildingName(door.building.seed) && ((await rook.textContent('#shop-items')) ?? '').includes('Grilled fish'), 'the fish hall sells fish under its own name');
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}fish-hall-counter.png` });
+          await rook.keyboard.press('Escape');
+          await rook.waitForSelector('#shop', { state: 'hidden', timeout: 3000 }).catch(() => undefined);
         }
         await rook.waitForTimeout(DOOR_TUNING.gapMs);
         const inner = toWorld({ x: Math.floor(layout.w / 2) + 0.5, y: layout.d - 1.6 });

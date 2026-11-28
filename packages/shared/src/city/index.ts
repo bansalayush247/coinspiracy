@@ -10,6 +10,7 @@ export * from './combat.js';
 export * from './vault.js';
 export * from './interior.js';
 export * from './roomGen.js';
+export * from './names.js';
 export * from './script.js';
 export * from './faces.js';
 export * from './story.js';

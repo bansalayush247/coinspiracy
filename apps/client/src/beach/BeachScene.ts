@@ -1,7 +1,7 @@
 // Beach Town in Phaser: the painted beach, swaying palms, the sky, and every guardian in town.
 import Phaser from 'phaser';
 import { TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
-import { colorNumber, getShop, type ShopId } from '@byzantine-council/shared/economy';
+import { colorNumber, getShop, type BeachShopId } from '@byzantine-council/shared/economy';
 import type { Emote } from '@byzantine-council/shared/hub';
 import { BEACH_MAP, HOME_RANGE, SHOP_RANGE, homeDoor, shopCounter, type HubPlayer } from '@byzantine-council/shared/hub';
 import { Atmosphere, type NatureNote } from '../game/atmosphere.js';
@@ -20,7 +20,7 @@ import { CorrectionSmoother, Predictor, type PendingInput } from '../game/predic
 import { createBeachProps, drawBoat, drawHutDecor, paintBeach } from './beachArt.js';
 import { Townsfolk } from '../game/townsfolk.js';
 import { drawBunting } from '../game/festive.js';
-import { SHOP_IDS } from '@byzantine-council/shared/economy';
+import { BEACH_SHOP_IDS } from '@byzantine-council/shared/economy';
 import { audio } from '../audio/engine.js';
 import { quality } from '../game/quality.js';
 import { shadowScale, startJump, stepHop } from '../game/jump.js';
@@ -91,7 +91,7 @@ export class BeachScene extends Phaser.Scene {
   #input: BeachInput | null = null;
   #sink: BeachSink | null = null;
   #focus!: Phaser.GameObjects.Graphics;
-  #focusShop: ShopId | null = null;
+  #focusShop: BeachShopId | null = null;
   #hutDecor: Phaser.GameObjects.Graphics | null = null;
   #owned: readonly string[] = [];
   #target!: Phaser.GameObjects.Graphics;
@@ -115,7 +115,7 @@ export class BeachScene extends Phaser.Scene {
     drawFerryDock(this, this.#entities, 'beach', isoDepth, this.#reduced);
     drawHutDecor(props.hutDecor, this.#owned);
     // Townsfolk browse the stalls and stroll to the shore.
-    const spots = [...SHOP_IDS.map((id) => shopCounter(id)), homeDoor(), { x: 14.5, y: 15 }, { x: 7, y: 12.5 }, { x: 22.5, y: 12.5 }, { x: 15, y: 9.5 }];
+    const spots = [...BEACH_SHOP_IDS.map((id) => shopCounter(id)), homeDoor(), { x: 14.5, y: 15 }, { x: 7, y: 12.5 }, { x: 22.5, y: 12.5 }, { x: 15, y: 9.5 }];
     this.#townsfolk = new Townsfolk(this, this.#entities, BEACH_MAP, spots, 5);
     // A sailboat tacking slowly across the lagoon.
     this.#boat = this.add.graphics().setDepth(5);
@@ -261,7 +261,7 @@ export class BeachScene extends Phaser.Scene {
   }
 
   // A soft ring on the counter of the shop the player is standing at.
-  setFocusShop(shop: ShopId | null): void {
+  setFocusShop(shop: BeachShopId | null): void {
     this.#focusShop = shop;
     this.#focus.setVisible(shop !== null);
     if (shop === null) return;
@@ -294,7 +294,7 @@ export class BeachScene extends Phaser.Scene {
   }
 
   // A bobbing parcel marker over the shop a delivery is for.
-  setTarget(shop: ShopId | null): void {
+  setTarget(shop: BeachShopId | null): void {
     this.#target.setVisible(shop !== null);
     if (shop === null) return;
     const c = shopCounter(shop);
@@ -358,7 +358,7 @@ export class BeachScene extends Phaser.Scene {
     this.#festive = g;
   }
 
-  delivered(shop: ShopId, paid: number): void {
+  delivered(shop: BeachShopId, paid: number): void {
     const c = shopCounter(shop);
     this.#effects.taskDone(c, paid > 0 ? 0xffd27a : 0xbfb3c8);
   }

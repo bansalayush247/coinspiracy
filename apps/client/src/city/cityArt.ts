@@ -627,6 +627,9 @@ export function drawBuilding(g: G, b: CityBuilding): void {
       fan(g, roof, [P(cx + 0.7, cy - 0.7, top), P(cx + 0.7, cy + 0.7, top), apex]);
       return;
     }
+    case 'temple':
+      drawTemple(g, x0, y0, x1, y1);
+      return;
     case 'lighthouse': {
       const cx = (x0 + x1) / 2;
       const cy = (y0 + y1) / 2;
@@ -753,6 +756,227 @@ export function drawBuilding(g: G, b: CityBuilding): void {
       flatRoof(g, box, b.height, roof, b.seed);
     }
   }
+}
+
+const TEMPLE = { stone: 0xcfc8b6, wall: 0xf0e4cc, teak: 0x8a5234, door: 0x6a3a26, frame: 0x6a3e28, copper: 0x5f9a86, paper: 0xffe2a8, cloth: 0x2f7470 } as const;
+
+interface Rect {
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+}
+const inset = (r: Rect, d: number): Rect => ({ x0: r.x0 + d, y0: r.y0 + d, x1: r.x1 - d, y1: r.y1 - d });
+const southFace = (x0: number, x1: number, y: number, z0: number, z1: number): { x: number; y: number }[] => [P(x0, y, z0), P(x1, y, z0), P(x1, y, z1), P(x0, y, z1)];
+const eastFace = (x: number, y0: number, y1: number, z0: number, z1: number): { x: number; y: number }[] => [P(x, y1, z0), P(x, y0, z0), P(x, y0, z1), P(x, y1, z1)];
+
+// One sloping tier of a hipped roof between an outer rectangle and an inner one higher up, back faces first, with copper seams.
+function roofBand(g: G, o: Rect, zo: number, i: Rect, zi: number, col: number, seams: boolean): void {
+  fan(g, shade(col, 0.25), [P(o.x0, o.y0, zo), P(o.x1, o.y0, zo), P(i.x1, i.y0, zi), P(i.x0, i.y0, zi)]);
+  fan(g, shade(col, 0.1), [P(o.x0, o.y0, zo), P(o.x0, o.y1, zo), P(i.x0, i.y1, zi), P(i.x0, i.y0, zi)]);
+  fan(g, lit(col, 0.12), [P(o.x0, o.y1, zo), P(o.x1, o.y1, zo), P(i.x1, i.y1, zi), P(i.x0, i.y1, zi)]);
+  fan(g, shade(col, 0.2), [P(o.x1, o.y1, zo), P(o.x1, o.y0, zo), P(i.x1, i.y0, zi), P(i.x1, i.y1, zi)]);
+  if (!seams) return;
+  g.lineStyle(1 * ART_SCALE, shade(col, 0.3), 0.45);
+  for (let t = 0.06; t < 0.97; t += 0.06) {
+    const a = P(o.x0 + (o.x1 - o.x0) * t, o.y1, zo);
+    const b = P(i.x0 + (i.x1 - i.x0) * t, i.y1, zi);
+    g.lineBetween(a.x, a.y, b.x, b.y);
+    const c = P(o.x1, o.y0 + (o.y1 - o.y0) * t, zo);
+    const d = P(i.x1, i.y0 + (i.y1 - i.y0) * t, zi);
+    g.lineBetween(c.x, c.y, d.x, d.y);
+  }
+  g.lineStyle(1.6 * ART_SCALE, lit(col, 0.45), 0.9);
+  for (const [a, b] of [[P(o.x0, o.y1, zo), P(o.x1, o.y1, zo)], [P(o.x1, o.y1, zo), P(o.x1, o.y0, zo)]] as const) g.lineBetween(a.x, a.y, b.x, b.y);
+}
+
+// The eave's three corners you can see, lifted a little so the roof reads as gently flared.
+function upturn(g: G, o: Rect, z: number, col: number): void {
+  const k = 0.22;
+  for (const [x, y, dx, dy, c] of [[o.x0, o.y1, -1, 1, lit(col, 0.2)], [o.x1, o.y1, 1, 1, lit(col, 0.1)], [o.x1, o.y0, 1, -1, shade(col, 0.15)]] as const) {
+    fan(g, c, [P(x - dx * k * 1.6, y, z), P(x + dx * k * 0.5, y + dy * k * 0.5, z + 7), P(x, y - dy * k * 1.6, z)]);
+  }
+}
+
+// A round paper lantern hanging at a screen point, glowing warm.
+function hangingLantern(g: G, at: { x: number; y: number }, size: number): void {
+  const s = ART_SCALE * size;
+  for (const [r, alpha] of [[22, 0.06], [14, 0.1]] as const) {
+    g.fillStyle(0xffd890, alpha);
+    g.fillCircle(at.x, at.y, r * s);
+  }
+  g.fillStyle(0x3a2a24, 1);
+  g.fillRect(at.x - 2.6 * s, at.y - 8.6 * s, 5.2 * s, 2.4 * s);
+  g.fillRect(at.x - 2.6 * s, at.y + 6.2 * s, 5.2 * s, 2.4 * s);
+  g.fillStyle(TEMPLE.paper, 1);
+  g.fillEllipse(at.x, at.y, 12 * s, 13.5 * s, 16);
+  g.fillStyle(0xfff6e0, 0.8);
+  g.fillEllipse(at.x - 1.6 * s, at.y - 0.8 * s, 6 * s, 9 * s, 12);
+  g.lineStyle(1, 0xc08040, 0.5);
+  for (const dy of [-3.2, 0, 3.2]) g.strokeEllipse(at.x, at.y + dy * s, (dy === 0 ? 12 : 10.4) * s, 1.8 * s, 12);
+}
+
+// Tidewater Temple: a stepped stone base, a cream hall in a teak colonnade, and two tiers of wide copper-green eaves.
+// The great door stands in the middle of the south front, where the street door is, with lanterns and wave banners.
+function drawTemple(g: G, x0: number, y0: number, x1: number, y1: number): void {
+  const s = ART_SCALE;
+  const base: Rect = { x0, y0, x1, y1 };
+  const { stone, wall, teak, copper } = TEMPLE;
+  for (let k = 0; k < 3; k++) {
+    const r = inset(base, k * 0.28);
+    prism(g, r.x0, r.y0, r.x1, r.y1, k * 4, 4, shade(stone, 0.04 * (2 - k)), lit(stone, 0.2));
+    fan(g, lit(stone, 0.4), southFace(r.x0, r.x1, r.y1, k * 4 + 3.4, k * 4 + 4), 0.8);
+  }
+  const deck = inset(base, 0.8);
+  const hall = inset(base, 1.15);
+  const mx = (x0 + x1) / 2;
+  for (let k = 2; k >= 0; k--) {
+    const fy = y1 - 0.28 * (k + 1);
+    prism(g, mx - 0.95, fy, mx + 0.95, fy + 0.28 + 0.02, 0, (k + 1) * 4, 0xe2dccc, lit(0xe2dccc, 0.2));
+  }
+  for (const sx of [mx - 1.1, mx + 0.95]) prism(g, sx, y1 - 0.84, sx + 0.15, y1 - 0.1, 0, 13, shade(stone, 0.06), lit(stone, 0.2));
+  fan(g, 0x24183c, [P(hall.x0, hall.y1, 12), P(hall.x1, hall.y1, 12), P(hall.x1 + 0.4, hall.y1 + 0.35, 12), P(hall.x0 + 0.2, hall.y1 + 0.35, 12)], 0.12);
+  prism(g, hall.x0, hall.y0, hall.x1, hall.y1, 12, 88, wall);
+  for (const z of [12, 16]) fan(g, shade(stone, 0.1), southFace(hall.x0, hall.x1, hall.y1 + 0.001, z, z + 2), 0.6);
+  const glow = (pts: { x: number; y: number }[], side: boolean): void => {
+    fan(g, side ? shade(TEMPLE.frame, 0.2) : TEMPLE.frame, pts);
+  };
+  const latticeSouth = (a: number, b: number): void => {
+    glow(southFace(a - 0.06, b + 0.06, hall.y1 + 0.005, 28, 76), false);
+    fan(g, 0xffd27a, southFace(a, b, hall.y1 + 0.006, 31, 73));
+    fan(g, 0xfff1c9, southFace(a, b, hall.y1 + 0.006, 52, 73), 0.5);
+    g.lineStyle(1.4 * s, TEMPLE.frame, 1);
+    for (let k = 1; k < 3; k++) {
+      const p = P(a + ((b - a) * k) / 3, hall.y1 + 0.007, 31);
+      const q = P(a + ((b - a) * k) / 3, hall.y1 + 0.007, 73);
+      g.lineBetween(p.x, p.y, q.x, q.y);
+    }
+    for (let z = 39; z < 72; z += 8) {
+      const p = P(a, hall.y1 + 0.007, z);
+      const q = P(b, hall.y1 + 0.007, z);
+      g.lineBetween(p.x, p.y, q.x, q.y);
+    }
+  };
+  const latticeEast = (a: number, b: number): void => {
+    glow(eastFace(hall.x1 + 0.005, a - 0.06, b + 0.06, 28, 76), true);
+    fan(g, shade(0xffd27a, 0.08), eastFace(hall.x1 + 0.006, a, b, 31, 73));
+    g.lineStyle(1.4 * s, shade(TEMPLE.frame, 0.2), 1);
+    for (let k = 1; k < 3; k++) {
+      const p = P(hall.x1 + 0.007, a + ((b - a) * k) / 3, 31);
+      const q = P(hall.x1 + 0.007, a + ((b - a) * k) / 3, 73);
+      g.lineBetween(p.x, p.y, q.x, q.y);
+    }
+    for (let z = 39; z < 72; z += 8) {
+      const p = P(hall.x1 + 0.007, a, z);
+      const q = P(hall.x1 + 0.007, b, z);
+      g.lineBetween(p.x, p.y, q.x, q.y);
+    }
+  };
+  latticeSouth(hall.x0 + 0.35, hall.x0 + 1.05);
+  latticeSouth(hall.x1 - 1.05, hall.x1 - 0.35);
+  for (let y = hall.y0 + 0.45; y < hall.y1 - 0.8; y += 1.5) latticeEast(y, y + 0.8);
+  const dy = hall.y1 + 0.008;
+  fan(g, 0x24183c, southFace(mx - 0.72, mx + 0.72, dy, 12, 74), 0.18);
+  fan(g, TEMPLE.frame, southFace(mx - 0.66, mx + 0.66, dy, 12, 72));
+  fan(g, 0xffd890, southFace(mx - 0.56, mx + 0.56, dy + 0.001, 12, 67), 0.35);
+  for (const [a, b] of [[mx - 0.54, mx - 0.02], [mx + 0.02, mx + 0.54]] as const) {
+    fan(g, TEMPLE.door, southFace(a, b, dy + 0.002, 12, 66));
+    for (const z of [20, 42]) fan(g, lit(TEMPLE.door, 0.12), southFace(a + 0.07, b - 0.07, dy + 0.003, z, z + 16));
+    fan(g, lit(TEMPLE.door, 0.3), southFace(a, a + 0.03, dy + 0.003, 12, 66), 0.6);
+    for (let z = 16; z < 64; z += 9) {
+      const p = P(b - 0.06 * (a < mx ? 1 : 8), dy + 0.004, z);
+      g.fillStyle(0xd9a440, 1);
+      g.fillCircle(p.x, p.y, 1.1 * s);
+    }
+  }
+  for (const hx of [mx - 0.12, mx + 0.12]) {
+    const p = P(hx, dy + 0.005, 42);
+    g.lineStyle(1.6 * s, 0xd9a440, 1);
+    g.strokeCircle(p.x, p.y, 3 * s);
+  }
+  fan(g, teak, southFace(mx - 0.8, mx + 0.8, dy + 0.004, 70, 74));
+  fan(g, lit(teak, 0.3), southFace(mx - 0.8, mx + 0.8, dy + 0.004, 73, 74));
+  for (const bx of [mx - 1.12, mx + 0.86]) {
+    fan(g, TEMPLE.cloth, southFace(bx, bx + 0.26, dy + 0.006, 32, 82));
+    fan(g, lit(TEMPLE.cloth, 0.12), southFace(bx, bx + 0.06, dy + 0.007, 32, 82));
+    g.lineStyle(1.1 * s, 0xf2e8d0, 0.85);
+    for (let z = 38; z < 78; z += 7) {
+      g.beginPath();
+      for (let i = 0; i <= 6; i++) {
+        const p = P(bx + 0.03 + (0.2 * i) / 6, dy + 0.008, z + (i % 2 === 0 ? -1.4 : 1.4));
+        if (i === 0) g.moveTo(p.x, p.y);
+        else g.lineTo(p.x, p.y);
+      }
+      g.strokePath();
+    }
+    fan(g, 0x4a3426, southFace(bx - 0.03, bx + 0.29, dy + 0.009, 81, 83));
+  }
+  fan(g, 0x24183c, southFace(hall.x0, hall.x1, hall.y1 + 0.009, 92, 100), 0.22);
+  fan(g, 0x24183c, eastFace(hall.x1 + 0.009, hall.y0, hall.y1, 92, 100), 0.25);
+  const cols: { x: number; y: number }[] = [];
+  for (const cx of [deck.x0 + 0.1, mx - 1.55, mx + 1.55, deck.x1 - 0.1]) cols.push({ x: cx, y: deck.y1 - 0.1 });
+  for (let cy = deck.y0 + 0.1; cy < deck.y1 - 0.8; cy += 1.45) cols.push({ x: deck.x1 - 0.1, y: cy });
+  cols.sort((a, b) => a.x + a.y - (b.x + b.y));
+  for (const c of cols) {
+    prism(g, c.x - 0.14, c.y - 0.14, c.x + 0.14, c.y + 0.14, 12, 4, stone, lit(stone, 0.2));
+    prism(g, c.x - 0.08, c.y - 0.08, c.x + 0.08, c.y + 0.08, 16, 80, teak, lit(teak, 0.2));
+    prism(g, c.x - 0.1, c.y - 0.1, c.x + 0.1, c.y + 0.1, 22, 3, copper, lit(copper, 0.3));
+    prism(g, c.x - 0.13, c.y - 0.13, c.x + 0.13, c.y + 0.13, 94, 4, teak, lit(teak, 0.25));
+  }
+  fan(g, teak, southFace(deck.x0, deck.x1 + 0.04, deck.y1 + 0.04, 96, 100));
+  fan(g, shade(teak, 0.3), eastFace(deck.x1 + 0.04, deck.y0, deck.y1 + 0.04, 96, 100));
+  const eave: Rect = inset(base, -0.1);
+  const lip: Rect = inset(base, 0.3);
+  const upper: Rect = inset(base, 1.95);
+  fan(g, shade(copper, 0.45), southFace(eave.x0, eave.x1, eave.y1, 96, 100));
+  fan(g, shade(copper, 0.55), eastFace(eave.x1, eave.y0, eave.y1, 96, 100));
+  roofBand(g, eave, 100, lip, 107, copper, false);
+  roofBand(g, lip, 107, upper, 128, copper, true);
+  upturn(g, eave, 100, copper);
+  for (const lx of [x0 + 0.75, mx - 0.25, mx + 2, x1 - 0.55]) {
+    const top = P(lx, y1 - 0.3, 99);
+    const at = P(lx, y1 - 0.3, 80);
+    g.lineStyle(1, 0x3a2a24, 1);
+    g.lineBetween(top.x, top.y, at.x, at.y - 9 * s);
+    hangingLantern(g, at, 1);
+  }
+  for (const ly of [y0 + 2.2, y0 + 4.6, y0 + 7]) {
+    const top = P(x1 - 0.3, ly, 99);
+    const at = P(x1 - 0.3, ly, 80);
+    g.lineStyle(1, 0x3a2a24, 1);
+    g.lineBetween(top.x, top.y, at.x, at.y - 9 * s);
+    hangingLantern(g, at, 0.9);
+  }
+  const clere: Rect = inset(upper, 0.25);
+  prism(g, clere.x0, clere.y0, clere.x1, clere.y1, 124, 38, wall);
+  for (let x = clere.x0 + 0.35; x < clere.x1 - 0.4; x += 0.5) fan(g, 0xffd27a, southFace(x, x + 0.28, clere.y1 + 0.01, 138, 156), 0.95);
+  for (let y = clere.y0 + 0.35; y < clere.y1 - 0.4; y += 0.5) fan(g, shade(0xffd27a, 0.12), eastFace(clere.x1 + 0.01, y, y + 0.28, 138, 156), 0.95);
+  fan(g, 0x24183c, southFace(clere.x0, clere.x1, clere.y1 + 0.02, 155, 162), 0.22);
+  fan(g, 0x24183c, eastFace(clere.x1 + 0.02, clere.y0, clere.y1, 155, 162), 0.25);
+  const crown: Rect = inset(upper, -0.3);
+  const ridgeHalf = Math.max(0, (crown.y1 - crown.y0 - (crown.x1 - crown.x0)) / 2) + 0.4;
+  const cx = (crown.x0 + crown.x1) / 2;
+  const cy = (crown.y0 + crown.y1) / 2;
+  const peak: Rect = { x0: cx, y0: cy - ridgeHalf, x1: cx, y1: cy + ridgeHalf };
+  const shoulder: Rect = inset(crown, 0.45);
+  fan(g, shade(copper, 0.45), southFace(crown.x0, crown.x1, crown.y1, 159, 162));
+  fan(g, shade(copper, 0.55), eastFace(crown.x1, crown.y0, crown.y1, 159, 162));
+  roofBand(g, crown, 162, shoulder, 168, copper, false);
+  roofBand(g, shoulder, 168, peak, 206, copper, true);
+  upturn(g, crown, 162, copper);
+  const ridgeA = P(cx, peak.y0, 206);
+  const ridgeB = P(cx, peak.y1, 206);
+  g.lineStyle(3 * s, lit(copper, 0.35), 1);
+  g.lineBetween(ridgeA.x, ridgeA.y, ridgeB.x, ridgeB.y);
+  prism(g, cx - 0.16, cy - 0.16, cx + 0.16, cy + 0.16, 204, 6, shade(copper, 0.1), lit(copper, 0.3));
+  prism(g, cx - 0.06, cy - 0.06, cx + 0.06, cy + 0.06, 210, 16, shade(copper, 0.1), lit(copper, 0.3));
+  const ball = P(cx, cy, 234);
+  g.fillStyle(shade(copper, 0.2), 1);
+  g.fillCircle(ball.x, ball.y, 10 * s);
+  g.fillStyle(copper, 1);
+  g.fillCircle(ball.x - 1.2 * s, ball.y - 1.2 * s, 8 * s);
+  g.fillStyle(lit(copper, 0.55), 1);
+  g.fillCircle(ball.x - 3.4 * s, ball.y - 3.4 * s, 3 * s);
 }
 
 // ---------- Props ----------
