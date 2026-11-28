@@ -23,6 +23,10 @@
     "temple": "temple",
     "mandir": "mandir"
   },
+  "shrines": {
+    "signet": { "main": "ram", "sides": ["vishnu", "krishna"] },
+    "shallows": { "main": "shivling", "sides": [] }
+  },
   "layouts": {
     "shop": [
       {

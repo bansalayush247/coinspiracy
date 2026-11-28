@@ -36,7 +36,8 @@ function seeded(seed: number): () => number {
 const pick = (rand: () => number, list: readonly string[]): string => list[Math.floor(rand() * list.length)] ?? list[0] ?? '';
 
 function candidate(b: CityBuilding, rand: () => number): string {
-  const key = b.kind === 'shop' ? `shop:${shopTradeOf(b.seed)}` : b.kind;
+  const local = `${b.kind}:${b.district}`;
+  const key = b.kind === 'shop' ? `shop:${shopTradeOf(b.seed)}` : NAMES.patterns[local] !== undefined ? local : b.kind;
   const surname = pick(rand, NAMES.surnames);
   let surname2 = pick(rand, NAMES.surnames);
   if (surname2 === surname) surname2 = NAMES.surnames.find((s) => s !== surname) ?? surname2;

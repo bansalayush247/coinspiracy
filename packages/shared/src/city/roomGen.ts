@@ -1,7 +1,7 @@
 // Rooms made up from a building's seed, so no two rooms look alike: a size, finishes and furniture picked by
 // the recipes in tuning/interiors.json, placed along the walls and around the floor, and checked like a hand-made
 // layout (a clear way in, every floor tile reachable). The server and every client make the same room from the seed.
-import { INTERIOR_TUNING, doorColumn, isGenerated, layoutProblems, shopTradeOf, type Furniture, type GeneratedRoom, type Piece, type RoomKind, type RoomLayout, type RoomSpot, type SpotKind } from './interior.js';
+import { INTERIOR_TUNING, doorColumn, isGenerated, layoutProblems, shopTradeOf, shrineOf, type Furniture, type GeneratedRoom, type Piece, type RoomKind, type RoomLayout, type RoomSpot, type SpotKind } from './interior.js';
 
 type Rand = () => number;
 
@@ -44,6 +44,7 @@ class Plan {
     readonly w: number,
     readonly d: number,
     readonly rand: Rand,
+    readonly seed: number,
   ) {
     const door = doorColumn({ w } as RoomLayout);
     for (const [c, r] of [[door, d - 2], [door, d - 3], [door - 1, d - 2], [door + 1, d - 2]] as const) this.keepClear(c, r);
@@ -126,8 +127,11 @@ function place(plan: Plan, piece: Piece): boolean {
       return plan.onFloor(piece, 2, 2);
     case 'sanctum': {
       const c = Math.floor(plan.w / 2) - 1;
-      if (!plan.fits(c + 1, 2, 1, 1) || !plan.put(piece, c, 1, 3, 1)) return false;
-      for (let r = 2; r <= 3; r++) for (let x = c; x <= c + 2; x++) plan.keepClear(x, r);
+      const sides = [c - 1, c + 3].slice(0, shrineOf(plan.seed)?.sides.length ?? 0);
+      if (!plan.fits(c + 1, 2, 1, 1) || !plan.fits(c, 1, 3, 1) || sides.some((x) => !plan.fits(x, 1, 1, 1))) return false;
+      plan.put(piece, c, 1, 3, 1);
+      for (const x of sides) plan.put('sideShrine', x, 1, 1, 1);
+      for (let r = 2; r <= 3; r++) for (let x = Math.min(c, ...sides); x <= Math.max(c + 2, ...sides); x++) plan.keepClear(x, r);
       plan.spots.push({ kind: 'diya', c: c + 1, r: 2 });
       return true;
     }
@@ -226,7 +230,7 @@ function attempt(room: GeneratedRoom, seed: number, rand: Rand): RoomLayout | nu
   const recipe = room === 'shop' ? { ...tuning.shop, ...tuning.shop.trades[shopTradeOf(seed)], counter: true } : tuning[room];
   const w = between(rand, recipe.w[0], recipe.w[1]);
   const d = between(rand, recipe.d[0], recipe.d[1]);
-  const plan = new Plan(w, d, rand);
+  const plan = new Plan(w, d, rand, seed);
   if (recipe.counter === true && !counter(plan)) return null;
   if (!furnish(plan, recipe.pieces)) return null;
   const table = plan.furniture.find((f) => f.piece === 'table');

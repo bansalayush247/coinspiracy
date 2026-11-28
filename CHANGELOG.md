@@ -2,13 +2,28 @@
 
 ## 28 November 2026
 
+### Cars that look like cars, and signs on the shops
+- Every car is rebuilt from real car shapes: a sedan with a long bonnet and a boot, a hatchback with a steep
+  tailgate, a tall SUV with roof rails and cladding, a van with a sliding door, a pickup with an open bed, a classic
+  taxi with chrome bumpers and round lamps, and a city bus with a wrap-round windscreen. Curved bonnets and roofs,
+  bumpers, grilles, lamp units, window pillars, door lines, wipers, number plates and glass that catches the sky.
+- Names are now signs on the buildings themselves instead of floating labels. Shops get a painted board over the
+  awning in their trade's colours with an icon, and a hanging blade sign on an iron bracket. City Hall has a carved
+  lintel, the Mint Hall gold letters under its pediment, the arcade neon, the mandirs saffron boards hung with
+  marigolds, offices brass plaques, and homes a house-number plate by the door.
+
 ### Two mandirs, rounder wheels, and something different on every shelf
-- Two Hindu temples open in Port Concord. Shri Samudra Mandir rises over Signet Row, with a tall carved shikhara,
-  a saffron flag and a pillared porch; Sagar Tat Mandir is a small whitewashed shrine on a Shallows islet, facing the
+- Two Hindu temples open in Port Concord. Shri Ram Mandir rises over Signet Row, with a tall carved shikhara,
+  a saffron flag and a pillared porch; Shri Shiv Mandir is a small whitewashed shrine on a Shallows islet, facing the
   sea. Leave your shoes at the steps, ring the brass bell as you go in, and light a diya at the shrine to be back to
   full health.
+- In Shri Ram Mandir the sanctum curtain is drawn back on a murti of Ram with his bow, with Vishnu holding conch,
+  discus, mace and lotus in a shrine on his left and Krishna with his flute on his right. Shri Shiv Mandir enshrines a
+  Shivling under a dripping kalash.
 - Car, van, taxi and bus wheels are now real wheels: round tyres with tread and alloy or steel rims, set flat against
-  the side of the body and turning with the car whichever way it faces.
+  the side of the body and turning with the car whichever way it faces. Headlights and tail lights sit on the nose and
+  tail and wrap round the corners instead of floating beside the car, and each door mirror is a small housing by the
+  windscreen pillar.
 - Every bookshelf in the city holds its own handful of books. Homes keep stories, poems, a harbour cookbook and a
   mystery; City Hall keeps the city charter, its history and the council minutes; offices keep tide tables, a
   bookkeeping handbook and merchants' letters. The six primers on keeping money safe turn up everywhere.

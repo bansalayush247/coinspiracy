@@ -2,7 +2,7 @@
 // drawn in room-local tile coordinates and lit from the west like the street outside. The room sits cut open in the
 // corner of its building: the back walls rise out of sight and the building's own front runs on round it.
 import type Phaser from 'phaser';
-import { doorColumn, shopTradeOf, type Furniture, type Piece, type RoomKind, type RoomLayout, type ShopTrade } from '@byzantine-council/shared/city';
+import { doorColumn, shopTradeOf, shrineOf, type Deity, type Furniture, type Piece, type RoomKind, type RoomLayout, type Shrine, type ShopTrade } from '@byzantine-council/shared/city';
 import { P, fan, prism } from '../beach/beachArt.js';
 import { jitter, rng } from '../game/groundPaint.js';
 import { ART_SCALE, TILE_H, TILE_W } from '../game/iso.js';
@@ -110,7 +110,7 @@ const DROP = 160;
 const REACH = 6;
 const BANDS = 18;
 
-const TALL: ReadonlySet<Piece> = new Set(['shelf', 'bookcase', 'vaultDoor', 'noticeBoard', 'rack', 'mirror', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv', 'cabinet', 'bell', 'sanctum']);
+const TALL: ReadonlySet<Piece> = new Set(['shelf', 'bookcase', 'vaultDoor', 'noticeBoard', 'rack', 'mirror', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv', 'cabinet', 'bell', 'sanctum', 'sideShrine']);
 
 const pick = (list: readonly number[], rand: () => number): number => list[Math.floor(rand() * list.length)] ?? list[0] ?? 0;
 const quad = (x0: number, y0: number, x1: number, y1: number, z = 0): Pt[] => [P(x0, y0, z), P(x1, y0, z), P(x1, y1, z), P(x0, y1, z)];
@@ -4385,10 +4385,11 @@ function brassPlate(g: G, x: number, y: number, z: number, r: number): void {
   floorEllipse(g, x - 0.03, y - 0.03, r * 0.5, lit(BRASS, 0.3), 0.6, z + 0.9);
 }
 
-// The garbhagriha: a sandstone shrine front on a marble plinth, its carved doorway veiled by a half-drawn red curtain
-// glowing from within, under a ribbed nagara tower; a kalash, fruit and a brass aarti plate wait on the steps.
-function sanctum(g: G, f: Furniture, layout: RoomLayout, rand: () => number): void {
+// The garbhagriha: a sandstone shrine front under a ribbed nagara tower, its doorway veiled by a half-drawn curtain,
+// or with a shrine, the curtain tied back on the lamplit murti; a kalash, fruit and an aarti plate wait on the steps.
+function sanctum(g: G, f: Furniture, layout: RoomLayout, rand: () => number, shrine: Shrine | null): void {
   const fr = frameOf(f, layout);
+  const deity = fr === 'e' ? null : (shrine?.main ?? null);
   const s = span(f, fr);
   const am = (s.a0 + s.a1) / 2;
   const b0 = s.b0;
@@ -4438,9 +4439,14 @@ function sanctum(g: G, f: Furniture, layout: RoomLayout, rand: () => number): vo
   face(am - 0.43, am + 0.43, 12, 82, 0xb8483a);
   face(am - 0.38, am + 0.38, 12, 78, GOLD);
   face(am - 0.36, am + 0.36, 12, 77, 0x3a1a10);
-  face(am - 0.3, am + 0.3, 13, 72, 0xe07a2a, 0.5);
-  face(am - 0.2, am + 0.2, 13, 62, 0xffc860, 0.6);
-  face(am - 0.1, am + 0.1, 13, 50, 0xfff0c0, 0.65);
+  if (deity === null) {
+    face(am - 0.3, am + 0.3, 13, 72, 0xe07a2a, 0.5);
+    face(am - 0.2, am + 0.2, 13, 62, 0xffc860, 0.6);
+    face(am - 0.1, am + 0.1, 13, 50, 0xfff0c0, 0.65);
+  } else {
+    face(am - 0.32, am + 0.32, 13, 74, 0x6a2a12, 0.7);
+    face(am - 0.22, am + 0.22, 13, 62, 0xe07a2a, 0.3);
+  }
   for (let z = 17; z < 80; z += 6) {
     for (const u of [am - 0.465, am + 0.465, am - 0.405, am + 0.405]) {
       const p = at(u, z);
@@ -4448,16 +4454,23 @@ function sanctum(g: G, f: Furniture, layout: RoomLayout, rand: () => number): vo
       g.fillCircle(p.x, p.y, 1.3 * S);
     }
   }
+  if (deity !== null) {
+    const k = deity === 'shivling' ? 1 : 0.92;
+    murti({ g, o: at(am, deity === 'shivling' ? 15 : 13 + 6.5 * k), k, t: tint }, deity);
+  }
   const red = 0xb8282e;
+  const open = deity !== null;
   for (const dir of [-1, 1] as const) {
     const u = (k: number): number => am + dir * k;
-    const pts: [number, number][] = [[u(0.36), 76], [u(0.02), 76], [u(0.05), 56], [u(0.18), 30], [u(0.14), 12], [u(0.36), 12]];
+    const pts: [number, number][] = open
+      ? [[u(0.45), 78], [u(0.3), 78], [u(0.315), 58], [u(0.36), 34], [u(0.33), 12], [u(0.45), 12]]
+      : [[u(0.36), 76], [u(0.02), 76], [u(0.05), 56], [u(0.18), 30], [u(0.14), 12], [u(0.36), 12]];
     poly(g, fr, fb + 0.005, pts, tint(red));
-    for (const k of [0.3, 0.24]) plate(g, fr, fb + 0.006, Math.min(u(k), u(k + 0.02)), Math.max(u(k), u(k + 0.02)), 13, 74, tint(shade(red, 0.25)), 0.7);
-    plate(g, fr, fb + 0.006, Math.min(u(0.33), u(0.36)), Math.max(u(0.33), u(0.36)), 13, 74, tint(lit(red, 0.15)), 0.7);
+    for (const k of open ? [0.41, 0.375] : [0.3, 0.24]) plate(g, fr, fb + 0.006, Math.min(u(k), u(k + 0.012)), Math.max(u(k), u(k + 0.012)), 13, 74, tint(shade(red, 0.25)), 0.7);
+    plate(g, fr, fb + 0.006, Math.min(u(open ? 0.43 : 0.35), u(open ? 0.45 : 0.37)), Math.max(u(open ? 0.43 : 0.35), u(open ? 0.45 : 0.37)), 13, 74, tint(lit(red, 0.15)), 0.7);
     if (fr !== 'e') wallPath(g, fr, fb + 0.007, pts.slice(1, 5), 2.2 * S, tint(SAFFRON));
-    plate(g, fr, fb + 0.007, Math.min(u(0.14), u(0.36)), Math.max(u(0.14), u(0.36)), 12, 15, tint(SAFFRON));
-    const tie = at(u(0.185), 30, 0.008);
+    plate(g, fr, fb + 0.007, Math.min(u(open ? 0.33 : 0.14), u(open ? 0.45 : 0.36)), Math.max(u(open ? 0.33 : 0.14), u(open ? 0.45 : 0.36)), 12, 15, tint(SAFFRON));
+    const tie = at(u(open ? 0.39 : 0.185), open ? 34 : 30, 0.008);
     g.fillStyle(tint(GOLD), 1);
     g.fillCircle(tie.x, tie.y, 2.4 * S);
     g.fillStyle(tint(lit(GOLD, 0.4)), 1);
@@ -4467,6 +4480,13 @@ function sanctum(g: G, f: Furniture, layout: RoomLayout, rand: () => number): vo
   face(am - 0.38, am + 0.38, 76.5, 78, GOLD, 1, 0.009);
   for (let u = am - 0.38; u < am + 0.37; u += 0.076) poly(g, fr, fb + 0.009, [[u, 70], [u + 0.076, 70], [u + 0.038, 66]], tint(SAFFRON));
   face(am - 0.46, am + 0.46, 9, 13, lit(SANDSTONE, 0.3), 1, 0.009);
+  if (open) {
+    diyaAt(g, at(am + 0.16, 13, 0.03), 0.6);
+    for (const du of [-0.24, -0.16, 0.06, 0.26]) {
+      const p = at(am + du, 13, 0.03);
+      blossom(g, p.x, p.y - 1.2 * S, 1.2, du < 0 ? MARIGOLDS[du < -0.2 ? 0 : 1] : du > 0.1 ? KUMKUM : 0xfaf8f0);
+    }
+  }
   face(am - 0.58, am + 0.58, 86, 97, lit(SANDSTONE, 0.1));
   face(am - 0.58, am + 0.58, 86, 87.6, shade(SANDSTONE, 0.25));
   face(am - 0.13, am + 0.13, 87, 96.5, GOLD, 1, 0.003);
@@ -4540,6 +4560,11 @@ function sanctum(g: G, f: Furniture, layout: RoomLayout, rand: () => number): vo
 
   const tz = 4.5;
   const [tx, ty] = xy(fr, am, b0 + 0.82);
+  if (deity === 'shivling') {
+    const [nx, ny] = xy(fr, am - 0.3, b0 + 0.84);
+    nandi(g, nx, ny, tz);
+    return;
+  }
   brassPlate(g, tx, ty, tz, 0.17);
   for (let i = 0; i < 9; i++) {
     const p = P(tx + 0.05 + rand() * 0.06, ty - 0.08 + rand() * 0.06, tz + 1);
@@ -4563,6 +4588,594 @@ function sanctum(g: G, f: Furniture, layout: RoomLayout, rand: () => number): vo
   const knob = P(bx, by, tz + 15);
   g.fillStyle(BRASS, 1);
   g.fillCircle(knob.x, knob.y, 1.8 * S);
+}
+
+// ---------- Murtis ----------
+
+type Pts = readonly (readonly [number, number])[];
+type Murti = { readonly g: G; readonly o: Pt; readonly k: number; readonly t: (col: number) => number; readonly lean?: number };
+
+const WAIST = 22;
+const PITAMBAR = 0xf2c12e;
+const HAIR = 0x1c1626;
+const LIPS = 0xb83a4a;
+const EYE_WHITE = 0xf6f0e4;
+const SANDAL = 0xf6f0e4;
+const VIBHUTI = 0xf6f2ea;
+const COPPER = 0xc8703a;
+const BILVA = { light: 0x5a9a3a, dark: 0x2f6a2a } as const;
+const MURTI_LOOK = {
+  ram: { skin: 0x3f7a92, sash: 0xd8582a },
+  vishnu: { skin: 0x4f80cc, sash: 0xc8323a },
+  krishna: { skin: 0x3c66b8, sash: 0xd8405a },
+} as const;
+
+// A point in a murti's upright frame: x across and z up from its feet in art px, leaning about the waist.
+function mAt(m: Murti, x: number, z: number): Pt {
+  const a = m.lean ?? 0;
+  const dz = z - WAIST;
+  const rx = z > WAIST ? x * Math.cos(a) + dz * Math.sin(a) : x;
+  const rz = z > WAIST ? WAIST + dz * Math.cos(a) - x * Math.sin(a) : z;
+  return { x: m.o.x + rx * S * m.k, y: m.o.y - rz * S * m.k };
+}
+
+function mPath(m: Murti, pts: Pts): void {
+  m.g.beginPath();
+  pts.forEach(([x, z], i) => {
+    const p = mAt(m, x, z);
+    if (i === 0) m.g.moveTo(p.x, p.y);
+    else m.g.lineTo(p.x, p.y);
+  });
+}
+
+function mFill(m: Murti, pts: Pts, col: number, alpha = 1): void {
+  m.g.fillStyle(m.t(col), alpha);
+  mPath(m, pts);
+  m.g.closePath();
+  m.g.fillPath();
+}
+
+function mLine(m: Murti, pts: Pts, w: number, col: number, alpha = 1): void {
+  m.g.lineStyle(w * S * m.k, m.t(col), alpha);
+  mPath(m, pts);
+  m.g.strokePath();
+}
+
+function mOval(m: Murti, x: number, z: number, w: number, h: number, col: number, alpha = 1): void {
+  const p = mAt(m, x, z);
+  m.g.fillStyle(m.t(col), alpha);
+  m.g.fillEllipse(p.x, p.y, w * S * m.k, h * S * m.k, 18);
+}
+
+function bez(a: readonly [number, number], c: readonly [number, number], b: readonly [number, number], n = 8): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const u = 1 - t;
+    out.push([u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]]);
+  }
+  return out;
+}
+
+// A limb through its joints, tapering from w0 to w1, rounded at each joint and shaded along its east edge.
+function mLimb(m: Murti, pts: Pts, w0: number, w1: number, col: number): void {
+  const n = pts.length - 1;
+  const width = (i: number): number => w0 + ((w1 - w0) * i) / n;
+  for (const [dx, tint] of [[0, shade(col, 0.22)], [-0.28, col]] as const) {
+    for (let i = 0; i < n; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      if (a === undefined || b === undefined) continue;
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      const nx = -(b[1] - a[1]) / len;
+      const nz = (b[0] - a[0]) / len;
+      const wa = (width(i) / 2) * (dx === 0 ? 1 : 0.7);
+      const wb = (width(i + 1) / 2) * (dx === 0 ? 1 : 0.7);
+      mFill(m, [[a[0] + dx + nx * wa, a[1] + nz * wa], [b[0] + dx + nx * wb, b[1] + nz * wb], [b[0] + dx - nx * wb, b[1] - nz * wb], [a[0] + dx - nx * wa, a[1] - nz * wa]], tint);
+    }
+    pts.forEach(([x, z], i) => {
+      const w = width(i) * (dx === 0 ? 1 : 0.7);
+      mOval(m, x + dx, z, w, w, tint);
+    });
+  }
+}
+
+function mBand(m: Murti, pts: Pts, t: number, w: number): void {
+  const a = pts[Math.floor(t)];
+  const b = pts[Math.floor(t) + 1] ?? a;
+  if (a === undefined || b === undefined) return;
+  const f = t - Math.floor(t);
+  mOval(m, a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, w, w * 0.5, GOLD);
+}
+
+function mGarland(m: Murti, pts: Pts, r: number): void {
+  marigolds(m.g, pts.map(([x, z]) => mAt(m, x, z)), r * m.k, m.t);
+}
+
+function mPetal(m: Murti, x: number, z: number, w: number, h: number, col: number): void {
+  mFill(m, [...bez([x, z], [x - w, z + h * 0.45], [x, z + h], 6), ...bez([x, z + h], [x + w, z + h * 0.45], [x, z], 6)], col);
+  mFill(m, [...bez([x, z + h], [x + w, z + h * 0.45], [x, z], 6), [x + w * 0.15, z + h * 0.5]], shade(col, 0.14));
+}
+
+// A lotus pitha under a murti's feet: a gilt drum, a ring of pink petals and a gold seat rim.
+function lotusSeat(m: Murti, hw: number): void {
+  mFill(m, [[-hw * 0.75, -6.5], [hw * 0.75, -6.5], [hw * 0.82, -4.4], [-hw * 0.82, -4.4]], shade(GOLD, 0.15));
+  mFill(m, [[-hw * 0.75, -6.5], [-hw * 0.3, -6.5], [-hw * 0.34, -4.4], [-hw * 0.82, -4.4]], lit(GOLD, 0.2));
+  mOval(m, 0, -6.5, hw * 1.5, 1.6, shade(GOLD, 0.35));
+  for (let i = -3; i <= 3; i++) mPetal(m, i * hw * 0.28, -3.6, hw * 0.2, 4.2, lit(LOTUS, 0.25));
+  for (let i = -2.5; i <= 2.5; i++) mPetal(m, i * hw * 0.34, -5.2, hw * 0.22, 5, i < 0 ? LOTUS : shade(LOTUS, 0.08));
+  mOval(m, 0, 0, hw * 1.7, 2.2, shade(GOLD, 0.1));
+  mOval(m, -0.3, 0.2, hw * 1.5, 1.5, lit(GOLD, 0.15));
+}
+
+// A gold halo behind a murti's head: a ring of little flames round a deep red disc.
+function prabha(m: Murti, x: number, z: number, r: number): void {
+  for (let i = 0; i <= 12; i++) {
+    const a = -0.35 + ((Math.PI + 0.7) * i) / 12;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    mFill(m, [[x + c * (r - 0.6) - s * 0.9, z + s * (r - 0.6) + c * 0.9], [x + c * (r + 1.5), z + s * (r + 1.5)], [x + c * (r - 0.6) + s * 0.9, z + s * (r - 0.6) - c * 0.9]], GOLD);
+  }
+  mOval(m, x, z, r * 2, r * 2, GOLD);
+  mOval(m, x, z, r * 2 - 1.4, r * 2 - 1.4, 0x8a2a1a);
+  mOval(m, x, z, r * 2 - 3, r * 2 - 3, 0xa83a1e);
+}
+
+function hairBack(m: Murti, x: number, z: number): void {
+  mFill(m, [[x - 3, z + 2], [x - 3.6, z - 1.5], [x - 4.6, z - 5.6], [x - 3.8, z - 7.4], [x - 2.2, z - 5.6], [x + 2.2, z - 5.6], [x + 3.8, z - 7.4], [x + 4.6, z - 5.6], [x + 3.6, z - 1.5], [x + 3, z + 2]], HAIR);
+}
+
+// A serene face: almond eyes under fine brows, a gentle smile, a Vaishnava tilak and gold kundalas.
+function murtiFace(m: Murti, x: number, z: number, skin: number): void {
+  mFill(m, [[x - 1, z - 4.6], [x + 1, z - 4.6], [x + 1.1, z - 2], [x - 1.1, z - 2]], shade(skin, 0.12));
+  mOval(m, x, z, 5.8, 7, shade(skin, 0.2));
+  mOval(m, x - 0.4, z + 0.1, 5, 6.7, skin);
+  mOval(m, x - 1.3, z - 0.6, 1.4, 1.2, lit(skin, 0.12), 0.7);
+  for (const d of [-1, 1]) {
+    const ex = x + d * 1.25;
+    mFill(m, [[ex - 1, z + 0.36], [ex, z + 0.7], [ex + 1, z + 0.36], [ex, z]], EYE_WHITE);
+    mOval(m, ex, z + 0.28, 0.6, 0.56, HAIR);
+    mFill(m, [[ex - 1.05, z + 0.38], [ex, z + 0.82], [ex + 1.05, z + 0.38], [ex, z + 0.62]], shade(skin, 0.18));
+    mLine(m, [[ex - 1.05, z + 0.38], [ex, z + 0.62], [ex + 1.05, z + 0.38]], 0.3, HAIR);
+    mLine(m, [[ex + d * 1, z + 1.25], [ex + d * 0.15, z + 1.75], [ex - d * 0.85, z + 1.6]], 0.24, shade(skin, 0.5));
+  }
+  mLine(m, [[x + 0.15, z + 0.4], [x + 0.35, z - 0.9], [x - 0.1, z - 1.05]], 0.3, shade(skin, 0.3));
+  mLine(m, [[x - 0.75, z - 1.8], [x, z - 2.1], [x + 0.75, z - 1.8]], 0.42, LIPS);
+  mOval(m, x, z - 2.35, 0.8, 0.3, lit(LIPS, 0.15), 0.8);
+  mLine(m, [[x - 0.55, z + 1.7], [x - 0.6, z + 3.2]], 0.36, SANDAL);
+  mLine(m, [[x + 0.55, z + 1.7], [x + 0.6, z + 3.2]], 0.36, SANDAL);
+  mLine(m, [[x - 0.6, z + 1.7], [x, z + 1.35], [x + 0.6, z + 1.7]], 0.36, SANDAL);
+  mLine(m, [[x, z + 1.6], [x, z + 3.2]], 0.36, KUMKUM);
+  for (const d of [-1, 1]) {
+    mOval(m, x + d * 2.95, z - 1.8, 1.3, 1.9, shade(GOLD, 0.1));
+    mOval(m, x + d * 2.95 - 0.2, z - 1.6, 0.6, 0.8, lit(GOLD, 0.4));
+  }
+}
+
+// A gold crown rising from a jewelled band: Ram's pointed mukut, Vishnu's tall tiered kirita, Krishna's low crown and feather.
+function mukut(m: Murti, x: number, z: number, kind: Exclude<Deity, 'shivling'>): void {
+  const base = z + 2.6;
+  if (kind === 'vishnu') {
+    for (const d of [-1, 1]) mFill(m, [[x + d * 2.6, base + 0.4], [x + d * 4.6, base + 2.2], [x + d * 4.2, base + 4.2], [x + d * 2.6, base + 3.4]], shade(GOLD, 0.06));
+    mFill(m, [[x - 3.1, base], [x + 3.1, base], [x + 2.5, base + 9], [x + 1.4, base + 10.6], [x, base + 11.4], [x - 1.4, base + 10.6], [x - 2.5, base + 9]], GOLD);
+    mFill(m, [[x + 1, base], [x + 3.1, base], [x + 2.5, base + 9], [x + 1.4, base + 10.6], [x + 0.7, base + 10.9]], shade(GOLD, 0.2));
+    for (let t = 1; t < 9; t += 2) mLine(m, [[x - 3.05 + t * 0.065, base + t], [x + 3.05 - t * 0.065, base + t]], 0.45, lit(GOLD, 0.35));
+    mOval(m, x, base + 4.2, 1.6, 2.2, KUMKUM);
+    mOval(m, x - 0.3, base + 4.5, 0.6, 0.7, lit(KUMKUM, 0.5));
+    mFill(m, [[x - 0.5, base + 11], [x + 0.5, base + 11], [x, base + 13.4]], lit(GOLD, 0.2));
+  } else if (kind === 'ram') {
+    for (const d of [-1, 1]) mFill(m, [[x + d * 2.7, base + 0.6], [x + d * 4.2, base + 2.6], [x + d * 3.4, base + 4.2], [x + d * 2.5, base + 3]], shade(GOLD, 0.06));
+    mFill(m, [[x - 3.1, base], [x + 3.1, base], [x + 2.6, base + 4.8], [x + 1.2, base + 7.4], [x, base + 9], [x - 1.2, base + 7.4], [x - 2.6, base + 4.8]], GOLD);
+    mFill(m, [[x + 1, base], [x + 3.1, base], [x + 2.6, base + 4.8], [x + 1.2, base + 7.4], [x + 0.6, base + 8.2]], shade(GOLD, 0.2));
+    mLine(m, [[x - 2.9, base + 1.6], [x + 2.9, base + 1.6]], 0.45, lit(GOLD, 0.35));
+    mLine(m, [[x - 2.5, base + 4.6], [x + 2.5, base + 4.6]], 0.45, lit(GOLD, 0.35));
+    mOval(m, x, base + 3.2, 1.5, 1.9, KUMKUM);
+    mOval(m, x - 0.3, base + 3.5, 0.6, 0.6, lit(KUMKUM, 0.5));
+    mOval(m, x, base + 9.4, 1, 1.2, lit(GOLD, 0.3));
+  } else {
+    const fx = x + 1.6;
+    mLine(m, [[x + 0.6, base + 2.4], [fx + 0.8, base + 9]], 0.4, 0x8a9a3a);
+    for (let i = -4; i <= 4; i++) mLine(m, [[fx + 0.9, base + 9.6], [fx + 0.9 + i * 0.55, base + 12.4 - Math.abs(i) * 0.35]], 0.3, 0x2f7a4a);
+    mOval(m, fx + 0.9, base + 9.6, 4.2, 5.4, 0x2f8a4a);
+    mOval(m, fx + 0.9, base + 9.4, 3, 4, 0xd8b030);
+    mOval(m, fx + 0.9, base + 9.3, 2.2, 3, 0x2f9aa8);
+    mOval(m, fx + 0.9, base + 9.1, 1.3, 1.8, 0x1a3a90);
+    mFill(m, [[x - 3, base], [x + 3, base], [x + 2.6, base + 3.2], [x + 1.2, base + 4.6], [x - 1.2, base + 4.6], [x - 2.6, base + 3.2]], GOLD);
+    mFill(m, [[x + 1, base], [x + 3, base], [x + 2.6, base + 3.2], [x + 1.2, base + 4.6], [x + 0.6, base + 4.6]], shade(GOLD, 0.2));
+    mOval(m, x, base + 2.2, 1.3, 1.6, KUMKUM);
+  }
+  mFill(m, [[x - 3.2, z + 2.3], [x + 3.2, z + 2.3], [x + 3.1, z + 3.4], [x - 3.1, z + 3.4]], shade(GOLD, 0.15));
+  for (let i = -2; i <= 2; i++) mOval(m, x + i * 1.2, z + 2.85, 0.5, 0.5, i === 0 ? 0x2fa860 : lit(GOLD, 0.4));
+}
+
+function torso(m: Murti, skin: number): void {
+  const pts: Pts = [[-2.9, 21.5], [-3.3, 25], [-3.9, 28.5], [-4.4, 31], [-3.7, 32.6], [-1.3, 33.3], [1.3, 33.3], [3.7, 32.6], [4.4, 31], [3.9, 28.5], [3.3, 25], [2.9, 21.5]];
+  mFill(m, [[-1.1, 32.6], [-1.1, 35.2], [1.1, 35.2], [1.1, 32.6]], shade(skin, 0.15));
+  mFill(m, pts, shade(skin, 0.22));
+  mFill(m, pts.map(([x, z]) => [x * 0.84 - 0.6, z] as const), skin);
+  mLine(m, [[-2.6, 29.6], [-0.4, 29], [-0.1, 28.2]], 0.3, shade(skin, 0.2));
+  mLine(m, [[2.2, 29.6], [0.4, 29], [0.1, 28.2]], 0.3, shade(skin, 0.25));
+  mOval(m, 0, 24.4, 0.5, 0.5, shade(skin, 0.3));
+  mLine(m, [[3.7, 32.6], [-0.6, 26.4], [-2.8, 21.8]], 0.32, SANDAL, 0.9);
+}
+
+// Pitambara dhoti from waist to ankle: a pleated front fall, a bordered hem and bare feet with anklets.
+function dhoti(m: Murti, skin: number, cloth: number): void {
+  for (const d of [-1, 1]) {
+    mOval(m, d * 1.8, 0.55, 2.6, 1.4, shade(skin, 0.1));
+    mLine(m, [[d * 1.8 - 1, 1.5], [d * 1.8 + 1, 1.5]], 0.5, GOLD);
+  }
+  const pts: Pts = [[-3.3, 22.8], [-3.8, 16], [-4.1, 8], [-4.3, 2.2], [-0.4, 2], [0, 4], [0.4, 2], [4.3, 2.2], [4.1, 8], [3.8, 16], [3.3, 22.8]];
+  mFill(m, pts, shade(cloth, 0.16));
+  mFill(m, pts.map(([x, z]) => [x * 0.86 - 0.5, z] as const), cloth);
+  for (const x of [-2.6, 2]) mLine(m, [[x * 0.9, 20], [x, 6]], 0.3, shade(cloth, 0.22), 0.7);
+  mFill(m, [[-1, 22], [1, 22], [1.5, 3.2], [-1.5, 3.2]], lit(cloth, 0.12));
+  for (const x of [-0.6, 0.4]) mLine(m, [[x * 0.6, 21.5], [x * 1.4, 3.6]], 0.3, shade(cloth, 0.2));
+  mLine(m, [[-1.5, 3.4], [1.5, 3.4]], 0.7, KUMKUM);
+  for (const d of [-1, 1]) mLine(m, [[d * 4.25, 2.6], [d * 0.6, 2.4]], 0.7, KUMKUM);
+}
+
+function waistband(m: Murti, sash: number): void {
+  mLine(m, [[-3.2, 22.6], [0, 22.2], [3.2, 22.6]], 1.2, GOLD);
+  mOval(m, 0, 22.3, 1.3, 1.3, KUMKUM);
+  mLine(m, bez([-3.4, 22], [0, 12], [3.4, 22], 10), 1.2, sash);
+  mLine(m, bez([-3.4, 22.2], [0, 12.6], [3.4, 22.2], 10), 0.3, GOLD);
+}
+
+function sashEnds(m: Murti, sash: number): void {
+  for (const d of [-1, 1]) mLimb(m, bez([d * 4.3, 23], [d * 5.4, 14], [d * 5, 5], 6), 1.3, 1, sash);
+}
+
+function necklaces(m: Murti, kaustubha = false): void {
+  mLine(m, bez([-2.7, 32.6], [0, 29.4], [2.7, 32.6], 8), 0.9, GOLD);
+  mLine(m, bez([-3.2, 32.2], [0, 25.4], [3.2, 32.2], 10), 0.35, lit(GOLD, 0.2));
+  mOval(m, 0, 30.4, kaustubha ? 1.4 : 1, kaustubha ? 1.6 : 1.1, KUMKUM);
+  mOval(m, 0, 27, 0.8, 0.9, 0x2fa860);
+}
+
+function garland(m: Murti, low: number): void {
+  mGarland(m, [...bez([-3.5, 32], [-4.2, low + 4], [0, low], 8), ...bez([0, low], [4.2, low + 4], [3.5, 32], 8).slice(1)], 1.05);
+}
+
+function hand(m: Murti, x: number, z: number, skin: number): void {
+  mOval(m, x, z, 1.9, 2.1, shade(skin, 0.1));
+  mOval(m, x - 0.25, z + 0.15, 1.3, 1.6, skin);
+}
+
+function arm(m: Murti, pts: Pts, skin: number): void {
+  mLimb(m, pts, 2.3, 1.6, skin);
+  mBand(m, pts, 0.5, 2.5);
+  mBand(m, pts, pts.length - 1.25, 2);
+}
+
+// Shri Ram: blue-green, crowned, in yellow pitambara and a saffron uttariya, the kodanda bow upright in his left hand.
+function ramMurti(m: Murti): void {
+  const { skin, sash } = MURTI_LOOK.ram;
+  prabha(m, 0, 38.6, 6.8);
+  mLimb(m, [[-2.2, 24], [-5.3, 37]], 2.6, 2.8, 0x8a4a22);
+  mOval(m, -5.3, 37, 2.8, 1.4, shade(0x8a4a22, 0.3));
+  for (const [dx, col] of [[-0.8, 0xf4ece0], [0, KUMKUM], [0.8, 0xf4ece0]] as const) mFill(m, [[-5.3 + dx - 0.4, 37.2], [-5.3 + dx + 0.4, 37.2], [-5.6 + dx * 1.3, 40.3]], col);
+  hairBack(m, 0, 38.4);
+  dhoti(m, skin, PITAMBAR);
+  sashEnds(m, sash);
+  torso(m, skin);
+  waistband(m, sash);
+  necklaces(m);
+  garland(m, 11.5);
+  const bow = 0xa8601e;
+  const limb = [...bez([6.4, 0.8], [9.6, 10], [8, 22.4], 10), ...bez([8, 22.4], [9.6, 35], [6.4, 44], 10).slice(1)];
+  mLine(m, [[6.4, 0.8], [6.4, 44]], 0.3, 0xf4ece0);
+  mLine(m, limb, 1.7, shade(bow, 0.2));
+  mLine(m, limb.map(([x, z]) => [x - 0.3, z] as const), 0.8, bow);
+  mLine(m, limb.map(([x, z]) => [x - 0.6, z] as const), 0.35, lit(GOLD, 0.2));
+  for (const z of [10, 35]) mLine(m, [[8.6, z - 0.8], [8.6, z + 0.8]], 1.6, GOLD);
+  mLine(m, [[6.4, 0.8], [6, -0.3]], 0.9, GOLD);
+  mLine(m, [[6.4, 44], [6, 45.1]], 0.9, GOLD);
+  arm(m, [[4.3, 31], [6, 26], [7.3, 23.2]], skin);
+  hand(m, 7.9, 22.6, skin);
+  mLine(m, [[-6.6, 3.8], [-6.6, 31]], 0.45, 0xc89a5a);
+  mFill(m, [[-7.4, 5.8], [-5.8, 5.8], [-6.6, 2.8]], 0xd8dce4);
+  for (const dx of [-0.8, 0.8]) mFill(m, [[-6.6, 27.6], [-6.6 + dx, 28.4], [-6.6 + dx, 31.4], [-6.6, 30.6]], dx < 0 ? 0xf4ece0 : KUMKUM);
+  arm(m, [[-4.3, 31], [-6.1, 25.6], [-6.5, 20.8]], skin);
+  hand(m, -6.5, 20, skin);
+  murtiFace(m, 0, 38.4, skin);
+  mukut(m, 0, 38.4, 'ram');
+}
+
+function chakra(m: Murti, x: number, z: number, r: number): void {
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    mFill(m, [[x + c * r - s * 0.6, z + s * r + c * 0.6], [x + c * (r + 0.9), z + s * (r + 0.9)], [x + c * r + s * 0.6, z + s * r - c * 0.6]], lit(GOLD, 0.2));
+  }
+  mOval(m, x, z, r * 2, r * 2, GOLD);
+  mOval(m, x, z, r * 1.45, r * 1.45, 0xc8641e);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    mLine(m, [[x, z], [x + Math.cos(a) * r * 0.75, z + Math.sin(a) * r * 0.75]], 0.3, lit(GOLD, 0.3));
+  }
+  mOval(m, x, z, r * 0.55, r * 0.55, GOLD);
+  mOval(m, x, z, r * 0.25, r * 0.25, KUMKUM);
+}
+
+function shankha(m: Murti, x: number, z: number): void {
+  const shell = 0xf6f0e4;
+  const body: Pts = [[x - 1.5, z + 1.2], [x - 0.6, z + 2.4], [x + 0.9, z + 2.2], [x + 1.7, z + 0.9], [x + 1.4, z - 0.9], [x + 0.4, z - 2.2], [x - 0.2, z - 3], [x - 0.6, z - 1.8], [x - 1.4, z - 0.4]];
+  mFill(m, body, shade(shell, 0.18));
+  mFill(m, body.map(([px, pz]) => [x + (px - x) * 0.82 - 0.25, z + (pz - z) * 0.9] as const), shell);
+  mFill(m, [[x + 0.3, z + 1.4], [x + 1.3, z + 0.6], [x + 1, z - 0.9], [x + 0.2, z - 1.8]], 0xe8b0a0);
+  for (const [a, b] of [[[x - 1.3, z + 1], [x + 0.7, z + 2]], [[x - 1.2, z + 0.1], [x + 0.2, z + 1.3]]] as const) mLine(m, [a, b], 0.25, shade(shell, 0.3));
+  mLine(m, [[x - 1.5, z + 1.4], [x - 0.4, z + 2.5]], 0.5, GOLD);
+}
+
+function gada(m: Murti, x: number, z: number): void {
+  mLine(m, [[x, 0.2], [x, z - 1.6]], 0.9, shade(GOLD, 0.25));
+  mLine(m, [[x - 0.15, 0.2], [x - 0.15, z - 1.6]], 0.3, lit(GOLD, 0.2));
+  mOval(m, x, z, 5, 5.4, shade(GOLD, 0.22));
+  mOval(m, x - 0.4, z + 0.3, 4.1, 4.5, GOLD);
+  mOval(m, x - 0.9, z + 0.9, 1.1, 1.2, lit(GOLD, 0.5));
+  mLine(m, [[x - 2, z - 0.4], [x + 2, z - 0.4]], 0.4, KUMKUM);
+  mOval(m, x, z + 2.6, 1, 1, GOLD);
+}
+
+// Shri Vishnu: blue, under a tall kirita, four arms bearing the chakra, shankha, gada and padma.
+function vishnuMurti(m: Murti): void {
+  const { skin, sash } = MURTI_LOOK.vishnu;
+  prabha(m, 0, 39.4, 6.6);
+  for (const d of [-1, 1]) {
+    arm(m, [[d * 3.3, 31.4], [d * 6.6, 29.6], [d * 7, 35]], skin);
+    hand(m, d * 7, 35.9, skin);
+  }
+  chakra(m, -7.1, 39.6, 2.3);
+  shankha(m, 7.3, 38.6);
+  hairBack(m, 0, 38.4);
+  dhoti(m, skin, PITAMBAR);
+  sashEnds(m, sash);
+  torso(m, skin);
+  waistband(m, sash);
+  necklaces(m, true);
+  garland(m, 9);
+  gada(m, 7.2, 22.6);
+  arm(m, [[4.3, 31], [5.8, 25.5], [6.6, 21.6]], skin);
+  hand(m, 6.8, 20.8, skin);
+  arm(m, [[-4.3, 31], [-5.7, 25.6], [-5.5, 21.2]], skin);
+  hand(m, -5.5, 20.4, skin);
+  lotusAt(m.g, mAt(m, -5.5, 21.6), 2.6 * m.k, LOTUS, m.t);
+  murtiFace(m, 0, 38.4, skin);
+  mukut(m, 0, 38.4, 'vishnu');
+}
+
+// Shri Krishna: blue, in the easy cross-legged stance, a peacock feather in his crown, the bansuri at his lips.
+function krishnaMurti(m: Murti): void {
+  const { skin, sash } = MURTI_LOOK.krishna;
+  const up: Murti = { ...m, lean: -0.07 };
+  prabha(up, -0.3, 38.6, 6.6);
+  hairBack(up, -0.3, 38.4);
+  mOval(m, 1, 0.6, 2.6, 1.4, shade(skin, 0.1));
+  mFill(m, [[3, 0.4], [4.4, 0.6], [4.2, 2.4], [3.2, 2.2]], shade(skin, 0.1));
+  mLine(m, [[0, 1.5], [2, 1.5]], 0.5, GOLD);
+  mLine(m, [[3, 2.4], [4.4, 2.6]], 0.5, GOLD);
+  const pts: Pts = [[-2.6, 22.8], [-3.4, 16], [-2.4, 9], [-0.6, 2.4], [2.4, 2.2], [3.4, 3], [4.8, 3.4], [4.6, 9], [4.6, 16], [4, 22.8]];
+  mFill(m, pts, shade(PITAMBAR, 0.16));
+  mFill(m, pts.map(([x, z]) => [x * 0.86 - 0.2, z] as const), PITAMBAR);
+  mFill(m, [...bez([-3.2, 15], [0.8, 10], [4.6, 3.3], 8), [2.6, 2.6], ...bez([1.8, 4], [-0.6, 10], [-3, 12.4], 6)], shade(PITAMBAR, 0.1));
+  mLine(m, bez([-3.2, 15], [0.8, 10], [4.6, 3.3], 8), 0.35, shade(PITAMBAR, 0.3));
+  mFill(m, [[-0.2, 22], [1.8, 22], [1.4, 13.5], [0.2, 13]], lit(PITAMBAR, 0.12));
+  mLine(m, [[-0.6, 2.5], [2.4, 2.3], [4.8, 3.5]], 0.7, KUMKUM);
+  for (const d of [-1, 1]) mLimb(m, bez([0.7 + d * 3.8, 23], [0.7 + d * 4.8, 14], [0.7 + d * 4.4, 6], 6), 1.3, 1, sash);
+  torso(up, skin);
+  mLine(up, [[-2.6, 22.6], [0.3, 22.2], [3.2, 22.6]], 1.2, GOLD);
+  mLine(up, bez([-3.2, 22], [0.6, 13], [4, 22], 10), 1.2, sash);
+  necklaces(up);
+  garland(up, 10);
+  arm(up, [[-4.3, 31], [-7.4, 29], [-8, 34.6]], skin);
+  arm(up, [[4.3, 31], [4.4, 26.4], [-1.6, 35.1]], skin);
+  murtiFace(up, -0.3, 38.4, skin);
+  mukut(up, -0.3, 38.4, 'krishna');
+  mLine(up, [[0.4, 36.3], [-11.6, 35.6]], 1, 0x9a5a28);
+  mLine(up, [[0.4, 36.55], [-11.6, 35.85]], 0.3, lit(0xc8904a, 0.2));
+  for (const x of [-0.2, -10.8]) mLine(up, [[x, 35.6], [x, 37]], 0.6, GOLD);
+  for (let x = -5; x > -10; x -= 1.4) mOval(up, x, 35.95, 0.4, 0.4, 0x3a1a0a);
+  mLine(up, [[-10.4, 35.6], [-10.6, 32.6], [-10.2, 31.4]], 0.4, KUMKUM);
+  hand(up, -8.2, 35.6, skin);
+  hand(up, -3.4, 35.7, skin);
+}
+
+// A black Shivling on a yoni spouting west, tripundra and bilva on it, under a copper kalash dripping water.
+function shivlingMurti(m: Murti): void {
+  const stone = 0x2a2a32;
+  const rim = 0x4a4a58;
+  const drum = (z0: number, z1: number, rx: number, ry: number, top: number): void => {
+    mOval(m, 0, z0, rx * 2, ry * 2, shade(stone, 0.1));
+    mFill(m, [[-rx, z0], [rx, z0], [rx, z1], [-rx, z1]], shade(stone, 0.1));
+    mFill(m, [[-rx, z0], [-rx * 0.35, z0 - ry * 0.9], [-rx * 0.35, z1 - ry * 0.9], [-rx, z1]], lit(stone, 0.14));
+    mOval(m, 0, z1, rx * 2, ry * 2, top);
+  };
+  for (const dx of [-2.4, 0, 2.4]) mLine(m, [[dx, 45.6], [0, 60]], 0.3, shade(COPPER, 0.3));
+  mOval(m, 0, 41.4, 7.2, 6.4, shade(COPPER, 0.2));
+  mOval(m, -0.4, 41.7, 6.2, 5.6, COPPER);
+  mOval(m, -1.6, 42.6, 1.6, 1.8, lit(COPPER, 0.5), 0.8);
+  mFill(m, [[-1.6, 44], [1.6, 44], [1.3, 45.4], [-1.3, 45.4]], shade(COPPER, 0.1));
+  mOval(m, 0, 45.4, 3.4, 1.2, lit(COPPER, 0.2));
+  mLine(m, [[-3.4, 41.2], [3.4, 41.2]], 0.4, KUMKUM);
+  mFill(m, [[-0.5, 38.4], [0.5, 38.4], [0.2, 37], [-0.2, 37]], shade(COPPER, 0.25));
+  for (let z = 35.6; z > 24; z -= 2.6) mOval(m, 0, z, 0.55, 1.3, 0xb8e0f4, 0.85);
+  drum(0, 2.4, 5.4, 2.4, rim);
+  mOval(m, 0, 2.4, 9, 3.6, shade(stone, 0.05));
+  drum(2.4, 5, 7, 3, rim);
+  const spout: Pts = [[-4.6, 6.6], [-9.6, 9.2], [-10, 8.2], [-6.2, 5.2]];
+  mFill(m, spout.map(([x, z]) => [x, z - 1.8] as const), shade(stone, 0.05));
+  mFill(m, [[-6.2, 3.4], [-10, 6.4], [-10, 8.2], [-6.2, 5.2]], lit(stone, 0.1));
+  mFill(m, spout, rim);
+  mLine(m, [[-5.2, 6.4], [-9.5, 8.6]], 0.45, 0x9ad0ec, 0.8);
+  mOval(m, 0, 5.1, 11.6, 4.6, stone);
+  mOval(m, 0, 5.2, 9.6, 3.8, 0x3a3a46);
+  mFill(m, [[-4, 5.6], [-4, 16], [4, 16], [4, 5.6]], stone);
+  mOval(m, 0, 5.6, 8, 3, stone);
+  mOval(m, 0, 16, 8, 8.4, stone);
+  mFill(m, [[-3.6, 6], [-3.6, 16], [-1.8, 16], [-1.8, 6]], lit(stone, 0.1));
+  mOval(m, -1.8, 17, 3.4, 4.6, lit(stone, 0.1));
+  mLine(m, [[-2.3, 7.6], [-2.3, 16.8]], 0.55, 0x8a8a9e, 0.75);
+  mOval(m, -1.8, 18.6, 1.4, 0.9, 0xa0a0b4, 0.7);
+  mLine(m, [[0.8, 19.8], [0.9, 13], [0.7, 7]], 0.35, 0x9ad0ec, 0.55);
+  for (const dz of [-1.4, 0, 1.4]) mLine(m, bez([-3.7, 12.6 + dz], [0, 11.5 + dz], [3.7, 12.6 + dz], 8), 0.66, VIBHUTI);
+  mOval(m, 0, 12, 1.4, 1.4, KUMKUM);
+  const bilva = (x: number, z: number, a: number, r: number): void => {
+    for (const da of [-0.8, 0, 0.8]) leaf(m.g, mAt(m, x, z), a + da, (da === 0 ? 4 : 3.2) * r * m.k, 1.3 * r * m.k, m.t(BILVA.light), m.t(BILVA.dark));
+  };
+  bilva(-1, 19.6, -0.6, 0.9);
+  bilva(-5.6, 5.6, -2.6, 0.8);
+  bilva(5.2, 4.6, -0.3, 0.8);
+  mGarland(m, bez([-4.4, 6.2], [0, 2.2], [4.4, 6.2], 10), 0.8);
+  for (const [x, z, r] of [[1.6, 20.2, 1.2], [-4.6, 3.6, 1], [3.4, 3.2, 1], [6.2, 5.6, 0.9]] as const) {
+    const p = mAt(m, x, z);
+    blossom(m.g, p.x, p.y, r * m.k, m.t(0xfaf8f0));
+  }
+}
+
+function murti(m: Murti, deity: Deity): void {
+  if (deity !== 'shivling') lotusSeat(m, 7);
+  if (deity === 'ram') ramMurti(m);
+  else if (deity === 'vishnu') vishnuMurti(m);
+  else if (deity === 'krishna') krishnaMurti(m);
+  else shivlingMurti(m);
+}
+
+// A black stone Nandi lying on the sanctum step in profile, west of the door, gazing at the lingam.
+function nandi(g: G, x: number, y: number, z: number): void {
+  const base = P(x, y, z);
+  const k = 0.72 * S;
+  const at = (a: number, h: number, s = 0): Pt => ({ x: base.x + (a - s * 0.5) * k, y: base.y - (h - s * 0.4) * k });
+  const shape = (pts: Pts, col: number, s = 0): void => {
+    g.fillStyle(col, 1);
+    g.beginPath();
+    pts.forEach(([a, h], i) => {
+      const p = at(a, h, s);
+      if (i === 0) g.moveTo(p.x, p.y);
+      else g.lineTo(p.x, p.y);
+    });
+    g.closePath();
+    g.fillPath();
+  };
+  const stroke = (pts: Pts, w: number, col: number): void => {
+    g.lineStyle(w * k, col, 1);
+    g.beginPath();
+    pts.forEach(([a, h], i) => {
+      const p = at(a, h);
+      if (i === 0) g.moveTo(p.x, p.y);
+      else g.lineTo(p.x, p.y);
+    });
+    g.strokePath();
+  };
+  const stone = 0x4a4a56;
+  const body: Pts = [[-6.5, 0], [-7.2, 2.6], [-6.8, 5.2], [-5, 6.4], [-1, 6.4], [1, 7.2], [2.4, 9.8], [4, 9.4], [5.4, 9.4], [6.4, 11], [7.6, 11.2], [8.6, 9.6], [10, 7.6], [9.8, 6.2], [8.2, 5.8], [6.4, 4.6], [5.4, 2.4], [6, 0.4]];
+  floorEllipse(g, x + 0.02, y, 0.16, SHADOW, 0.3, z);
+  shape(body, shade(stone, 0.3), 2);
+  for (const [a, h, col] of [[6.2, 10.8, shade(stone, 0.3)], [7.2, 10.9, 0x9a9aa6]] as const) stroke([[a, h - 0.4], [a - 0.8, h + 1.8], [a - 0.2, h + 3.2], [a + 0.6, h + 3.6]], 1.1, col);
+  shape(body, stone);
+  shape([[-5, 6.4], [-1, 6.4], [1, 7.2], [2.4, 9.8], [4, 9.4], [3.4, 7.8], [-1, 5.5], [-5, 5.4]], lit(stone, 0.16));
+  shape([[8.6, 9.6], [10, 7.6], [9.8, 6.2], [8.6, 6.2], [8.2, 8.2]], lit(stone, 0.22));
+  shape([[-6.2, 0.4], [-6.6, 3], [-5.4, 4.8], [-3, 4.6], [-2, 2.6], [-3, 0.4]], lit(stone, 0.08));
+  shape([[2.2, 0.2], [2.8, 1.8], [6.2, 2], [6.4, 0.4]], lit(stone, 0.1));
+  stroke([[-6.9, 4], [-7.6, 1.6], [-6.2, 0.3], [-4.4, 0.4]], 0.7, shade(stone, 0.2));
+  shape([[-3.4, 6.4], [1.2, 7], [1.8, 2.8], [-3.2, 2.6]], KUMKUM);
+  stroke([[-3.2, 2.6], [1.8, 2.8]], 0.9, GOLD);
+  stroke([[1.2, 7], [1.8, 2.8]], 0.6, GOLD);
+  shape([[6.6, 9.8], [4.2, 10], [3.8, 9.4], [6.2, 9]], shade(stone, 0.25));
+  shape([[6.2, 9.7], [4.6, 9.8], [6, 9.3]], 0x8a5a5a);
+  const eye = at(7.8, 9.4);
+  g.fillStyle(0x1a1a20, 1);
+  g.fillCircle(eye.x, eye.y, 0.6 * k);
+  marigolds(g, [at(4.6, 8.8), at(5.2, 6.8), at(5.8, 4.8)], 1.1 * 0.72);
+}
+
+// A small carved shrine beside the sanctum: a murti in an arched, lamplit niche under a little ribbed shikhara.
+function sideShrine(g: G, f: Furniture, layout: RoomLayout, rand: () => number, deity: Deity | null): void {
+  const fr = frameOf(f, layout);
+  const s = span(f, fr);
+  const am = (s.a0 + s.a1) / 2;
+  const b0 = s.b0;
+  const [gx, gy] = xy(fr, am, s.b1 - 0.1);
+  for (const [r, alpha] of [[1.3, 0.04], [0.8, 0.06], [0.45, 0.08]] as const) floorPool(g, gx, gy, r, WARM, alpha, { x1: layout.w - 1, y1: layout.d - 1 });
+  contact(g, f.c + 0.04, f.r + 0.02, f.c + f.w - 0.04, f.r + f.d - 0.3, 0.22);
+  const pb = b0 + 0.6;
+  box(g, fr, s.a0 + 0.06, b0, s.a1 - 0.06, pb, 0, 7, shade(MARBLE_WHITE, 0.05), lit(MARBLE_WHITE, 0.3));
+  plate(g, fr, pb + 0.002, s.a0 + 0.06, s.a1 - 0.06, 2.4, 3.8, tone(fr, KUMKUM));
+  plate(g, fr, pb + 0.002, s.a0 + 0.06, s.a1 - 0.06, 5.8, 7, tone(fr, GOLD), 0.8);
+  const fb = b0 + 0.34;
+  const tint = (col: number): number => tone(fr, col);
+  const face = (u0: number, u1: number, z0: number, z1: number, col: number, alpha = 1, d = 0.002): void => {
+    plate(g, fr, fb + d, u0, u1, z0, z1, tint(col), alpha);
+  };
+  const arch = (hw: number, z0: number, z1: number, col: number, alpha = 1, d = 0.002): void => {
+    poly(g, fr, fb + d, windowOutline(am - hw, am + hw, z0, z1, true), tint(col), alpha);
+  };
+  const at = (u: number, z: number, d = 0.004): Pt => fp(fr, u, fb + d, z);
+  const top = 84;
+  box(g, fr, am - 0.42, b0, am + 0.42, fb, 7, top - 7, SANDSTONE, lit(SANDSTONE, 0.25));
+  face(am - 0.42, am + 0.42, 7, 10, lit(SANDSTONE, 0.25));
+  face(am - 0.42, am + 0.42, 12, 13.4, KUMKUM, 0.85);
+  for (const u of [am - 0.4, am + 0.32]) {
+    face(u, u + 0.08, 14, top - 6, lit(SANDSTONE, 0.14));
+    face(u + 0.03, u + 0.05, 17, top - 9, shade(SANDSTONE, 0.16));
+  }
+  arch(0.33, 11, 73, shade(SANDSTONE, 0.18));
+  arch(0.3, 11, 70, GOLD);
+  arch(0.28, 11, 68, 0x3a1a10);
+  arch(0.24, 12, 64, 0x6a2a12, 0.7);
+  arch(0.16, 12, 54, 0xe07a2a, 0.35);
+  for (let z = 15; z < 60; z += 5) {
+    for (const u of [am - 0.315, am + 0.315]) {
+      const p = at(u, z);
+      g.fillStyle(tint(GOLD), 1);
+      g.fillCircle(p.x, p.y, 1.1 * S);
+    }
+  }
+  if (deity !== null) {
+    const k = 0.74;
+    murti({ g, o: at(am, 12 + 6.5 * k), k, t: tint }, deity);
+  } else {
+    arch(0.28, 11, 68, 0xb8282e, 1, 0.005);
+    for (const du of [-0.14, 0, 0.14]) face(am + du - 0.01, am + du + 0.01, 12, 60, shade(0xb8282e, 0.25), 0.7, 0.006);
+  }
+  diyaAt(g, at(am + 0.05, 11.4, 0.04), 0.6);
+  face(am - 0.36, am + 0.36, 9, 12, lit(SANDSTONE, 0.3), 1, 0.009);
+  marigolds(g, swag(at(am - 0.3, 74, 0.012), at(am + 0.3, 74, 0.012), 6), 1.8, tint);
+  for (const u of [am - 0.3, am + 0.3]) garlandDrop(g, at(u, 74, 0.012), 12, 0.8, tint);
+  box(g, fr, am - 0.46, b0, am + 0.46, fb + 0.04, top, 5, SANDSTONE, lit(SANDSTONE, 0.3));
+  plate(g, fr, fb + 0.042, am - 0.46, am + 0.46, top + 1.5, top + 3, tone(fr, KUMKUM));
+  const levels = 11;
+  const band = 3.4;
+  for (let i = 0; i < levels; i++) {
+    const t = i / (levels - 1);
+    const storey = i % 4 === 3;
+    const hw = 0.4 * (1 - 0.62 * Math.pow(t, 1.8)) + (storey ? 0.02 : 0);
+    const bd = 0.3 - 0.1 * t;
+    const z = top + 5 + i * band;
+    const col = storey ? shade(SANDSTONE, 0.1) : i % 2 === 0 ? SANDSTONE : shade(SANDSTONE, 0.04);
+    box(g, fr, am - hw, b0, am + hw, b0 + bd, z, band, col, lit(col, 0.35));
+    box(g, fr, am - hw * 0.5, b0, am + hw * 0.5, b0 + bd + 0.02, z, band, lit(col, 0.06), lit(col, 0.4));
+  }
+  const crown = top + 5 + levels * band;
+  const [kx, ky] = xy(fr, am, b0 + 0.14);
+  tube(g, kx, ky, 0.1, 0.13, crown, 2, SANDSTONE, null, 12);
+  tube(g, kx, ky, 0.13, 0.13, crown + 2, 3, SANDSTONE, null, 12, true);
+  tube(g, kx, ky, 0.13, 0.08, crown + 5, 2, SANDSTONE, lit(SANDSTONE, 0.3), 12);
+  tube(g, kx, ky, 0.04, 0.06, crown + 7, 3, GOLD, null, 8);
+  tube(g, kx, ky, 0.02, 0, crown + 10, 6, GOLD, null, 6);
+  for (const ta of [0.15, 0.85]) diyaAt(g, fp(fr, s.a0 + ta, b0 + 0.48, 7), 0.75);
+  for (let i = 0; i < 4; i++) {
+    const p = fp(fr, am + (rand() - 0.5) * 0.5, b0 + 0.44 + rand() * 0.12, 7);
+    blossom(g, p.x, p.y - 1.2 * S, 1.5, i % 2 === 0 ? KUMKUM : MARIGOLDS[i % 2] ?? SAFFRON);
+  }
+}
+
+// Which side murti a side shrine holds: the first stands left of the sanctum, the second right of it.
+function sideDeity(f: Furniture, layout: RoomLayout, seed: number): Deity | null {
+  const main = layout.furniture.find((o) => o.piece === 'sanctum');
+  const sides = shrineOf(seed)?.sides ?? [];
+  return (main === undefined ? null : sides[f.c < main.c ? 0 : 1]) ?? null;
 }
 
 // A rangoli in bright powder colours on the floor: a lotus of pointed petals in rings of scallops and white dots.
@@ -4967,7 +5580,10 @@ export function drawPiece(g: G, f: Furniture, layout: RoomLayout, room: RoomKind
       pool(g, f, layout, rand);
       return;
     case 'sanctum':
-      sanctum(g, f, layout, rand);
+      sanctum(g, f, layout, rand, shrineOf(seed));
+      return;
+    case 'sideShrine':
+      sideShrine(g, f, layout, rand, sideDeity(f, layout, seed));
       return;
     case 'rangoli':
       rangoli(g, f, rand);

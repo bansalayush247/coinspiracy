@@ -692,14 +692,6 @@ export function drawBuilding(g: G, b: CityBuilding): void {
       fan(g, shade(roof, 0.2), [P(x0 - 0.1, y0 - 0.1, b.height), P(x1 + 0.1, y0 - 0.1, b.height), P(x1 + 0.1, cy, b.height + rise), P(x0 - 0.1, cy, b.height + rise)]);
       fan(g, shade(wall, 0.1), [P(x1, y0, b.height), P(x1, y1, b.height), P(x1, cy, b.height + rise)]);
       fan(g, lit(roof, 0.08), [P(x0 - 0.1, y1 + 0.1, b.height), P(x1 + 0.1, y1 + 0.1, b.height), P(x1 + 0.1, cy, b.height + rise), P(x0 - 0.1, cy, b.height + rise)]);
-      if (b.kind === 'fishMarket') {
-        // A hand-painted sign: FISH.
-        const s = P(mid, y1 + 0.02, b.height * 0.8);
-        g.fillStyle(0x3fa7b5, 1);
-        g.fillRect(s.x - 40 * ART_SCALE, s.y - 10 * ART_SCALE, 80 * ART_SCALE, 20 * ART_SCALE);
-        g.fillStyle(0xfff4dc, 1);
-        g.fillTriangle(s.x - 20 * ART_SCALE, s.y, s.x + 14 * ART_SCALE, s.y - 6 * ART_SCALE, s.x + 14 * ART_SCALE, s.y + 6 * ART_SCALE);
-      }
       return;
     }
     case 'arcade': {
@@ -1299,7 +1291,7 @@ function jaliEast(g: G, x: number, a: number, b: number, z0: number, z1: number,
   }
 }
 
-// Shri Samudra Mandir: a sandstone temple on a two-tier jagati. A tall nagara shikhara with clustered lesser spires rises over
+// Shri Ram Mandir: a sandstone temple on a two-tier jagati. A tall nagara shikhara with clustered lesser spires rises over
 // the sanctum at the back; in front, a mandapa under a stepped stone roof and an entrance porch on carved pillars, whose
 // doorway stands in the middle of the south front where the street door is, up a flight of steps with sandals left below.
 function drawGrandMandir(g: G, x0: number, y0: number, x1: number, y1: number, seed: number): void {
@@ -1369,7 +1361,7 @@ function drawGrandMandir(g: G, x0: number, y0: number, x1: number, y1: number, s
   phamsana(g, inset(porch, 0.06), deck + ph + 5, 3, stone);
 }
 
-// Sagar Tat Mandir: a small whitewashed shore shrine on a low plinth, a little shikhara over its sanctum, saffron and red
+// Shri Shiv Mandir: a small whitewashed shore shrine on a low plinth, a little shikhara over its sanctum, saffron and red
 // trim, and a pillared porch facing south over the water, its door where the street door is, a bell at the door and sandals below.
 function drawShoreMandir(g: G, x0: number, y0: number, x1: number, y1: number, seed: number): void {
   const s = ART_SCALE;

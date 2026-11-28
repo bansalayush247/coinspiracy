@@ -825,4 +825,3 @@ export const hi: Messages = {
   'ferry.arrived': '{name} में स्वागत है। वापसी की फ़ेरी इसी घाट से चलती है।',
   'join.islandLocked': 'वह द्वीप अभी तुम्हारे लिए नहीं खुला है।',
 };
-

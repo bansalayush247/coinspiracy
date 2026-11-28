@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { isBlocked, tileAt, type CitadelMap, type Vec2 } from '../map.js';
 import { PLAYER_RADIUS, stepMovement } from '../movement.js';
-import { BUILDING_KINDS, CITY_BUILDINGS, CITY_MAP, type BuildingKind, type CityBuilding } from './map.js';
+import { BUILDING_KINDS, CITY_BUILDINGS, CITY_MAP, DISTRICT_IDS, type BuildingKind, type CityBuilding } from './map.js';
 import type { ShopId } from '../economy/catalog.js';
 import raw from './tuning/interiors.json' with { type: 'json' };
 
@@ -32,7 +32,7 @@ export const isGenerated = (room: RoomKind): room is GeneratedRoom => (GENERATED
 /** Every piece of furniture a room can hold. */
 export const PIECES = [
   'counter', 'shelf', 'rug', 'plant', 'lamp', 'table', 'chair', 'bed', 'sofa', 'bookcase', 'column', 'vaultDoor', 'noticeBoard', 'bench', 'desk', 'hospitalBed',
-  'rack', 'mirror', 'displayCase', 'barberChair', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv', 'cabinet', 'candles', 'bell', 'cushion', 'pool', 'sanctum', 'rangoli',
+  'rack', 'mirror', 'displayCase', 'barberChair', 'hatStand', 'boardRack', 'kitchen', 'wardrobe', 'tv', 'cabinet', 'candles', 'bell', 'cushion', 'pool', 'sanctum', 'rangoli', 'sideShrine',
 ] as const;
 /** A piece of furniture. */
 export type Piece = (typeof PIECES)[number];
@@ -67,6 +67,14 @@ const FinishSchema = z.strictObject({ floors: z.array(z.enum(FLOORS)).min(1), wa
 // A room made from a recipe: its size range and finishes, its furniture, and whether it is built round a serving counter.
 const RoomRecipeSchema = FinishSchema.extend({ w: SizeRange(6, 14), d: SizeRange(6, 11), counter: z.boolean().optional() });
 
+/** The murtis a mandir's shrines can hold; a Shiv mandir enshrines a Shivling. */
+export const DEITIES = ['ram', 'vishnu', 'krishna', 'shivling'] as const;
+/** A murti in a mandir's shrine. */
+export type Deity = (typeof DEITIES)[number];
+const ShrineSchema = z.strictObject({ main: z.enum(DEITIES), sides: z.array(z.enum(DEITIES)).max(2) });
+/** What a mandir enshrines: the murti in its sanctum and those in its side shrines, left to right. */
+export type Shrine = z.infer<typeof ShrineSchema>;
+
 /** The shape of `tuning/interiors.json`: doors, which buildings open into which rooms, and every room's layout. */
 export const InteriorTuningSchema = z.strictObject({
   door: z.strictObject({
@@ -80,6 +88,7 @@ export const InteriorTuningSchema = z.strictObject({
     restGapMs: z.int().min(0).max(60_000),
   }),
   enterable: z.partialRecord(z.enum(BUILDING_KINDS), z.enum(ROOM_KINDS)),
+  shrines: z.partialRecord(z.enum(DISTRICT_IDS), ShrineSchema),
   layouts: z.record(z.enum(ROOM_KINDS), z.array(LayoutSchema).min(1)),
   recipes: z.strictObject({
     shop: z.strictObject({ w: SizeRange(6, 12), d: SizeRange(6, 10), trades: z.record(z.enum(SHOP_TRADES), FinishSchema) }),
@@ -167,6 +176,12 @@ export const INTERIOR_TUNING: InteriorTuning = Object.freeze(
     for (const message of interiorTuningProblems(t)) ctx.addIssue({ code: 'custom', message });
   }).parse(raw),
 );
+
+/** What the mandir with this seed enshrines, by its district; null for any other building. */
+export function shrineOf(seed: number): Shrine | null {
+  const b = CITY_BUILDINGS.find((x) => x.seed === seed);
+  return b?.kind === 'mandir' ? (INTERIOR_TUNING.shrines[b.district] ?? null) : null;
+}
 
 /** Door tuning: how near the door you must stand, the gap between trips, and the lock after being hit. */
 export const DOOR_TUNING = INTERIOR_TUNING.door;

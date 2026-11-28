@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { canStand } from '../src/pathfinding.js';
 import {
   BUILDING_DOORS,
+  CITY_BUILDINGS,
   CITY_MAP,
   INTERIOR_TUNING,
   ROOM_KINDS,
@@ -13,6 +14,7 @@ import {
   layoutProblems,
   SHOP_TRADES,
   shopTradeOf,
+  shrineOf,
   interiorTuningProblems,
   isIndoors,
   layoutFor,
@@ -47,6 +49,17 @@ describe('walk-in buildings', () => {
     const spawn = roomSpawn(shop);
     const blocked = { ...INTERIOR_TUNING, layouts: { ...INTERIOR_TUNING.layouts, shop: [{ ...shop, furniture: [...shop.furniture, { piece: 'table' as const, c: Math.floor(spawn.x), r: Math.floor(spawn.y), w: 1, d: 1 }] }] } };
     expect(interiorTuningProblems(blocked).some((p) => p.includes('way in is blocked'))).toBe(true);
+  });
+
+  it('enshrines Ram with Vishnu and Krishna beside him in the Ram Mandir, and a Shivling in the Shiv Mandir', () => {
+    const [ram, shiv] = (['signet', 'shallows'] as const).map((district) => CITY_BUILDINGS.find((b) => b.kind === 'mandir' && b.district === district));
+    expect(shrineOf(ram?.seed ?? -1)).toEqual({ main: 'ram', sides: ['vishnu', 'krishna'] });
+    expect(shrineOf(shiv?.seed ?? -1)).toEqual({ main: 'shivling', sides: [] });
+    expect(shrineOf(CITY_BUILDINGS.find((b) => b.kind === 'chapel')?.seed ?? -1)).toBeNull();
+    const ramRoom = layoutFor('mandir', ram?.seed ?? -1);
+    const sanctum = ramRoom.furniture.find((f) => f.piece === 'sanctum');
+    expect(ramRoom.furniture.filter((f) => f.piece === 'sideShrine').map((f) => [f.c, f.r])).toEqual([[(sanctum?.c ?? 0) - 1, 1], [(sanctum?.c ?? 0) + 3, 1]]);
+    expect(layoutFor('mandir', shiv?.seed ?? -1).furniture.some((f) => f.piece === 'sideShrine')).toBe(false);
   });
 
   it('keeps every spot far enough from the door that pressing use there still walks out', () => {

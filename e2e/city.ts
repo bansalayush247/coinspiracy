@@ -129,7 +129,7 @@ async function main(): Promise<void> {
         await rook.waitForTimeout(900);
         const offered = await rook.isVisible('#city-door');
         const doorLabel = (await rook.textContent('#city-door')) ?? '';
-        if (name === 'shop') await rook.screenshot({ path: `${INTERIOR_SHOTS}door-sign.png` });
+        if (name === 'shop' || name === 'fish-hall') await rook.screenshot({ path: `${INTERIOR_SHOTS}${name === 'shop' ? 'door-sign' : 'fish-hall-door'}.png` });
         await rook.keyboard.press('e');
         check(offered && (await indoors(rook, true)), `the ${kind} door offers a way in and takes Rook inside`);
         check(doorLabel.includes(buildingName(door.building.seed)), `the ${kind} door names the building (${doorLabel})`);

@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { PLAYER_RADIUS, TICK_SECONDS, tileAt, type Vec2 } from '@byzantine-council/shared';
 import { canStand } from '@byzantine-council/shared/pathfinding';
-import { BUILDING_DOORS, INTERIOR_ORIGIN, buildingName, doorBySeed, layoutFor, roomMap, type RoomSpot } from '@byzantine-council/shared/city';
+import { BUILDING_DOORS, INTERIOR_ORIGIN, doorBySeed, layoutFor, roomMap, type RoomSpot } from '@byzantine-council/shared/city';
 import { pushClear, type CarPose, type CrowdBody } from '@byzantine-council/shared/city';
 import { CHUNK, CITY_BUILDINGS, carsSolid, CITY_DISTRICTS, CITY_HEIGHT, CITY_MAP, CITY_SPAWNS, CITY_WIDTH, DUMP_START, MAX_HEALTH, VAULT_DOOR, chunksAround, inSight, type CityBuilding, type CityCar, type CityDrop, type CityPlayer, type PunchLine } from '@byzantine-council/shared/city';
 import type { Emote } from '@byzantine-council/shared/hub';
@@ -24,6 +24,7 @@ import { Townsfolk } from '../game/townsfolk.js';
 import { roomBackdrop } from './interiorArt.js';
 import { InteriorView } from './interiorView.js';
 import { MissionView } from './missionView.js';
+import { makeSign } from './signArt.js';
 import { drawModernCar } from './carArt.js';
 import { CAR_COLORS, Traffic } from './traffic.js';
 import { drawFerryDock } from '../ferry/ferryDock.js';
@@ -36,8 +37,9 @@ const BASE_ZOOM = 0.72;
 // Indoors: how far the player may zoom in past a room that fills the view, and the room's wall height kept in view above its floor.
 const ROOM_ZOOM_IN_MAX = 1.6;
 const ROOM_WALL_PX = 120 * ART_SCALE;
-// Name boards hang over doors within this many tiles of the guardian, refreshed this often.
+// Name signs show on buildings within this many tiles of the guardian, refreshed this often.
 const SIGN_RANGE = 9;
+const SIGN_TAG_ALPHA = 0.28;
 const SIGN_EVERY_MS = 250;
 const COIN = 'city-coin';
 const GHOST = { lit: 0xffd27a, shadow: 0xffb347, highlight: 0xfff1c9 };
@@ -124,6 +126,7 @@ interface Box {
 interface Wall extends Box {
   readonly depth: number;
   readonly faded: number;
+  readonly seed?: number;
 }
 
 interface Chunk {
@@ -184,8 +187,10 @@ export class CityScene extends Phaser.Scene {
   #queue: string[] = [];
   #entities!: Phaser.GameObjects.Layer;
   #names!: Phaser.GameObjects.Layer;
-  readonly #signs = new Map<number, Phaser.GameObjects.Text>();
+  readonly #signs = new Map<number, Phaser.GameObjects.Image>();
   #signsAt = 0;
+  readonly #tagBox = new Phaser.Geom.Rectangle();
+  readonly #signBox = new Phaser.Geom.Rectangle();
   #ground!: Phaser.GameObjects.Layer;
   #physics!: PhysicsFx;
   #effects!: Effects;
@@ -662,7 +667,15 @@ export class CityScene extends Phaser.Scene {
     this.cameras.main.setLerp(k, k);
   }
 
-  // A name board over each door near the guardian on the street; none indoors.
+  // Whether a name tag sits over a building's sign, so the tag can step back and let the sign be read.
+  #overSign(label: Phaser.GameObjects.Text): boolean {
+    if (this.#signs.size === 0 || !label.visible) return false;
+    const tag = label.getBounds(this.#tagBox);
+    for (const sign of this.#signs.values()) if (sign.visible && Phaser.Geom.Intersects.RectangleToRectangle(tag, sign.getBounds(this.#signBox))) return true;
+    return false;
+  }
+
+  // A name sign on each building with a door near the guardian on the street; none indoors.
   #updateSigns(time: number, eye: Vec2 | null): void {
     if (time < this.#signsAt) return;
     this.#signsAt = time + SIGN_EVERY_MS;
@@ -678,11 +691,8 @@ export class CityScene extends Phaser.Scene {
     for (const seed of near) {
       const door = doorBySeed(seed);
       if (door === null || this.#signs.has(seed)) continue;
-      const at = worldToScreen(door.at.x, door.at.y);
-      const sign = this.add
-        .text(at.x, at.y - 34 * ART_SCALE, buildingName(seed), { fontFamily: FONT, fontSize: '15px', fontStyle: '700', color: '#fff6e6', backgroundColor: '#2a1a33cc', padding: { x: 8, y: 4 }, resolution: 2 })
-        .setOrigin(0.5, 1);
-      this.#names.add(sign);
+      const sign = makeSign(this, door);
+      this.#entities.add(sign);
       this.#signs.set(seed, sign);
     }
   }
@@ -716,6 +726,7 @@ export class CityScene extends Phaser.Scene {
     for (const w of this.#wallsInView) {
       const target = fade.has(w) ? w.faded : 1;
       if (w.g.alpha !== target) w.g.setAlpha(Math.abs(w.g.alpha - target) < 0.02 ? target : w.g.alpha + (target - w.g.alpha) * k);
+      if (w.seed !== undefined) this.#signs.get(w.seed)?.setAlpha(w.g.alpha);
     }
   }
 
@@ -793,6 +804,7 @@ export class CityScene extends Phaser.Scene {
         g,
         depth,
         faded: 0.18,
+        seed: b.seed,
         left: worldToScreen(c0, r1 + 1).x,
         right: worldToScreen(c1 + 1, r0).x,
         top: worldToScreen(c0, r0).y - (b.height + 120) * ART_SCALE,
@@ -881,6 +893,7 @@ export class CityScene extends Phaser.Scene {
     const zoom = this.cameras.main.zoom / sceneDpr(this);
     a.label.setScale(1 / zoom);
     a.label.setPosition(s.x, s.y - GUARDIAN_HEIGHT - 8 * ART_SCALE);
+    a.label.setAlpha(this.#overSign(a.label) ? SIGN_TAG_ALPHA : 1);
     a.talk.place(s.x, a.label.y - a.label.height / zoom, zoom, time, a.label.visible);
     if (a.action !== null && (a.down || !a.action.update(time, a.body, a.body.y, a.facing, this.#reduced))) {
       a.action.end(a.body, !a.down);

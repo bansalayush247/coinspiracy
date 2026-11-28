@@ -11,7 +11,7 @@
   },
   "lostAndFound": {
     "title": "Dawati la Vitu Vilivyopotea",
-    "body": "Vinasubiri wenyewe kwenye dawati la mbele: mwavuli mmoja wa mistari, glavu tatu za upande mmoja (zote za mkono wa kushoto), dira ya shaba, kitabu cha maktaba kuhusu mafundo, funguo za nyumba kwenye kishikio cha mnara wa taa, na tiketi ya feri kwenda the Shallows ya Alhamisi iliyopita. Kisichochukuliwa baada ya siku 30 kitapelekwa kwenye kibanda cha hisani Saltmarket.",
+    "body": "Vinasubiri wenyewe kwenye dawati la mbele: mwavuli mmoja wa mistari, glavu tatu za upande mmoja (zote za mkono wa kushoto), dira ya shaba, kitabu cha maktaba kuhusu mafundo, funguo za nyumba kwenye kishikio cha mnara wa taa, na tiketi ya feri kwenda The Shallows ya Alhamisi iliyopita. Kisichochukuliwa baada ya siku 30 kitapelekwa kwenye kibanda cha hisani Saltmarket.",
     "from": "Dawati la Mbele, Ukumbi wa Jiji"
   },
   "libraryHours": {
@@ -26,7 +26,7 @@
   },
   "festivalSeason": {
     "title": "Sherehe za Msimu: Diwali na Usiku wa Taa",
-    "body": "Diwali: diya huwashwa kando ya ngazi za Shri Samudra Mandir jioni, pamoja na rangoli, muziki na peremende baada ya aarti ya jioni. Wote wanakaribishwa; viatu kwenye rafu. Usiku wa Taa wa Bandari: siku ya mwezi mpevu, acha taa ielee kutoka Reef Docks kwenye maji ya jioni (karatasi na mshumaa tu, tafadhali). Watoto watatengeneza taa bure Pixel Pier Arcade kuanzia saa 10 jioni.",
+    "body": "Diwali: diya huwashwa kando ya ngazi za Shri Ram Mandir jioni, pamoja na rangoli, muziki na peremende baada ya aarti ya jioni. Wote wanakaribishwa; viatu kwenye rafu. Usiku wa Taa wa Bandari: siku ya mwezi mpevu, acha taa ielee kutoka Reef Docks kwenye maji ya jioni (karatasi na mshumaa tu, tafadhali). Watoto watatengeneza taa bure Pixel Pier Arcade kuanzia saa 10 jioni.",
     "from": "Ofisi ya Sherehe ya Port Concord"
   },
   "dogLicence": {
@@ -36,7 +36,7 @@
   },
   "pierConsultation": {
     "title": "Maoni ya Umma: Gati Jipya",
-    "body": "Baraza linapendekeza gati jipya karibu na Saltmarket kwa feri za kwenda the Shallows. Michoro inaonyeshwa kwenye chumba cha mapokezi cha Ukumbi wa Jiji hadi mwisho wa mwezi. Tuambie unachofikiri kwenye kadi ya maoni, au uje kwenye jioni ya wazi Jumatano saa 12 jioni. Maswali hadi sasa: “Litakuwa na mabenchi?” (ndiyo) na “Litayumba?” (hapana).",
+    "body": "Baraza linapendekeza gati jipya karibu na Saltmarket kwa feri za kwenda The Shallows. Michoro inaonyeshwa kwenye chumba cha mapokezi cha Ukumbi wa Jiji hadi mwisho wa mwezi. Tuambie unachofikiri kwenye kadi ya maoni, au uje kwenye jioni ya wazi Jumatano saa 12 jioni. Maswali hadi sasa: “Litakuwa na mabenchi?” (ndiyo) na “Litayumba?” (hapana).",
     "from": "Idara ya Ujenzi wa Bandari"
   },
   "lostCat": {
@@ -141,7 +141,7 @@
   },
   "vaultQueueRules": {
     "title": "Kanuni za Foleni ya Hazina",
-    "body": "1. Foleni moja. Inazunguka; fuata kamba ya shaba. 2. Kuwa na tiketi yako tayari. 3. Hakuna kuwawekea nafasi binamu, marafiki au mbwa wakubwa sana. 4. Simama nyuma wakati aliye mbele anahudumiwa; shughuli zake ni zake. 5. Hakuna kukimbia, kupiga kelele wala kupatana bei na karani. 6. Foleni si mahali pa kuwauliza wageni maneno yao ya akiba. Wala mtu yeyote, kamwe.",
+    "body": "1. Foleni moja. Inazunguka; fuata kamba ya shaba. 2. Kuwa na tiketi yako tayari. 3. Hakuna kuwawekea nafasi binamu, marafiki au mbwa wakubwa sana. 4. Simama nyuma wakati aliye mbele anahudumiwa; shughuli zake ni zake. 5. Hakuna kukimbia, kupiga kelele wala kupatana bei na karani. 6. Foleni si mahali pa kuwauliza watu usiowajua maneno yao ya akiba. Wala mtu yeyote, kamwe.",
     "from": "Mkuu wa Wapokezi, Mint Hall"
   },
   "fakeGuardians": {
