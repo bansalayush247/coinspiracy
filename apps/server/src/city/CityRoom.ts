@@ -6,7 +6,8 @@ import { StateView } from '@colyseus/schema';
 import { ErrorCode, Room, ServerError, validate, type AuthContext, type Client } from '@colyseus/core';
 import { CLOSE_CODES, MovePayloadSchema, NoPayloadSchema, PLAYER_RADIUS, SERVER_TICK_HZ, TICK_SECONDS, cryptoRandom, isBlocked, stepMovement, uniqueNickname, type CitadelMap, type RandomSource } from '@byzantine-council/shared';
 import { findPath } from '@byzantine-council/shared/pathfinding';
-import { credit, isCosmeticId } from '@byzantine-council/shared/economy';
+import { credit } from '@byzantine-council/shared/economy';
+import { LOOK_GAP_MS, dress } from '../hub/look.js';
 import { dayFor } from '@byzantine-council/shared/progression';
 import {
   CITY_MAP,
@@ -179,6 +180,7 @@ interface Sim {
   lastEmoteMs: number;
   lastJumpMs: number;
   lastLookMs: number;
+  lookQueued: boolean;
   lastRestMs: number;
   // Where this guardian is: '' on the street, else the room they are in. Only those in the same place see each other.
   place: string;
@@ -274,9 +276,14 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     refreshLook: validate(NoPayloadSchema, (client: CityClient) => {
       const sim = this.#sims.get(client.sessionId);
       const now = Date.now();
-      if (sim?.profileId == null || now - sim.lastLookMs < 10_000) return;
-      sim.lastLookMs = now;
-      void this.#wearLook(client.sessionId, sim.profileId);
+      const profileId = sim?.profileId;
+      if (sim === undefined || profileId == null || sim.lookQueued) return;
+      sim.lookQueued = true;
+      this.clock.setTimeout(() => {
+        sim.lookQueued = false;
+        sim.lastLookMs = Date.now();
+        void this.#wearLook(client.sessionId, profileId);
+      }, Math.max(0, sim.lastLookMs + LOOK_GAP_MS - now));
     }),
   };
 
@@ -356,6 +363,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       lastEmoteMs: 0,
       lastJumpMs: 0,
       lastLookMs: 0,
+      lookQueued: false,
       lastRestMs: 0,
       place: '',
       room: null,
@@ -917,7 +925,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     return sim.room !== null && doorBySeed(me.inside)?.room === 'mintHall' && spotAt(me, sim.room.layout)?.kind === 'counter';
   }
 
-  // A bed at home or the hospital desk: back to full health, only while standing at one.
+  // A bed or the kitchen at home, or the hospital desk: back to full health, only while standing at one.
   #rest(sessionId: string, now: number): void {
     const sim = this.#sims.get(sessionId);
     const me = this.state.players.get(sessionId);
@@ -925,7 +933,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
     sim.lastRestMs = now;
     sim.lastActiveMs = now;
     const kind = sim.room === null ? null : spotAt(me, sim.room.layout)?.kind;
-    const reason: RestReason = me.down ? 'down' : kind !== 'bed' && kind !== 'reception' ? 'notHere' : sim.health >= MAX_HEALTH ? 'full' : 'healed';
+    const reason: RestReason = me.down ? 'down' : kind !== 'bed' && kind !== 'reception' && kind !== 'kitchen' ? 'notHere' : sim.health >= MAX_HEALTH ? 'full' : 'healed';
     if (reason === 'healed') {
       sim.health = MAX_HEALTH;
       me.health = MAX_HEALTH;
@@ -1054,9 +1062,7 @@ export class CityRoom extends Room<{ state: CityState; client: CityClient }> {
       const look = (await loadProfile(profiles.store, profileId, Date.now())).look;
       const player = this.state.players.get(sessionId);
       if (player === undefined) return;
-      player.hat = look.hat !== null && isCosmeticId(look.hat) ? look.hat : '';
-      player.shades = look.shades !== null && isCosmeticId(look.shades) ? look.shades : '';
-      player.outfit = isCosmeticId(look.outfit) ? look.outfit : '';
+      dress(player, look);
     } catch (error) {
       log.warn('city look not loaded', { roomId: this.roomId, error: error instanceof Error ? error.name : 'unknown' });
     }

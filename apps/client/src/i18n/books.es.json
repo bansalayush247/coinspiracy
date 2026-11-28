@@ -1,0 +1,62 @@
+{
+  "generals": {
+    "title": "La carta de los generales",
+    "author": "Ines Varga",
+    "pages": [
+      "Imagina un grupo de generales acampados alrededor de una ciudad. Solo pueden hablar por medio de mensajeros, y tienen que atacar todos juntos o esperar todos juntos. Un ataque a medias es el peor resultado posible.",
+      "Ahora supón que algunos generales son traidores. Un traidor puede decirle a un vecino “ataca” y a otro “retírate”. Los mensajeros pueden llegar tarde. Nadie puede ver lo que pasa en la tienda de otro.",
+      "Los informáticos llaman a esto el problema de los generales bizantinos. Un sistema que sigue poniéndose de acuerdo aunque algunos miembros mientan, se queden callados o digan cosas distintas a distintos compañeros se llama tolerante a fallos bizantinos.",
+      "Una federación de guardianes es un sistema así. Los guardianes honestos no necesitan saber quiénes son los traidores. Necesitan suficientes voces honestas y una regla que convierta esas voces en una sola decisión."
+    ]
+  },
+  "third": {
+    "title": "Uno de cada tres",
+    "author": "Tomas Oyelaran",
+    "pages": [
+      "¿Cuántos mentirosos puede soportar un grupo? Para un acuerdo que nunca se divida, menos de un tercio. Una federación de n guardianes puede tolerar f guardianes con fallos solo si n es mayor que 3f.",
+      "¿Por qué un tercio? Dos grupos cualesquiera lo bastante grandes para decidir deben compartir al menos un miembro honesto. Si más de un tercio pudiera mentir, dos decisiones opuestas podrían parecer válidas a la vez, y la federación se dividiría.",
+      "Así, cuatro guardianes resisten a uno malo, siete resisten a dos y diez resisten a tres. Un quinto o un sexto guardián no da más seguridad; solo el séptimo hace que un segundo fallo sea seguro.",
+      "Recuerda esta aritmética en cada votación del consejo. Cada guardián honesto revocado por error acerca a los bizantinos a ese tercio, y cuando lo alcanzan, la federación se detiene."
+    ]
+  },
+  "blind": {
+    "title": "Tinta ciega",
+    "author": "Mara Quell",
+    "pages": [
+      "Una casa de moneda firma una nota para que todos sepan que es auténtica. Pero si la casa de moneda ve cada nota que firma, puede seguirla desde la persona que la pidió hasta la persona que la gasta.",
+      "Una firma ciega resuelve esto. Antes de entregar tu nota, la metes en un sobre que la tapa, y la casa de moneda firma a través del sobre sin ver lo que hay dentro.",
+      "Ya en casa, quitas el sobre. La firma sigue valiendo en la nota de debajo, y aun así la casa de moneda nunca la ha visto. Cuando la nota vuelve para gastarse, la casa de moneda puede comprobar la firma, pero no puede saber de quién era la nota.",
+      "David Chaum describió esta idea en 1982, y es el corazón del ecash. En una federación, los guardianes manejan la casa de moneda juntos, así que ningún guardián puede firmar notas por su cuenta ni imprimir más a escondidas."
+    ]
+  },
+  "twice": {
+    "title": "Gastada dos veces",
+    "author": "Kofi Adeyemi",
+    "pages": [
+      "Un billete de papel no puede estar en dos bolsillos a la vez. Una nota digital es solo un número, y los números se pueden copiar. Entonces, ¿qué impide que alguien gaste la misma nota dos veces?",
+      "La casa de moneda guarda una lista de cada nota ya gastada. Cuando llega una nota, los guardianes revisan la lista. Si la nota está en ella, se rechaza; si no, se acepta y se añade.",
+      "Los guardianes tienen que estar de acuerdo sobre esa lista. Si un guardián aceptara una nota que otro rechazó, la misma moneda podría gastarse en dos lugares. Por eso cada gasto pasa por el consenso.",
+      "En el Ledger Archive buscas justo esto: una nota que aparece dos veces, o una firma que no coincide. Atrapar una mantiene honesta a toda la federación."
+    ]
+  },
+  "powers": {
+    "title": "Notas de dos",
+    "author": "Lucia Brandt",
+    "pages": [
+      "Las notas de ecash vienen en tamaños fijos: 1, 2, 4, 8, 16 y así sucesivamente, cada una el doble de la anterior. Con ellas se puede formar cualquier cantidad, igual que cualquier número se puede escribir en binario.",
+      "Los tamaños fijos ayudan a la privacidad. Cuando las notas de todos vienen en las mismas pocas cantidades, una nota de 64 sats no dice nada sobre quién la tiene ni para qué era.",
+      "Cuando pagas, entregas notas que cubren el precio. La casa de moneda las recibe y emite notas nuevas para tu cambio, así que nada de lo que gastaste se puede vincular con lo que recibes de vuelta.",
+      "Por eso las tiendas de Beach Town y Port Concord te piden que elijas notas de tu billetera. Si entregas una nota que no hace falta, se rechaza: la casa de moneda da cambio, pero no aceptará más de lo que debes."
+    ]
+  },
+  "keepers": {
+    "title": "Los custodios de Port Concord",
+    "author": "Abena Mensah",
+    "pages": [
+      "Una casa de moneda federada la maneja un grupo de guardianes en lugar de una sola empresa. Cada guardián tiene una parte de la llave de firma, y ninguna parte puede firmar nada por sí sola.",
+      "Para firmar, tiene que estar de acuerdo un umbral de guardianes. Con cuatro guardianes, el umbral es tres; con siete, es cinco. Por debajo del umbral, no se mueve nada.",
+      "Los guardianes suelen ser personas que ya confían entre sí: los tenderos de un pueblo, los mayores de una comunidad, amigos que mantienen servidores en marcha. La federación reparte la confianza en lugar de amontonarla en un solo lugar.",
+      "Ser guardián es un deber, no una corona. Mantienes tu servidor encendido, revisas cada propuesta y te niegas a firmar lo que no puedes verificar. Ese es todo el trabajo, y todo el juego."
+    ]
+  }
+}

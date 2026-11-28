@@ -1,0 +1,62 @@
+{
+  "generals": {
+    "title": "La lettre des généraux",
+    "author": "Ines Varga",
+    "pages": [
+      "Imagine un cercle de généraux campés autour d’une ville. Ils ne peuvent se parler que par messagers, et ils doivent tous attaquer ensemble ou tous attendre. Une attaque à moitié, c’est le pire résultat possible.",
+      "Suppose maintenant que certains généraux soient des traîtres. Un traître peut dire « attaque » à un voisin et « repli » à un autre. Les messagers peuvent être en retard. Personne ne voit ce qui se passe dans la tente des autres.",
+      "Les informaticiens appellent cela le problème des généraux byzantins. Un système qui reste d’accord même quand certains membres mentent, se taisent ou disent des choses différentes à des pairs différents est dit tolérant aux fautes byzantines.",
+      "Une fédération de gardiens est un système de ce genre. Les gardiens honnêtes n’ont pas besoin de savoir qui sont les traîtres. Il leur faut assez de voix honnêtes, et une règle qui transforme ces voix en une seule décision."
+    ]
+  },
+  "third": {
+    "title": "Un sur trois",
+    "author": "Tomas Oyelaran",
+    "pages": [
+      "Combien de menteurs un groupe peut-il supporter ? Pour un accord qui ne se divise jamais, moins d’un tiers. Une fédération de n gardiens peut tolérer f gardiens défaillants seulement si n est plus grand que 3f.",
+      "Pourquoi un tiers ? Deux groupes assez grands pour décider ont toujours au moins un membre honnête en commun. Si plus d’un tiers pouvait mentir, deux décisions opposées pourraient sembler valides toutes les deux, et la fédération se diviserait.",
+      "Donc quatre gardiens survivent à un mauvais, sept à deux, et dix à trois. Un cinquième ou un sixième gardien n’apporte aucune sécurité en plus ; seul le septième rend une deuxième défaillance sans danger.",
+      "Souviens-toi de ce calcul à chaque vote du conseil. Chaque gardien honnête révoqué par erreur rapproche les Byzantins de ce tiers, et une fois qu’ils l’atteignent, la fédération s’arrête."
+    ]
+  },
+  "blind": {
+    "title": "Encre aveugle",
+    "author": "Mara Quell",
+    "pages": [
+      "Une Monnaie signe un billet pour que tout le monde sache qu’il est vrai. Mais si la Monnaie voit chaque billet qu’elle signe, elle peut suivre chacun d’eux depuis la personne qui l’a demandé jusqu’à celle qui le dépense.",
+      "Une signature aveugle règle ce problème. Avant de remettre ton billet, tu le glisses dans une enveloppe qui le masque, et la Monnaie signe à travers l’enveloppe sans voir ce qu’il y a dedans.",
+      "De retour chez toi, tu retires l’enveloppe. La signature reste valable sur le billet en dessous, et pourtant la Monnaie ne l’a jamais vu. Quand le billet revient pour être dépensé, la Monnaie peut vérifier la signature, mais elle ne peut pas savoir à qui il appartenait.",
+      "David Chaum a décrit cette idée en 1982, et c’est le cœur de l’ecash. Dans une fédération, les gardiens font tourner la Monnaie ensemble : aucun gardien ne peut donc signer de billets seul ni en imprimer d’autres en douce."
+    ]
+  },
+  "twice": {
+    "title": "Dépensé deux fois",
+    "author": "Kofi Adeyemi",
+    "pages": [
+      "Un billet en papier ne peut pas être dans deux poches à la fois. Un billet numérique n’est qu’un nombre, et un nombre se copie. Alors, qu’est-ce qui empêche quelqu’un de dépenser deux fois le même billet ?",
+      "La Monnaie tient une liste de tous les billets déjà dépensés. Quand un billet arrive, les gardiens consultent la liste. S’il y figure, il est refusé ; sinon, il est accepté et ajouté.",
+      "Les gardiens doivent être d’accord sur cette liste. Si un gardien acceptait un billet qu’un autre a refusé, la même pièce pourrait être dépensée à deux endroits. C’est pour cela que chaque dépense passe par le consensus.",
+      "Au Ledger Archive, c’est exactement ce que tu traques : un billet qui apparaît deux fois, ou une signature qui ne correspond pas. En attraper un, c’est garder toute la fédération honnête."
+    ]
+  },
+  "powers": {
+    "title": "Billets de deux",
+    "author": "Lucia Brandt",
+    "pages": [
+      "Les billets ecash existent en tailles fixes : 1, 2, 4, 8, 16 et ainsi de suite, chacun valant le double du précédent. On peut former n’importe quel montant avec eux, comme on peut écrire n’importe quel nombre en binaire.",
+      "Les tailles fixes protègent la vie privée. Quand les billets de tout le monde ont les mêmes quelques valeurs, un billet de 64 sats ne dit rien sur qui le possède ni sur ce qu’il a servi à payer.",
+      "Quand tu paies, tu donnes des billets qui couvrent le prix. La Monnaie les reprend et émet de nouveaux billets pour ta monnaie : rien de ce que tu as dépensé ne peut être relié à ce que tu récupères.",
+      "Voilà pourquoi les boutiques de Beach Town et de Port Concord te demandent de choisir des billets dans ton portefeuille. Un billet dont tu n’as pas besoin est refusé : la Monnaie rend la monnaie, mais elle ne prendra pas plus que ce que tu dois."
+    ]
+  },
+  "keepers": {
+    "title": "Les veilleurs de Port Concord",
+    "author": "Abena Mensah",
+    "pages": [
+      "Une Monnaie fédérée est gérée par un groupe de gardiens au lieu d’une seule entreprise. Chaque gardien détient une part de la clé de signature, et aucune part ne peut rien signer seule.",
+      "Pour signer, il faut l’accord d’un seuil de gardiens. Avec quatre gardiens, le seuil est de trois ; avec sept, il est de cinq. En dessous du seuil, rien ne bouge.",
+      "Les gardiens sont souvent des gens qui se font déjà confiance : les commerçants d’une ville, les anciens d’une communauté, des amis qui font tourner des serveurs. La fédération répartit la confiance au lieu de l’entasser au même endroit.",
+      "Être gardien, c’est un devoir, pas une couronne. Tu gardes ton serveur en marche, tu vérifies chaque proposition et tu refuses de signer ce que tu ne peux pas vérifier. C’est tout le travail, et tout le jeu."
+    ]
+  }
+}

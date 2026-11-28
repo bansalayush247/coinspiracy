@@ -43,6 +43,7 @@ import { Hud, type LobbyInfo, type RosterEntry } from './ui/hud.js';
 import { Menu, type MenuAction } from './ui/menu.js';
 import { bindLanguagePicker, initLocale, onLocaleChange, t, type PlainKey } from './i18n/index.js';
 import { preloadStory } from './i18n/story.js';
+import { lookWear } from './game/wear.js';
 import { feedbackWhere } from '@byzantine-council/shared';
 import { FeedbackForm } from './ui/feedback.js';
 
@@ -242,18 +243,23 @@ class Controller {
       this.#beach?.holdStill(false);
       this.#city?.holdStill(false);
     };
-    this.#wardrobe.onWear = (look) => {
-      void this.profiles.wear(look).then((p) => {
-        if (p === null) {
-          this.#hud.toast(t('common.failedRetry'));
-          return;
-        }
-        this.#setProfile(p);
-        this.#beach?.lookChanged();
-        this.#city?.lookChanged();
-      });
+    this.#wardrobe.onWear = async (look) => {
+      this.#beach?.dressMe(lookWear(look));
+      this.#city?.dressMe(lookWear(look));
+      const p = await this.profiles.wear(look);
+      if (p === null) {
+        this.#hud.toast(t('common.failedRetry'));
+        this.#beach?.dressMe(null);
+        this.#city?.dressMe(null);
+        return false;
+      }
+      this.#setProfile(p);
+      this.#beach?.lookChanged();
+      this.#city?.lookChanged();
+      return true;
     };
     el('open-wardrobe', HTMLButtonElement).addEventListener('click', () => {
+      this.#wardrobe.seat = 0;
       this.#wardrobe.open();
     });
     el('open-city', HTMLButtonElement).addEventListener('click', () => {
@@ -531,6 +537,7 @@ class Controller {
       };
       controller.ferryOpen = () => this.#ferryOpen('beach', this.#lastProfile);
       controller.onWardrobe = () => {
+        this.#wardrobe.seat = controller.mySeat();
         this.#wardrobe.open();
       };
       controller.onChronicle = () => {
@@ -595,6 +602,7 @@ class Controller {
       this.#wireWorld(controller, BEACH_SCENE_KEY);
       controller.onWardrobe = () => {
         controller.holdStill(true);
+        this.#wardrobe.seat = controller.mySeat();
         this.#wardrobe.open();
       };
       controller.onChronicle = () => {

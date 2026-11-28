@@ -147,6 +147,15 @@ async function main(): Promise<void> {
           check(browse && open, 'the shop counter offers its wares and opens the shop');
           await rook.waitForTimeout(400);
           await rook.screenshot({ path: `${INTERIOR_SHOTS}shop-counter.png` });
+          const tries = await rook.$$('#shop .shop-try');
+          if (tries.length > 1) {
+            const plain = await rook.innerHTML('#shop .shop-preview');
+            await tries[1]?.click();
+            await rook.waitForTimeout(300);
+            const tried = await rook.innerHTML('#shop .shop-preview');
+            check((await rook.$$('#shop .shop-item.trying')).length === 1 && tried !== plain, 'trying something on shows it on the guardian at once');
+            await rook.screenshot({ path: `${INTERIOR_SHOTS}shop-tryon.png` });
+          }
           await rook.keyboard.press('Escape');
           check(await rook.waitForSelector('#shop', { state: 'hidden', timeout: 3000 }).then(() => true).catch(() => false), 'Escape closes the shop');
         }
@@ -188,6 +197,24 @@ async function main(): Promise<void> {
             await rook.keyboard.press('Escape');
             await rook.waitForSelector('#story', { state: 'hidden', timeout: 3000 }).catch(() => undefined);
           }
+          check((await standOn('books')).startsWith('Browse'), 'the bookcase offers its books');
+          await rook.keyboard.press('e');
+          check(await rook.waitForSelector('#pick .pick-option', { timeout: 5000 }).then(() => true).catch(() => false), 'the bookshelf lists books to pick from');
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}flat-bookshelf.png` });
+          await rook.click('#pick .pick-option');
+          const firstPage = (await rook.textContent('#pick-page')) ?? '';
+          await rook.click('#pick-next');
+          const secondPage = (await rook.textContent('#pick-page')) ?? '';
+          check(firstPage.length > 40 && secondPage.length > 40 && firstPage !== secondPage, 'a book opens and its pages turn');
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}flat-book.png` });
+          await rook.keyboard.press('Escape');
+          check(await rook.waitForSelector('#pick', { state: 'hidden', timeout: 3000 }).then(() => true).catch(() => false), 'Escape puts the book back');
+          check((await standOn('kitchen')).startsWith('Cook'), 'the kitchen offers to cook');
+          await rook.keyboard.press('e');
+          await rook.waitForSelector('#pick .pick-option', { timeout: 5000 }).catch(() => undefined);
+          await rook.screenshot({ path: `${INTERIOR_SHOTS}flat-kitchen.png` });
+          await rook.click('#pick .pick-option');
+          check(await toasted('You make a cup of tea'), 'cooking makes the dish picked');
           const before = { x: walker.x, y: walker.y };
           await rook.keyboard.down('ArrowLeft');
           await rook.waitForTimeout(500);

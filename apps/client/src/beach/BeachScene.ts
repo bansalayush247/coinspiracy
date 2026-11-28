@@ -8,12 +8,13 @@ import { Atmosphere, type NatureNote } from '../game/atmosphere.js';
 import { CONFETTI, EmoteAction, spawnFlourishes } from '../game/emoteActions.js';
 import { Effects } from '../game/effects.js';
 import { GUARDIAN_HEIGHT, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
+import { robeColors, sameWear, wearOf } from '../game/wear.js';
 import { turnToward } from '../game/facing.js';
 import { fairZoom, sceneDpr, viewSize } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer, lerpFactor } from '../game/interpolation.js';
 import { ART_SCALE, TILE_H, TILE_W, isoDepth, worldToScreen } from '../game/iso.js';
 import { windAt, type Swaying } from '../game/mapArt.js';
-import { COLORS, cssColor, seatColors } from '../game/palette.js';
+import { COLORS, cssColor } from '../game/palette.js';
 import { PhysicsFx, makeFxTextures } from '../game/physics.js';
 import { CorrectionSmoother, Predictor, type PendingInput } from '../game/prediction.js';
 import { createBeachProps, drawBoat, drawHutDecor, paintBeach } from './beachArt.js';
@@ -80,6 +81,9 @@ export class BeachScene extends Phaser.Scene {
   #gullAt = 0;
   #reduced = false;
   #myId: string | null = null;
+  // This client's own look while a change is shown before the server has it, and the last look the server sent.
+  #myLook: Wear | null = null;
+  #myServed: Wear | null = null;
   #predictor: Predictor | null = null;
   #smoother = new CorrectionSmoother();
   #prev: Vec2 = { x: 0, y: 0 };
@@ -159,6 +163,8 @@ export class BeachScene extends Phaser.Scene {
   detach(): void {
     for (const id of [...this.#avatars.keys()]) this.removePlayer(id);
     this.#myId = null;
+    this.#myLook = null;
+    this.#myServed = null;
     this.#predictor = null;
     this.#input = null;
     this.#sink = null;
@@ -177,8 +183,9 @@ export class BeachScene extends Phaser.Scene {
     const ring = new Phaser.GameObjects.Graphics(this);
     drawShadow(ring, isMe);
     const body = new Phaser.GameObjects.Graphics(this);
-    const wear: Wear = { hat: p.hat, shades: p.shades, outfit: p.outfit };
-    drawGuardian(body, seatColors(p.seat), 1, wear);
+    const wear = isMe && this.#myLook !== null ? this.#myLook : wearOf(p);
+    if (isMe) this.#myServed = wearOf(p);
+    drawGuardian(body, robeColors(p.seat, wear), 1, wear);
     const parcel = new Phaser.GameObjects.Graphics(this);
     drawParcel(parcel);
     parcel.setVisible(p.carrying);
@@ -199,13 +206,34 @@ export class BeachScene extends Phaser.Scene {
     }
   }
 
+  /** Shows this client's own guardian in a look straight away, before the server has it; null goes back to the server's. */
+  dressMe(wear: Wear | null): void {
+    if (this.#myId === null) return;
+    this.#myLook = wear;
+    const me = this.#avatars.get(this.#myId);
+    const next = wear ?? this.#myServed;
+    if (me === undefined || next === null || sameWear(me.wear, next)) return;
+    me.wear = next;
+    drawGuardian(me.body, robeColors(me.seat, me.wear), me.facing, me.wear, me.back);
+  }
+
+  // The look to draw: the server's, except for this client's own guardian while it shows a look the server is still catching up on.
+  #wanted(isMe: boolean, p: HubPlayer): Wear {
+    const served = wearOf(p);
+    if (!isMe) return served;
+    this.#myServed = served;
+    if (this.#myLook !== null && sameWear(served, this.#myLook)) this.#myLook = null;
+    return this.#myLook ?? served;
+  }
+
   updatePlayer(id: string, p: HubPlayer): void {
     const a = this.#avatars.get(id);
     if (a === undefined) return;
-    if (a.wear.hat !== p.hat || a.wear.shades !== p.shades || a.wear.outfit !== p.outfit || a.seat !== p.seat) {
-      a.wear = { hat: p.hat, shades: p.shades, outfit: p.outfit };
+    const want = this.#wanted(a.isMe, p);
+    if (!sameWear(a.wear, want) || a.seat !== p.seat) {
+      a.wear = want;
       a.seat = p.seat;
-      drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear, a.back);
+      drawGuardian(a.body, robeColors(a.seat, a.wear), a.facing, a.wear, a.back);
     }
     a.parcel.setVisible(p.carrying);
     if (a.isMe && this.#predictor !== null) {
@@ -296,7 +324,7 @@ export class BeachScene extends Phaser.Scene {
     const a = this.#avatars.get(id);
     if (a === undefined) return;
     a.action?.end(a.body, true);
-    a.action = new EmoteAction(this, a.root, kind, seatColors(a.seat).lit, this.game.loop.time);
+    a.action = new EmoteAction(this, a.root, a.body, kind, robeColors(a.seat, a.wear), this.game.loop.time);
     const s = worldToScreen(a.pos.x, a.pos.y);
     spawnFlourishes(this, this.#names, kind, s.x, s.y - GUARDIAN_HEIGHT * 1.05, this.#reduced);
     if (this.#reduced || kind !== 'cheer') return;
@@ -411,7 +439,7 @@ export class BeachScene extends Phaser.Scene {
     const dx = s.x - a.lastScreenX;
     const dy = s.y - a.lastScreenY;
     const moving = Math.abs(dx) > 0.05 || Math.abs(s.y - a.root.y) > 0.05;
-    if (turnToward(a, dx, dy)) drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear, a.back);
+    if (turnToward(a, dx, dy)) drawGuardian(a.body, robeColors(a.seat, a.wear), a.facing, a.wear, a.back);
     a.lastScreenX = s.x;
     a.lastScreenY = s.y;
     a.root.setPosition(s.x, s.y);

@@ -9,6 +9,9 @@ import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { mountEmoteBar } from '../ui/emoteBar.js';
 import { shopPanel } from '../ui/shopPanel.js';
+import { pickPanel } from '../ui/pickPanel.js';
+import { wearOf } from '../game/wear.js';
+import type { Wear } from '../game/guardianArt.js';
 import { el, h } from '../ui/dom.js';
 import { FerryButton, markFerryOnMinimap } from '../ferry/ferryDock.js';
 import type { FerryLook } from '../ferry/FerryScene.js';
@@ -28,7 +31,15 @@ const SPOT_LABELS: Readonly<Record<Exclude<SpotKind, 'counter'>, PlainKey>> = {
   wardrobe: 'city.useWardrobe',
   tv: 'city.useTv',
   board: 'city.useBoard',
+  books: 'city.useBooks',
+  kitchen: 'city.useKitchen',
 };
+// What the kitchen can make, each with the colour of its card.
+const DISHES: readonly { readonly name: PlainKey; readonly color: string }[] = [
+  { name: 'cook.tea', color: '#c98a4e' },
+  { name: 'cook.toast', color: '#e0a84a' },
+  { name: 'cook.soup', color: '#d9603f' },
+];
 const WELCOME: Readonly<Record<Exclude<RoomKind, 'shop'>, PlainKey>> = { mintHall: 'city.welcomeMint', hospital: 'city.welcomeHospital', flat: 'city.welcomeFlat' };
 
 const ENTER_LABELS: Readonly<Record<RoomKind, PlainKey>> = { shop: 'city.enterShop', mintHall: 'city.enterMint', hospital: 'city.enterHospital', flat: 'city.enterFlat' };
@@ -74,6 +85,8 @@ export class CityController {
   #poll = 0;
   #held = false;
   #lastRestAt = 0;
+  // The dish being made, while the kitchen's answer is on its way.
+  #dish: PlainKey | null = null;
   onLeft: () => void = () => undefined;
   onToast: (text: string) => void = () => undefined;
   onProfile: (p: ProfileSummary) => void = () => undefined;
@@ -144,6 +157,17 @@ export class CityController {
     return this.#room !== null;
   }
 
+  /** The colour seat this guardian has in this place; 0 before joining. */
+  mySeat(): number {
+    const room = this.#room;
+    return room?.state.players.get(room.sessionId)?.seat ?? 0;
+  }
+
+  /** Shows a look on this guardian straight away, before the city has it; null goes back to what the city sees. */
+  dressMe(wear: Wear | null): void {
+    this.scene.dressMe(wear);
+  }
+
   /** The wardrobe changed: let the city see the new look. */
   lookChanged(): void {
     this.#room?.send('refreshLook');
@@ -159,7 +183,7 @@ export class CityController {
   ferryLook(): FerryLook | null {
     const room = this.#room;
     const me = room?.state.players.get(room.sessionId);
-    return me === undefined ? null : { seat: me.seat, wear: { hat: me.hat, shades: me.shades, outfit: me.outfit } };
+    return me === undefined ? null : { seat: me.seat, wear: wearOf(me) };
   }
 
   async enter(nickname: string, byFerry = false): Promise<void> {
@@ -266,6 +290,7 @@ export class CityController {
     this.scene.markSpot(null);
     this.#ferry.hide();
     shopPanel().close();
+    pickPanel().close();
     this.#hud.classList.remove('indoors');
     this.scene.detach();
     this.#here = null;
@@ -371,13 +396,32 @@ export class CityController {
         void this.#openShop();
         return;
       case 'bed':
-      case 'reception': {
-        const now = performance.now();
-        if (now - this.#lastRestAt < 500) return;
-        this.#lastRestAt = now;
-        this.#room?.send('rest');
+      case 'reception':
+        this.#dish = null;
+        this.#rest();
         return;
-      }
+      case 'kitchen':
+        this.#withPanel(() => {
+          pickPanel().choose(
+            t('cook.title'),
+            t('cook.pick'),
+            DISHES.map((d) => ({
+              label: t(d.name),
+              color: d.color,
+              pick: () => {
+                this.#dish = d.name;
+                pickPanel().close();
+                this.#rest();
+              },
+            })),
+          );
+        });
+        return;
+      case 'books':
+        this.#withPanel(() => {
+          void pickPanel().openShelf();
+        });
+        return;
       case 'wardrobe':
         this.holdStill(true);
         this.onWardrobe();
@@ -395,7 +439,32 @@ export class CityController {
     }
   }
 
+  #rest(): void {
+    const now = performance.now();
+    if (now - this.#lastRestAt < 500) return;
+    this.#lastRestAt = now;
+    this.#room?.send('rest');
+  }
+
+  // Opens the pick window over the room, keeping the guardian still until it closes.
+  #withPanel(open: () => void): void {
+    this.holdStill(true);
+    pickPanel().onClosed = () => {
+      this.holdStill(false);
+    };
+    open();
+  }
+
   #rested(r: RestResult): void {
+    const dish = this.#dish;
+    this.#dish = null;
+    if (dish !== null) {
+      if (r.reason === 'healed' || r.reason === 'full') {
+        audio.play('chirp');
+        this.onToast(t(r.reason === 'healed' ? 'cook.made' : 'cook.enjoyed', { dish: t(dish).toLowerCase() }));
+      }
+      return;
+    }
     const inHospital = doorBySeed(this.scene.inside)?.room === 'hospital';
     if (r.reason === 'healed') {
       audio.play('chirp');
@@ -420,6 +489,13 @@ export class CityController {
       },
       onClose: () => {
         if (this.#room !== null) this.input.enabled = !this.#held && !this.scene.meDown;
+      },
+      seat: this.#room.state.players.get(this.#room.sessionId)?.seat ?? 0,
+      onTry: (wear) => {
+        this.scene.dressMe(wear);
+      },
+      onWorn: () => {
+        this.lookChanged();
       },
     });
   }

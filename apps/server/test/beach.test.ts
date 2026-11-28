@@ -2,6 +2,7 @@ import type { ColyseusTestServer } from '@colyseus/testing';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { BEACH_MESSAGES, BEACH_ROOM, CourierRefusedSchema, EmoteLineSchema, HubState } from '@byzantine-council/shared/hub';
 import { CLOSE_CODES } from '@byzantine-council/shared';
+import { DEFAULT_LOOK } from '@byzantine-council/shared/economy';
 import { MemoryProfileStore, type Change, type ChangeOutcome, type ProfileData } from '../src/profile/store.js';
 import { COOKIE_NAME, type SessionKeys } from '../src/profile/session.js';
 import { ORIGIN, freshIp, sdk, startServer, waitFor } from './helpers.js';
@@ -76,6 +77,23 @@ describe('Beach Town', () => {
     await waitFor(() => seen.length >= 1, 'an emote');
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(seen).toEqual(['wave']);
+  });
+
+  it('shows a changed look to the town, even two changes in a row', async () => {
+    const cookie = await guest();
+    expect((await post('/api/shop/buy', { item: 'hat:cap', shop: 'hats', notes: [256] }, cookie)).status).toBe(200);
+    const room = await visit('Dresser', cookie);
+    await waitFor(() => room.state.players.has(room.sessionId), 'in town');
+    const me = () => room.state.players.get(room.sessionId);
+    const wear = async (look: Record<string, string | null>): Promise<void> => {
+      expect((await post('/api/look', { look: { ...DEFAULT_LOOK, ...look } }, cookie)).status).toBe(200);
+      room.send('refreshLook');
+    };
+    await wear({ hat: 'hat:cap', hair: 'hair:hood' });
+    await waitFor(() => me()?.hat === 'hat:cap', 'the cap shows');
+    expect(me()?.hair).toBe('hair:hood');
+    await wear({ hat: null });
+    await waitFor(() => me()?.hat === '', 'the cap comes off soon after, though asked for within the gap', 4000);
   });
 
   it('sells with chosen notes, refuses overpaying, wrong shops and items owned already', async () => {

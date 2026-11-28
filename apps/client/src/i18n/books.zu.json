@@ -1,0 +1,62 @@
+{
+  "generals": {
+    "title": "Incwadi Yamajenene",
+    "author": "Ines Varga",
+    "pages": [
+      "Cabanga ngeqembu lamajenene akanise azungeze idolobha. Angakhuluma kuphela ngezithunywa, futhi kumele wonke ahlasele ndawonye noma wonke alinde. Ukuhlasela ngengxenye kuwumphumela omubi kunayo yonke.",
+      "Manje ake sithi amanye amajenene angamambuka. Imbuka ingatshela umakhelwane oyedwa ithi “hlaselani” bese itshela omunye ithi “hlehlani”. Izithunywa zingephuza. Akekho ongabona okungaphakathi ethendeni lomunye.",
+      "Ososayensi bekhompyutha lokhu bakubiza ngokuthi inkinga yamajenene ase-Byzantine. Uhlelo oluqhubeka luvumelana noma amanye amalungu eqamba amanga, ethula, noma etshela abangane abahlukene izinto ezihlukene, kuthiwa luyakwazi ukubekezelela amaphutha e-Byzantine.",
+      "Isimbumbano sabagadi siwuhlelo olunjalo. Abagadi abathembekile abadingi ukwazi ukuthi obani abangamambuka. Badinga amazwi athembekile anele, nomthetho oguqula lawo mazwi abe yisinqumo esisodwa."
+    ]
+  },
+  "third": {
+    "title": "Oyedwa Kwabathathu",
+    "author": "Tomas Oyelaran",
+    "pages": [
+      "Iqembu lingabekezelela abaqambimanga abangaki? Ukuze isivumelwano singahlukani neze, bangaphansi kwengxenye eyodwa kwezintathu. Isimbumbano sabagadi abangu-n singabekezelela abagadi abangu-f abanephutha kuphela uma u-n emkhulu kuno-3f.",
+      "Kungani ingxenye eyodwa kwezintathu? Noma yimaphi amaqembu amabili amakhulu ngokwanele ukwenza isinqumo kumele abe nelungu elithembekile okungenani elilodwa abahlanganyela ngalo. Uma abangaphezu kwengxenye eyodwa kwezintathu bengaqamba amanga, izinqumo ezimbili eziphikisanayo zingabonakala zombili zisemthethweni, bese isimbumbano sihlukana.",
+      "Ngakho abagadi abane basinda komubi oyedwa, abayisikhombisa basinda kwababili, abayishumi basinda kwabathathu. Umgadi wesihlanu noma wesithupha akengezi ukuphepha; owesikhombisa kuphela owenza iphutha lesibili liphephe.",
+      "Khumbula lezi zibalo uma umkhandlu uvota. Wonke umgadi othembekile okhishwa ngephutha usondeza ama-Byzantine kuleyo ngxenye eyodwa kwezintathu, futhi uma beyifinyelela, isimbumbano siyema."
+    ]
+  },
+  "blind": {
+    "title": "Uyinki Ongaboni",
+    "author": "Mara Quell",
+    "pages": [
+      "I-Mint isayina inothi ukuze wonke umuntu azi ukuthi lingokwangempela. Kodwa uma i-Mint ibona wonke amanothi ewasayinayo, ingalandelela ngalinye kusukela kumuntu olicelile kuya kumuntu olisebenzisayo.",
+      "Isiginesha engaboni iyayixazulula le nkinga. Ufaka inothi lakho emvilophini elifihlayo ngaphambi kokulinikela, bese i-Mint isayina phezu kwemvilophu ingakuboni okungaphakathi.",
+      "Uma usubuyele ekhaya, ukhipha imvilophu. Isiginesha isahlala inembile enothini elingaphansi, kodwa i-Mint ayikaze ilibone. Uma inothi libuya ukuze lisetshenziswe, i-Mint ingayihlola isiginesha kodwa ayikwazi ukusho ukuthi belingelikabani.",
+      "UDavid Chaum wachaza lo mqondo ngo-1982, futhi uyinhliziyo ye-ecash. Esimbumbanweni, abagadi baqhuba i-Mint ndawonye, ngakho akekho umgadi oyedwa ongasayina amanothi yedwa noma aphrinte amanye ngasese."
+    ]
+  },
+  "twice": {
+    "title": "Lisetshenziswe Kabili",
+    "author": "Kofi Adeyemi",
+    "pages": [
+      "Inothi lephepha alikwazi ukuba sephaketheni ezimbili ngesikhathi esisodwa. Inothi ledijithali liyinombolo nje, futhi izinombolo zingakopishwa. Pho yini evimbela umuntu ukuthi asebenzise inothi elifanayo kabili?",
+      "I-Mint igcina uhlu lwawo wonke amanothi asesetshenzisiwe. Uma kufika inothi, abagadi bahlola uhlu. Uma inothi likulo, liyenqatshwa; uma lingekho, liyamukelwa bese lengezwa.",
+      "Abagadi kumele bavumelane ngalolo hlu. Uma omunye umgadi engamukela inothi omunye alenqabile, uhlamvu lwemali olufanayo lungasetshenziswa ezindaweni ezimbili. Yingakho konke ukusetshenziswa kwemali kudlula ekuvumelaneni.",
+      "E-Ledger Archive uzingela kanye lokhu: inothi elivela kabili, noma isiginesha engafani. Ukubamba elilodwa kugcina sonke isimbumbano sithembekile."
+    ]
+  },
+  "powers": {
+    "title": "Amanothi Amandla Kabili",
+    "author": "Lucia Brandt",
+    "pages": [
+      "Amanothi e-ecash eza ngobukhulu obunqunyiwe: 1, 2, 4, 8, 16 njalo njalo, ngalinye liphindwe kabili kunelandulelayo. Noma yimuphi umthamo ungakhiwa ngawo, njengoba noma iyiphi inombolo ingabhalwa ngebhinari.",
+      "Ubukhulu obunqunyiwe busiza ubumfihlo. Uma amanothi awo wonke umuntu eza ngamanani ambalwa afanayo, inothi lama-sats angu-64 alisho lutho ngokuthi ngubani onalo noma belingelani.",
+      "Uma ukhokha, unikela ngamanothi afinyelela intengo. I-Mint iyawathatha bese ikhipha amanothi amasha oshintshi wakho, ngakho akukho okusebenzisile okungaxhunyaniswa nalokho okubuyiselwayo.",
+      "Yingakho izitolo zase-Beach Town nase-Port Concord zikucela ukuthi ukhethe amanothi ku-wallet yakho. Inothi ongalidingi liyenqatshwa: i-Mint iyakunika ushintshi, kodwa ngeke ithathe ngaphezu kwalokho okufanele ukukhokhe."
+    ]
+  },
+  "keepers": {
+    "title": "Abagcini base-Port Concord",
+    "author": "Abena Mensah",
+    "pages": [
+      "I-Mint yesimbumbano iqhutshwa yiqembu labagadi esikhundleni senkampani eyodwa. Umgadi ngamunye uphethe ingxenye yokhiye wokusayina, futhi ayikho ingxenye engasayina lutho iyodwa.",
+      "Ukuze kusayinwe, kumele kuvume abagadi abafinyelela umkhawulo. Uma kunabagadi abane, umkhawulo ngabathathu; uma bayisikhombisa, ngabahlanu. Ngaphansi komkhawulo, akukho okunyakazayo.",
+      "Abagadi bavame ukuba ngabantu asebethembana kakade: abanikazi bezitolo bedolobha, abadala bomphakathi, abangane abagcina amaseva esebenza. Isimbumbano sisabalalisa ukwethemba esikhundleni sokukunqwabelanisa endaweni eyodwa.",
+      "Ukuba ngumgadi kuyisibopho, hhayi umqhele. Ugcina iseva yakho isebenza, uhlola sonke isiphakamiso, futhi wenqaba ukusayina lokho ongakwazi ukukuqinisekisa. Yilowo wonke umsebenzi, futhi yiwo wonke umdlalo."
+    ]
+  }
+}

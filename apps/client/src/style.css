@@ -785,6 +785,21 @@ button.hold { background: linear-gradient(90deg, var(--honest) calc(var(--p, 0) 
 .shop-item .swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); flex: none; }
 .shop-item .name { flex: 1; font-weight: 600; }
 .shop-item .price { color: var(--gold); font-variant-numeric: tabular-nums; }
+.shop-item.trying { border-color: var(--gold); background: rgba(255, 210, 122, 0.1); }
+.shop-try[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+.shop-preview { margin: 0 auto; }
+.modal.pick { width: min(520px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; gap: 10px; }
+.pick-list { display: grid; gap: 8px; }
+.pick-option { display: flex; align-items: center; gap: 12px; text-align: left; padding: 10px 12px; border-radius: 12px; background: rgba(255, 241, 222, 0.05); border: 1px solid var(--edge); }
+.pick-spine { width: 14px; height: 40px; border-radius: 3px; flex: none; box-shadow: inset -3px 0 0 rgba(0, 0, 0, 0.25), inset 0 3px 0 rgba(255, 255, 255, 0.18); }
+.pick-words { display: grid; gap: 2px; }
+.pick-label { font-weight: 700; }
+.pick-sub { font-size: 13px; opacity: 0.75; }
+.pick-book { display: grid; gap: 10px; }
+.pick-page { margin: 0; padding: 16px 18px; border-radius: 12px; background: #f6ead4; color: #2a1f1a; font-family: Georgia, 'Times New Roman', serif; font-size: 17px; line-height: 1.55; min-height: 8em; }
+.pick-turn { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pick-count { font-size: 13px; opacity: 0.8; font-variant-numeric: tabular-nums; }
+.pick-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .shop-pay { display: grid; gap: 8px; }
 .shop-pay-title { margin: 0; font-weight: 700; }
 .shop-notes { display: flex; flex-wrap: wrap; gap: 6px; }

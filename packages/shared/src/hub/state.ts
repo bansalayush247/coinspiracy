@@ -12,6 +12,10 @@ export const HubPlayer = schema(
     hat: t.string().default(''),
     shades: t.string().default(''),
     outfit: t.string().default(''),
+    hair: t.string().default(''),
+    dye: t.string().default(''),
+    beard: t.string().default(''),
+    board: t.string().default(''),
     // Carrying a parcel: public, so others see the box in their arms.
     carrying: t.boolean().default(false),
     ack: t.uint32().view(VIEW_TAGS.OWNER).optional(),

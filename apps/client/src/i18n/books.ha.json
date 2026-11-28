@@ -1,0 +1,62 @@
+{
+  "generals": {
+    "title": "Wasiƙar Janarori",
+    "author": "Ines Varga",
+    "pages": [
+      "Ka yi tunanin janarori da suka kafa sansani suka kewaye wani birni. Ta hanyar ʼyan aike kawai za su iya magana, kuma dole ne su kai hari tare gaba ɗaya ko su jira gaba ɗaya. Harin rabin rai shi ne mafi munin sakamako.",
+      "Yanzu a ce wasu janarori maciya amana ne. Maci amana zai iya gaya wa maƙwabci ɗaya “ku kai hari” wani kuma “ku ja baya”. ʼYan aike za su iya makara. Babu wanda zai iya ganin abin da ke cikin tantin wani.",
+      "Masana kimiyyar kwamfuta suna kiran wannan Matsalar Janarorin Byzantine. Tsarin da ke ci gaba da cimma yarjejeniya ko da wasu mambobinsa sun yi ƙarya, sun yi shiru ko sun gaya wa abokansu daban-daban abubuwa daban-daban, ana ce da shi tsarin da ke jure kurakuran Byzantine.",
+      "Tarayyar masu gadi irin wannan tsarin ce. Masu gadi masu gaskiya ba sa buƙatar sanin su wane ne maciya amana. Suna buƙatar isassun muryoyi masu gaskiya, da wata doka da za ta mayar da waɗannan muryoyi hukunci ɗaya."
+    ]
+  },
+  "third": {
+    "title": "Ɗaya Cikin Uku",
+    "author": "Tomas Oyelaran",
+    "pages": [
+      "Maƙaryata nawa ne ƙungiya za ta iya jurewa? Don yarjejeniyar da ba za ta taɓa rabuwa ba, ƙasa da kashi ɗaya cikin uku. Tarayyar masu gadi n za ta iya jure masu gadi f masu kuskure ne kawai idan n ya fi 3f.",
+      "Me ya sa kashi ɗaya cikin uku? Duk ƙungiyoyi biyu da suka isa yanke hukunci dole ne su raba aƙalla mamba ɗaya mai gaskiya. Idan fiye da kashi ɗaya cikin uku za su iya yin ƙarya, hukunci biyu masu karo da juna za su iya zama kamar dukansu ingantattu ne, kuma tarayyar za ta rabu.",
+      "Don haka masu gadi huɗu suna jure mugu ɗaya, bakwai suna jure biyu, goma kuma suna jure uku. Mai gadi na biyar ko na shida ba ya ƙara wani tsaro; sai na bakwai ne ke sa kuskure na biyu ya zama lafiya.",
+      "Ka tuna da wannan lissafin a lokacin ƙuri’ar majalisa. Duk mai gadi mai gaskiya da aka fitar bisa kuskure yana ƙara kusantar da ʼyan Byzantine zuwa wannan kashi ɗaya cikin uku, kuma da zarar sun kai shi, tarayyar za ta tsaya."
+    ]
+  },
+  "blind": {
+    "title": "Tawada a Makance",
+    "author": "Mara Quell",
+    "pages": [
+      "Mint yana sa hannu a takarda don kowa ya san cewa ta gaske ce. Amma idan Mint yana ganin kowace takardar da ya sa wa hannu, zai iya bin kowace ɗaya tun daga wanda ya nema har zuwa wanda ya kashe ta.",
+      "Sa hannu a makance yana magance wannan. Kana rufe takardarka cikin ambulan mai ɓoyewa kafin ka miƙa ta, sai Mint ya sa hannu ta cikin ambulan ba tare da ya ga abin da ke ciki ba.",
+      "Da ka koma gida, sai ka cire ambulan. Sa hannun yana nan daidai a kan takardar da ke ƙarƙashi, duk da haka Mint bai taɓa ganinta ba. Idan takardar ta dawo don a kashe ta, Mint zai iya tantance sa hannun amma ba zai iya gane ta wane ce ba.",
+      "David Chaum ya bayyana wannan ra’ayi a 1982, kuma shi ne zuciyar ecash. A tarayya, masu gadi suna gudanar da Mint tare, don haka babu mai gadi ɗaya da zai iya sa hannu a takardu shi kaɗai ko ya buga ƙari a ɓoye."
+    ]
+  },
+  "twice": {
+    "title": "An Kashe Sau Biyu",
+    "author": "Kofi Adeyemi",
+    "pages": [
+      "Takardar kuɗi ba za ta iya zama a aljihu biyu lokaci guda ba. Takardar dijital lamba ce kawai, kuma ana iya kwafar lambobi. To me zai hana wani kashe takarda ɗaya sau biyu?",
+      "Mint yana ajiye jerin duk takardun da aka riga aka kashe. Idan takarda ta shigo, masu gadi suna duba jerin. Idan takardar tana ciki, ana ƙin ta; idan ba ta ciki, ana karɓar ta a ƙara ta.",
+      "Dole ne masu gadi su amince a kan wannan jerin. Idan wani mai gadi ya karɓi takardar da wani ya ƙi, za a iya kashe kuɗi ɗaya a wurare biyu. Shi ya sa kowane kashe kuɗi yake bi ta yarjejeniya.",
+      "A Ledger Archive kana farautar daidai wannan: takardar da ta bayyana sau biyu, ko sa hannun da bai dace ba. Kama ɗaya yana sa tarayyar gaba ɗaya ta ci gaba da gaskiya."
+    ]
+  },
+  "powers": {
+    "title": "Takardun Biyu",
+    "author": "Lucia Brandt",
+    "pages": [
+      "Takardun ecash suna zuwa a girma kayyadaddu: 1, 2, 4, 8, 16 da sauransu, kowace ninki biyu na wadda ta gabace ta. Ana iya haɗa kowane adadi da su, kamar yadda ake iya rubuta kowace lamba a binary.",
+      "Girma kayyadaddu suna taimaka wa sirri. Idan takardun kowa suna zuwa a ʼyan adadi iri ɗaya, takardar sats 64 ba ta faɗin komai game da wanda ke riƙe da ita ko abin da aka yi da ita.",
+      "Idan kana biya, kana ba da takardun da za su biya farashin. Mint yana karɓe su ya fitar da sababbin takardu don canjinka, don haka babu abin da ka kashe da za a iya haɗa shi da abin da ka karɓa baya.",
+      "Shi ya sa shagunan Beach Town da Port Concord suke ce maka ka zaɓi takardu daga walat ɗinka. Ba da takardar da ba ka buƙata ana ƙin ta: Mint yana ba da canji, amma ba zai karɓi fiye da abin da ya kamata ka biya ba."
+    ]
+  },
+  "keepers": {
+    "title": "Masu Tsaron Port Concord",
+    "author": "Abena Mensah",
+    "pages": [
+      "Ƙungiyar masu gadi ce ke gudanar da Mint na tarayya maimakon kamfani ɗaya. Kowane mai gadi yana riƙe da kaso na maɓallin sa hannu, kuma babu kason da zai iya sa hannu a komai shi kaɗai.",
+      "Don a sa hannu, dole ne masu gadi da suka kai iyaka su amince. Da masu gadi huɗu, iyakar uku ce; da bakwai, biyar ce. Ƙasa da iyakar, babu abin da ke motsi.",
+      "Yawanci masu gadi mutane ne da suka riga suka amince da juna: ʼyan kasuwar gari, dattawan al’umma, abokai masu kula da sabobin kwamfuta. Tarayya tana watsa amana maimakon tara ta a wuri ɗaya.",
+      "Zama mai gadi nauyi ne, ba kambi ba. Kana tabbatar da sabarka tana aiki, kana duba kowace shawara, kuma kana ƙin sa hannu a abin da ba za ka iya tantancewa ba. Wannan shi ne dukan aikin, kuma dukan wasan."
+    ]
+  }
+}

@@ -12,6 +12,7 @@ import { TalkBubble } from '../game/bubbles.js';
 import { CONFETTI, EmoteAction, spawnFlourishes } from '../game/emoteActions.js';
 import { Effects } from '../game/effects.js';
 import { GUARDIAN_HEIGHT, NO_WEAR, drawGuardian, drawShadow, type Wear } from '../game/guardianArt.js';
+import { robeColors, sameWear, wearOf } from '../game/wear.js';
 import { turnToward } from '../game/facing.js';
 import { fairZoom, sceneDpr, viewSize } from '../game/hidpi.js';
 import { INTERP_DELAY_MS, InterpBuffer, lerpFactor } from '../game/interpolation.js';
@@ -32,10 +33,9 @@ import { shadowScale, startJump, stepHop } from '../game/jump.js';
 export const CITY_SCENE_KEY = 'city';
 const STEP_MS = TICK_SECONDS * 1000;
 const BASE_ZOOM = 0.72;
-// Indoors: how much closer the camera may come than on the street, the room's wall height above its floor, and the dark kept round it.
-const ROOM_ZOOM_MAX = 1.8;
+// Indoors: how much closer the camera may come than on the street, and the room's wall height kept in view above its floor.
+const ROOM_ZOOM_MAX = 2.6;
 const ROOM_WALL_PX = 120 * ART_SCALE;
-const ROOM_MARGIN = 48;
 const COIN = 'city-coin';
 const GHOST = { lit: 0xffd27a, shadow: 0xffb347, highlight: 0xfff1c9 };
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -189,6 +189,9 @@ export class CityScene extends Phaser.Scene {
   #traffic: Traffic | null = null;
   #reduced = false;
   #myId: string | null = null;
+  // This client's own look while a change is shown before the server has it, and the last look the server sent.
+  #myLook: Wear | null = null;
+  #myServed: Wear | null = null;
   #predictor: Predictor | null = null;
   #smoother = new CorrectionSmoother();
   #prev: Vec2 = { x: 0, y: 0 };
@@ -272,6 +275,8 @@ export class CityScene extends Phaser.Scene {
     this.#driving = false;
     this.#following = null;
     this.#myId = null;
+    this.#myLook = null;
+    this.#myServed = null;
     this.#predictor = null;
     this.#input = null;
     this.#sink = null;
@@ -292,8 +297,9 @@ export class CityScene extends Phaser.Scene {
     const ring = new Phaser.GameObjects.Graphics(this);
     drawShadow(ring, isMe);
     const body = new Phaser.GameObjects.Graphics(this);
-    const wear: Wear = { hat: p.hat, shades: p.shades, outfit: p.outfit };
-    drawGuardian(body, seatColors(p.seat), 1, wear);
+    const wear = isMe && this.#myLook !== null ? this.#myLook : wearOf(p);
+    if (isMe) this.#myServed = wearOf(p);
+    drawGuardian(body, robeColors(p.seat, wear), 1, wear);
     const bubble = new Phaser.GameObjects.Graphics(this);
     drawShield(bubble);
     const root = new Phaser.GameObjects.Container(this, 0, 0, [soft, ring, body, bubble]);
@@ -401,15 +407,36 @@ export class CityScene extends Phaser.Scene {
     }
   }
 
+  /** Shows this client's own guardian in a look straight away, before the server has it; null goes back to the server's. */
+  dressMe(wear: Wear | null): void {
+    if (this.#myId === null) return;
+    this.#myLook = wear;
+    const me = this.#avatars.get(this.#myId);
+    const next = wear ?? this.#myServed;
+    if (me === undefined || next === null || sameWear(me.wear, next)) return;
+    me.wear = next;
+    drawGuardian(me.body, robeColors(me.seat, me.wear), me.facing, me.wear, me.back);
+  }
+
+  // The look to draw: the server's, except for this client's own guardian while it shows a look the server is still catching up on.
+  #wanted(isMe: boolean, p: CityPlayer): Wear {
+    const served = wearOf(p);
+    if (!isMe) return served;
+    this.#myServed = served;
+    if (this.#myLook !== null && sameWear(served, this.#myLook)) this.#myLook = null;
+    return this.#myLook ?? served;
+  }
+
   updatePlayer(id: string, p: CityPlayer): void {
     const a = this.#avatars.get(id);
     if (a === undefined) return;
     if (a.isMe && p.inside !== this.#inside) this.#goThrough(a, p);
-    if (a.wear.hat !== p.hat || a.wear.shades !== p.shades || a.wear.outfit !== p.outfit || a.seat !== p.seat) {
-      a.wear = { hat: p.hat, shades: p.shades, outfit: p.outfit };
+    const want = this.#wanted(a.isMe, p);
+    if (!sameWear(a.wear, want) || a.seat !== p.seat) {
+      a.wear = want;
       a.seat = p.seat;
       a.ghostPose = 0;
-      drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear, a.back);
+      drawGuardian(a.body, robeColors(a.seat, a.wear), a.facing, a.wear, a.back);
     }
     this.#setFight(a, p);
     this.#seat(a, p.car);
@@ -474,7 +501,7 @@ export class CityScene extends Phaser.Scene {
       const dir = to.pos.x - to.pos.y > from.pos.x - from.pos.y ? 1 : -1;
       if (dir !== from.facing) {
         from.facing = dir;
-        drawGuardian(from.body, seatColors(from.seat), dir, from.wear, from.back);
+        drawGuardian(from.body, robeColors(from.seat, from.wear), dir, from.wear, from.back);
       }
     }
     from.lunge = this.#reduced ? 0 : 9 * ART_SCALE * from.facing;
@@ -550,7 +577,7 @@ export class CityScene extends Phaser.Scene {
     const a = this.#avatars.get(id);
     if (a === undefined || a.down) return;
     a.action?.end(a.body, true);
-    a.action = new EmoteAction(this, a.root, kind, seatColors(a.seat).lit, this.game.loop.time);
+    a.action = new EmoteAction(this, a.root, a.body, kind, robeColors(a.seat, a.wear), this.game.loop.time);
     const s = worldToScreen(a.pos.x, a.pos.y);
     spawnFlourishes(this, this.#names, kind, s.x, s.y - GUARDIAN_HEIGHT * 1.05, this.#reduced);
     if (this.#reduced || kind !== 'cheer') return;
@@ -804,7 +831,7 @@ export class CityScene extends Phaser.Scene {
     const dx = s.x - a.lastScreenX;
     const dy = s.y - a.lastScreenY;
     const moving = Math.abs(dx) > 0.05 || Math.abs(s.y - a.root.y) > 0.05;
-    if (turnToward(a, dx, dy)) drawGuardian(a.body, seatColors(a.seat), a.facing, a.wear, a.back);
+    if (turnToward(a, dx, dy)) drawGuardian(a.body, robeColors(a.seat, a.wear), a.facing, a.wear, a.back);
     a.lastScreenX = s.x;
     a.lastScreenY = s.y;
     a.lunge *= 0.8;
@@ -909,14 +936,15 @@ export class CityScene extends Phaser.Scene {
     const cam = this.cameras.main;
     let zoom = fairZoom(w, h) * BASE_ZOOM * this.#userZoom;
     const box = this.#roomBox;
-    if (box !== null) zoom = Phaser.Math.Clamp(Math.min(w / box.width, h / box.height) * this.#userZoom, zoom, zoom * ROOM_ZOOM_MAX);
+    // Indoors the room covers the whole view, and zooming out never shows the dark around it.
+    if (box !== null) zoom = Math.min(Math.max(w / box.width, h / box.height) * Math.max(1, this.#userZoom), zoom * ROOM_ZOOM_MAX);
     cam.setZoom(sceneDpr(this) * zoom);
     if (box === null) {
       cam.removeBounds();
       return;
     }
-    const bw = Math.max(box.width + ROOM_MARGIN * 2, cam.width / cam.zoom);
-    const bh = Math.max(box.height + ROOM_MARGIN * 2, cam.height / cam.zoom);
+    const bw = Math.max(box.width, cam.width / cam.zoom);
+    const bh = Math.max(box.height, cam.height / cam.zoom);
     cam.setBounds(box.centerX - bw / 2, box.centerY - bh / 2, bw, bh);
   }
 

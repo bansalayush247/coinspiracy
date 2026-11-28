@@ -36,8 +36,8 @@ const FLAT_PIECES: ReadonlySet<Piece> = new Set(['rug']);
 
 const FurnitureSchema = z.strictObject({ piece: z.enum(PIECES), c: z.int().min(1), r: z.int().min(1), w: z.int().min(1), d: z.int().min(1) });
 /** Every kind of spot in a room where something can be done. */
-export const SPOT_KINDS = ['counter', 'reception', 'bed', 'board', 'wardrobe', 'tv'] as const;
-/** A kind of spot: a counter, the hospital desk, a bed, a notice board, a wardrobe, a TV. */
+export const SPOT_KINDS = ['counter', 'reception', 'bed', 'board', 'wardrobe', 'tv', 'books', 'kitchen'] as const;
+/** A kind of spot: a counter, the hospital desk, a bed, a notice board, a wardrobe, a TV, a bookcase, a kitchen. */
 export type SpotKind = (typeof SPOT_KINDS)[number];
 
 const SpotSchema = z.strictObject({ kind: z.enum(SPOT_KINDS), c: z.int().min(1), r: z.int().min(1) });
@@ -52,7 +52,7 @@ const LayoutSchema = z.strictObject({
   floor: z.enum(FLOORS),
   wall: z.enum(WALLS),
   furniture: z.array(FurnitureSchema).max(40),
-  spots: z.array(SpotSchema).max(8),
+  spots: z.array(SpotSchema).max(12),
 });
 
 const SizeRange = (lo: number, hi: number) => z.tuple([z.int().min(lo).max(hi), z.int().min(lo).max(hi)]).refine(([a, b]) => a <= b, 'an empty size range');

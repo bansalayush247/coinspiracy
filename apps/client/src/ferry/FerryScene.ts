@@ -7,7 +7,7 @@ import { drawShip } from '../city/shipArt.js';
 import { drawGuardian, NO_WEAR, type Wear } from '../game/guardianArt.js';
 import { sceneDpr, viewSize } from '../game/hidpi.js';
 import { ART_SCALE, TILE_H, TILE_W } from '../game/iso.js';
-import { seatColors } from '../game/palette.js';
+import { robeColors } from '../game/wear.js';
 import { t } from '../i18n/index.js';
 import { buildCoast } from './coastArt.js';
 
@@ -185,7 +185,7 @@ export class FerryScene extends Phaser.Scene {
     drawShip(hull, 'ferry', 's', SHIP_SEED);
     const look = this.#trip.look;
     const body = this.add.graphics();
-    drawGuardian(body, seatColors(look?.seat ?? 0), -1, look?.wear ?? NO_WEAR);
+    drawGuardian(body, robeColors(look?.seat ?? 0, look?.wear ?? NO_WEAR), -1, look?.wear ?? NO_WEAR);
     const deck = { x: -0.95 * (TILE_W / 2) * SHIP_SCALE, y: (0.95 * (TILE_H / 2) - 12 * ART_SCALE) * SHIP_SCALE };
     const shadow = this.add.ellipse(deck.x + 4 * ART_SCALE, deck.y + 2, 34 * ART_SCALE, 12 * ART_SCALE, 0x2a1a33, 0.3);
     body.setPosition(deck.x, deck.y).setScale(GUARDIAN_SCALE);

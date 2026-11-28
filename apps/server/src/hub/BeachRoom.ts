@@ -4,7 +4,8 @@ import { randomBytes } from 'node:crypto';
 import { StateView } from '@colyseus/schema';
 import { ErrorCode, Room, ServerError, validate, type AuthContext, type Client } from '@colyseus/core';
 import { CLOSE_CODES, MovePayloadSchema, NoPayloadSchema, SERVER_TICK_HZ, TICK_SECONDS, cryptoRandom, stepMovement, uniqueNickname } from '@byzantine-council/shared';
-import { credit, isCosmeticId, type ShopId } from '@byzantine-council/shared/economy';
+import { credit, type ShopId } from '@byzantine-council/shared/economy';
+import { LOOK_GAP_MS, dress } from './look.js';
 import {
   BEACH_MAP,
   BEACH_MAX_PLAYERS,
@@ -58,6 +59,7 @@ interface Sim {
   lastEmoteMs: number;
   lastJumpMs: number;
   lastLookMs: number;
+  lookQueued: boolean;
 }
 
 const IDLE_MS = 15 * 60_000;
@@ -105,9 +107,14 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
     refreshLook: validate(NoPayloadSchema, (client: BeachClient) => {
       const sim = this.#sims.get(client.sessionId);
       const now = Date.now();
-      if (sim?.profileId == null || now - sim.lastLookMs < 10_000) return;
-      sim.lastLookMs = now;
-      void this.#wearLook(client.sessionId, sim.profileId);
+      const profileId = sim?.profileId;
+      if (sim === undefined || profileId == null || sim.lookQueued) return;
+      sim.lookQueued = true;
+      this.clock.setTimeout(() => {
+        sim.lookQueued = false;
+        sim.lastLookMs = Date.now();
+        void this.#wearLook(client.sessionId, profileId);
+      }, Math.max(0, sim.lastLookMs + LOOK_GAP_MS - now));
     }),
     dropJob: validate(NoPayloadSchema, (client: BeachClient) => {
       const sim = this.#sims.get(client.sessionId);
@@ -167,7 +174,7 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
     const view = new StateView();
     view.add(player, VIEW_TAGS.OWNER);
     client.view = view;
-    this.#sims.set(client.sessionId, { inputs: new InputQueue(), profileId: auth.profileId, job: null, lastActiveMs: Date.now(), lastEmoteMs: 0, lastJumpMs: 0, lastLookMs: 0 });
+    this.#sims.set(client.sessionId, { inputs: new InputQueue(), profileId: auth.profileId, job: null, lastActiveMs: Date.now(), lastEmoteMs: 0, lastJumpMs: 0, lastLookMs: 0, lookQueued: false });
     if (auth.profileId !== null) void this.#wearLook(client.sessionId, auth.profileId);
   }
 
@@ -212,9 +219,7 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
       const look = (await loadProfile(profiles.store, profileId, Date.now())).look;
       const player = this.state.players.get(sessionId);
       if (player === undefined) return;
-      player.hat = look.hat !== null && isCosmeticId(look.hat) ? look.hat : '';
-      player.shades = look.shades !== null && isCosmeticId(look.shades) ? look.shades : '';
-      player.outfit = isCosmeticId(look.outfit) ? look.outfit : '';
+      dress(player, look);
     } catch (error) {
       log.warn('beach look not loaded', { roomId: this.roomId, error: error instanceof Error ? error.name : 'unknown' });
     }

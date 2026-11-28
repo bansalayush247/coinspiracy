@@ -198,6 +198,12 @@ describe('walk-in buildings', () => {
     a.client.send('rest');
     await sleep(200);
     expect(a.rests).toHaveLength(2);
+    a.room.hurt(a.client.sessionId, 55);
+    a.standOn(layout.spots.find((s) => s.kind === 'kitchen'));
+    await sleep(DOOR_TUNING.restGapMs + 50);
+    a.client.send('rest');
+    await waitFor(() => a.rests.length === 3, 'rest answered in the kitchen');
+    expect(a.rests[2]).toEqual({ ok: true, reason: 'healed' });
   });
 
   it('takes a deposit at the Mint Hall counter inside, but not elsewhere in the hall', async () => {

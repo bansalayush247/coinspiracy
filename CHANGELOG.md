@@ -2,6 +2,24 @@
 
 ## 28 November 2026
 
+### Try it on, see it on you
+- Shops that sell things to wear now show your guardian at the top. Tap "Try on" next to anything to see it on
+  you straight away, in the shop and out in the room, before you pay. Whatever you buy is put on at once.
+- Haircuts, hair colours, the beard trim and surfboards now show on your guardian. The wardrobe has a place for
+  each of them, and a change there shows on you the moment you pick it.
+- A robe bought from the tailor or the surf shop now colours your whole robe in Port Concord and Beach Town. In
+  matches only its trim changes, so everyone keeps the seat colour that tells players apart.
+- Changing clothes twice in quick succession no longer leaves other players seeing the first look.
+
+### Books to read and something to cook
+- Every home has a bookcase. Pick a book from the shelf and read it page by page: six short books about how a
+  federation stays honest, from the Byzantine generals to why ecash notes come in powers of two.
+- Cook in your kitchen: make tea, toast or noodle soup, and you are back to full health.
+
+### Rooms fill the screen
+- Inside a building, the room now covers the whole screen on any size of display, and the camera follows you
+  round it. Zooming out no longer shrinks the room into a box with empty space around it.
+
 ### Things to do indoors
 - Every place you can use inside a building now has a gold tile on the floor. It lights up when you are close
   enough, and a button tells you what it does: press E or tap it.
@@ -28,7 +46,9 @@
   indoors. Nobody can be pinned in a doorway, because a push always gives way.
 - A car you drive stops against other cars instead of sliding through them, and the city's traffic brakes and waits
   behind your car.
-- The hand your guardian waves, cheers and throws a shaka with is now a clean cartoon glove.
+- Waving, cheering, dancing and the shaka now raise real arms: robe sleeves that come out at the shoulders, bend at
+  the elbow, catch the light like the robe and end in a bell cuff. The hands are the guardian's own, dark and
+  faceted like the face under the hood and edged in the same warm light, sized in proportion with the body.
 
 ### A ferry between Port Concord and Beach Town
 - A ferry is moored at the Port Concord seafront, under a blue FERRY sign and marked on the minimap, and another at

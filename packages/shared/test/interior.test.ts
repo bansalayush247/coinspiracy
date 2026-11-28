@@ -56,7 +56,7 @@ describe('walk-in buildings', () => {
     expect(new Set(made.map((d) => JSON.stringify(layoutFor(d.room, d.building.seed)))).size).toBe(made.length);
   });
 
-  it('makes shops and flats that pass every layout check, with a counter in every shop and a bed, wardrobe and TV in every home', () => {
+  it('makes shops and flats that pass every layout check, with a counter in every shop and a bed, bookcase, kitchen, wardrobe and TV in every home', () => {
     const handMade = new Set([...INTERIOR_TUNING.layouts.shop, ...INTERIOR_TUNING.layouts.flat]);
     for (let seed = 1; seed < 400; seed++) {
       for (const room of ['shop', 'flat'] as const) {
@@ -64,7 +64,7 @@ describe('walk-in buildings', () => {
         expect(handMade.has(layout)).toBe(false);
         expect(layoutProblems(room, layout)).toEqual([]);
         const kinds = new Set(layout.spots.map((s) => s.kind));
-        expect([...kinds].sort()).toEqual(room === 'shop' ? ['counter'] : ['bed', 'tv', 'wardrobe']);
+        expect([...kinds].sort()).toEqual(room === 'shop' ? ['counter'] : ['bed', 'books', 'kitchen', 'tv', 'wardrobe']);
       }
     }
   });

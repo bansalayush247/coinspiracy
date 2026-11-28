@@ -1,22 +1,32 @@
-// The wardrobe: wear the hats, eyewear and robes you own. They show on your guardian in every match.
-import { DEFAULT_OWNED, getItem, type Look } from '@byzantine-council/shared/economy';
+// The wardrobe: wear the hats, eyewear, robes, hairstyles and boards you own. A change shows on your guardian at once,
+// while it is saved to your profile.
+import { DEFAULT_OWNED, getItem, type CosmeticSlot, type Look } from '@byzantine-council/shared/economy';
+import { lookWear } from '../game/wear.js';
 import { el, h } from '../ui/dom.js';
 import { t, type PlainKey } from '../i18n/index.js';
 import { guardianPortrait } from './portrait.js';
 import type { ProfileSummary } from './api.js';
 
-type Slot = 'outfit' | 'hat' | 'shades';
-const SLOTS: readonly { slot: Slot; label: PlainKey; optional: boolean }[] = [
+const SLOTS: readonly { slot: CosmeticSlot; label: PlainKey; optional: boolean }[] = [
   { slot: 'hat', label: 'wardrobe.hats', optional: true },
   { slot: 'shades', label: 'wardrobe.eyewear', optional: true },
   { slot: 'outfit', label: 'wardrobe.robes', optional: false },
+  { slot: 'hair', label: 'wardrobe.hair', optional: false },
+  { slot: 'dye', label: 'wardrobe.dye', optional: false },
+  { slot: 'beard', label: 'wardrobe.beard', optional: true },
+  { slot: 'board', label: 'wardrobe.board', optional: true },
 ];
 
 export class Wardrobe {
   readonly #root = el('wardrobe', HTMLElement);
   readonly #body = el('wardrobe-body', HTMLDivElement);
   #profile: ProfileSummary | null = null;
-  onWear: (look: Look) => void = () => undefined;
+  // The look just picked, shown while it is being saved.
+  #pending: Look | null = null;
+  /** Saves a look; resolves false if it was not saved, and the wardrobe goes back to the saved look. */
+  onWear: (look: Look) => Promise<boolean> = () => Promise.resolve(false);
+  /** The colour seat to show the guardian in. */
+  seat = 0;
   onClosed: () => void = () => undefined;
 
   get isOpen(): boolean {
@@ -56,14 +66,15 @@ export class Wardrobe {
       return;
     }
     const owned = new Set<string>([...p.owned, ...DEFAULT_OWNED]);
+    const look = this.#pending ?? p.look;
     const preview = h('div', 'wardrobe-preview');
-    preview.append(guardianPortrait(0, { hat: p.look.hat ?? '', shades: p.look.shades ?? '', outfit: p.look.outfit }));
+    preview.append(guardianPortrait(this.seat, lookWear(look)));
     const sections = SLOTS.map(({ slot, label, optional }) => {
       const section = h('section', 'wardrobe-slot');
       section.append(h('h3', '', t(label)));
       const row = h('div', 'wardrobe-items');
       const ids = [...owned].filter((id) => id.startsWith(`${slot}:`)).sort();
-      const current = p.look[slot];
+      const current = look[slot];
       if (optional) row.append(this.#chip(null, current === null, slot));
       for (const id of ids) row.append(this.#chip(id, current === id, slot));
       if (ids.length === 0) row.append(h('span', 'hint', t('wardrobe.none')));
@@ -73,7 +84,7 @@ export class Wardrobe {
     this.#body.replaceChildren(preview, ...sections);
   }
 
-  #chip(id: string | null, worn: boolean, slot: Slot): HTMLButtonElement {
+  #chip(id: string | null, worn: boolean, slot: CosmeticSlot): HTMLButtonElement {
     const item = id === null ? undefined : getItem(id);
     const b = h('button', `wardrobe-chip${worn ? ' worn' : ''}`);
     b.type = 'button';
@@ -85,7 +96,14 @@ export class Wardrobe {
     b.addEventListener('click', () => {
       const p = this.#profile;
       if (p === null || worn) return;
-      this.onWear({ ...p.look, [slot]: id });
+      const next: Look = { ...(this.#pending ?? p.look), [slot]: id };
+      this.#pending = next;
+      this.#render();
+      void this.onWear(next).then(() => {
+        if (this.#pending !== next) return;
+        this.#pending = null;
+        if (!this.#root.hidden) this.#render();
+      });
     });
     return b;
   }

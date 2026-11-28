@@ -11,6 +11,8 @@ import type { Session } from '../net/session.js';
 import type { ProfileApi, ProfileSummary } from '../profile/api.js';
 import { mountEmoteBar } from '../ui/emoteBar.js';
 import { shopPanel } from '../ui/shopPanel.js';
+import { wearOf } from '../game/wear.js';
+import type { Wear } from '../game/guardianArt.js';
 import { el } from '../ui/dom.js';
 import { FerryButton } from '../ferry/ferryDock.js';
 import type { FerryLook } from '../ferry/FerryScene.js';
@@ -61,6 +63,17 @@ export class BeachController {
   // While a panel from the menu (the wardrobe) is open over the town, the guardian stands still.
   holdStill(hold: boolean): void {
     if (this.#room !== null) this.input.enabled = !hold && !shopPanel().isOpen;
+  }
+
+  /** The colour seat this guardian has in this place; 0 before joining. */
+  mySeat(): number {
+    const room = this.#room;
+    return room?.state.players.get(room.sessionId)?.seat ?? 0;
+  }
+
+  /** Shows a look on this guardian straight away, before the town has it; null goes back to what the town sees. */
+  dressMe(wear: Wear | null): void {
+    this.scene.dressMe(wear);
   }
 
   // The wardrobe changed: let the town see the new look.
@@ -132,7 +145,7 @@ export class BeachController {
   ferryLook(): FerryLook | null {
     const room = this.#room;
     const me = room?.state.players.get(room.sessionId);
-    return me === undefined ? null : { seat: me.seat, wear: { hat: me.hat, shades: me.shades, outfit: me.outfit } };
+    return me === undefined ? null : { seat: me.seat, wear: wearOf(me) };
   }
 
   async enter(nickname: string, byFerry = false): Promise<void> {
@@ -303,6 +316,13 @@ export class BeachController {
       onClose: () => {
         if (this.#room !== null) this.input.enabled = true;
         this.#render();
+      },
+      seat: this.#room?.state.players.get(this.#room.sessionId)?.seat ?? 0,
+      onTry: (wear) => {
+        this.scene.dressMe(wear);
+      },
+      onWorn: () => {
+        this.lookChanged();
       },
     });
     this.input.enabled = false;

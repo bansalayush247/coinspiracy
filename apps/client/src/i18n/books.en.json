@@ -1,0 +1,62 @@
+{
+  "generals": {
+    "title": "The Generals' Letter",
+    "author": "Ines Varga",
+    "pages": [
+      "Picture a ring of generals camped round a city. They can only talk by messenger, and they must all attack together or all hold back. A half-hearted attack is the worst outcome of all.",
+      "Now suppose some generals are traitors. A traitor can tell one neighbour “attack” and another “retreat”. Messengers can be late. Nobody can see into anyone else's tent.",
+      "Computer scientists call this the Byzantine Generals Problem. A system that still agrees when some members lie, go silent or tell different peers different things is called Byzantine fault tolerant.",
+      "A federation of guardians is such a system. The honest guardians do not need to know who the traitors are. They need enough honest voices, and a rule that turns those voices into one decision."
+    ]
+  },
+  "third": {
+    "title": "One in Three",
+    "author": "Tomas Oyelaran",
+    "pages": [
+      "How many liars can a group survive? For agreement that never splits, fewer than a third. A federation of n guardians can tolerate f faulty ones only when n is greater than 3f.",
+      "Why a third? Any two groups big enough to decide must share at least one honest member. If more than a third could lie, two opposite decisions could both look valid, and the federation would split.",
+      "So four guardians survive one bad one, seven survive two, and ten survive three. A fifth or sixth guardian buys no extra safety; only the seventh makes a second failure safe.",
+      "Remember the arithmetic at a council vote. Every honest guardian rotated out by mistake brings the Byzantines closer to that third, and once they reach it the federation stops."
+    ]
+  },
+  "blind": {
+    "title": "Blind Ink",
+    "author": "Mara Quell",
+    "pages": [
+      "A mint signs a note so everyone knows it is real. But if the mint sees every note it signs, it can follow each one from the person who asked for it to the person who spends it.",
+      "A blind signature fixes this. You seal your note inside a blinding envelope before you hand it over, and the mint signs through the envelope without seeing what is inside.",
+      "Back home you take the envelope off. The signature still holds on the note underneath, yet the mint has never seen it. When the note comes back to be spent, the mint can check the signature but cannot tell whose note it was.",
+      "David Chaum described this idea in 1982, and it is the heart of ecash. In a federation the guardians run the mint together, so no single guardian can sign notes alone or quietly print more."
+    ]
+  },
+  "twice": {
+    "title": "Spent Twice",
+    "author": "Kofi Adeyemi",
+    "pages": [
+      "A paper note cannot sit in two pockets at once. A digital note is only a number, and numbers can be copied. So what stops someone spending the same note twice?",
+      "The mint keeps a list of every note already spent. When a note comes in, the guardians check the list. If the note is on it, it is refused; if not, it is accepted and added.",
+      "The guardians must agree on that list. If one guardian took a note that another refused, the same coin could be spent in two places. That is why every spend goes through consensus.",
+      "In the Ledger Archive you hunt for exactly this: a note that turns up twice, or a signature that does not match. Catching one keeps the whole federation honest."
+    ]
+  },
+  "powers": {
+    "title": "Notes of Two",
+    "author": "Lucia Brandt",
+    "pages": [
+      "Ecash notes come in fixed sizes: 1, 2, 4, 8, 16 and on, each double the last. Any amount can be made from them, the way any number can be written in binary.",
+      "Fixed sizes help privacy. When everyone's notes come in the same few amounts, a note of 64 sats says nothing about who holds it or what it was for.",
+      "When you pay, you hand over notes that cover the price. The mint takes them in and issues fresh notes for your change, so nothing you spent can be linked to what you get back.",
+      "That is why the shops of Beach Town and Port Concord ask you to pick notes from your wallet. Handing over a note you do not need is refused: the mint makes change, but it will not take more than you owe."
+    ]
+  },
+  "keepers": {
+    "title": "The Keepers of Port Concord",
+    "author": "Abena Mensah",
+    "pages": [
+      "A federated mint is run by a group of guardians instead of one company. Each guardian holds a share of the signing key, and no share can sign anything on its own.",
+      "To sign, a threshold of guardians must agree. With four guardians the threshold is three; with seven it is five. Below the threshold, nothing moves.",
+      "Guardians are usually people who already trust each other: a town's shopkeepers, a community's elders, friends who keep servers running. The federation spreads trust out instead of piling it in one place.",
+      "Being a guardian is a duty, not a crown. You keep your server up, check every proposal, and refuse to sign what you cannot verify. That is the whole job, and the whole game."
+    ]
+  }
+}

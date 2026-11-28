@@ -255,6 +255,24 @@
           </div>
           <button id="shop-close" type="button" data-i18n="common.close">Close</button>
         </section>
+        <section id="pick" class="panel modal pick" role="dialog" aria-modal="true" aria-labelledby="pick-title" tabindex="-1" hidden>
+          <h2 id="pick-title"></h2>
+          <p id="pick-hint" class="hint"></p>
+          <div id="pick-list" class="pick-list"></div>
+          <article id="pick-book" class="pick-book" hidden>
+            <p id="pick-by" class="hint"></p>
+            <p id="pick-page" class="pick-page" aria-live="polite"></p>
+            <div class="pick-turn">
+              <button id="pick-prev" type="button" data-i18n="books.prev">Previous</button>
+              <span id="pick-count" class="pick-count"></span>
+              <button id="pick-next" type="button" class="cta" data-i18n="books.next">Next</button>
+            </div>
+          </article>
+          <div class="pick-actions">
+            <button id="pick-shelf" type="button" data-i18n="books.all" hidden>All books</button>
+            <button id="pick-close" type="button" data-i18n="common.close">Close</button>
+          </div>
+        </section>
         <section id="wardrobe" class="panel modal wardrobe" role="dialog" aria-modal="true" aria-labelledby="wardrobe-title" tabindex="-1" hidden>
           <h2 id="wardrobe-title" data-i18n="tile.wardrobe">Wardrobe</h2>
           <p class="hint" data-i18n="wardrobe.hint">What you wear shows on your guardian in every match.</p>

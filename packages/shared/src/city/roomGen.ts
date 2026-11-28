@@ -117,9 +117,10 @@ function place(plan: Plan, piece: Piece): boolean {
     case 'shelf':
       return plan.alongWall(piece, between(rand, 2, 3));
     case 'kitchen':
-      return plan.alongWall(piece, Math.min(between(rand, 3, 4), plan.w - 3));
-    case 'mirror':
+      return plan.alongWall(piece, Math.min(between(rand, 3, 4), plan.w - 3), 'kitchen');
     case 'bookcase':
+      return plan.alongWall(piece, 1, 'books');
+    case 'mirror':
       return plan.alongWall(piece, 1);
     case 'displayCase':
       return plan.onFloor(piece, between(rand, 2, 3), 1) || plan.alongWall(piece, 2);
@@ -206,7 +207,7 @@ function flat(rand: Rand): RoomLayout | null {
   return { w, d, floor: choose(rand, recipe.floors), wall: choose(rand, recipe.walls), furniture: plan.furniture, spots: plan.spots };
 }
 
-const ATTEMPTS = 40;
+const ATTEMPTS = 80;
 
 /** A shop or flat furnished from this seed, the same every time; a hand-made layout if none comes out right. */
 export function generateLayout(room: 'shop' | 'flat', seed: number): RoomLayout {
