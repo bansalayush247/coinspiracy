@@ -1,6 +1,7 @@
 import { tileAt, type Vec2 } from '@byzantine-council/shared';
 import { CITY_MAP } from '@byzantine-council/shared/city';
 import { isShallowsBeach } from './cityBeach.js';
+import { isSeafrontDeck } from './citySeafront.js';
 
 const at = (c: number, r: number): string => tileAt(CITY_MAP, c, r);
 export const coastWater = (t: string): boolean => t === '~' || t === '#';
@@ -18,6 +19,8 @@ interface Quadrant {
 }
 
 export interface CoastCorner {
+  readonly c: number;
+  readonly r: number;
   readonly vertex: Vec2;
   readonly from: Vec2;
   readonly to: Vec2;
@@ -50,18 +53,24 @@ for (let y = 1; y < CITY_MAP.height; y++) {
     const neighbours = water ? dry.filter((d) => d.dx === alone.dx || d.dy === alone.dy) : [alone];
     const material = neighbours.find((d) => d.tile === '=') ?? neighbours.find((d) => !isShallowsBeach(d.c, d.r));
     if (material === undefined || !openGround.has(material.tile) || isShallowsBeach(material.c, material.r)) continue;
+    if (neighbours.some((d) => d.tile === '=' && isSeafrontDeck(d.c, d.r))) continue;
     if (water && neighbours.some((d) => !openGround.has(d.tile))) continue;
     const { dx, dy } = alone;
     // Shorter curves on single-tile steps leave room for the next bend.
     const rx = turnsAt(x + dx, y) ? 0.48 : 0.94;
     const ry = turnsAt(x, y + dy) ? 0.48 : 0.94;
-    corners.set(y * stride + x, { vertex: { x, y }, from: { x: x + dx * rx, y }, to: { x, y: y + dy * ry }, dry: material, water });
+    corners.set(y * stride + x, { c: alone.c, r: alone.r, vertex: { x, y }, from: { x: x + dx * rx, y }, to: { x, y: y + dy * ry }, dry: material, water });
   }
 }
 
 export function coastCorner(x: number, y: number): CoastCorner | undefined {
   if (x <= 0 || y <= 0 || x >= CITY_MAP.width || y >= CITY_MAP.height) return undefined;
   return corners.get(y * stride + x);
+}
+
+export function coastTileCorners(c: number, r: number): CoastCorner[] {
+  return [coastCorner(c, r), coastCorner(c + 1, r), coastCorner(c + 1, r + 1), coastCorner(c, r + 1)]
+    .filter((corner): corner is CoastCorner => corner !== undefined && corner.c === c && corner.r === r);
 }
 
 /** The straight section between curved corners on a shared land and water edge. */

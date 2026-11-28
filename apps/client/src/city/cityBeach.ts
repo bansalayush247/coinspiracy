@@ -6,16 +6,9 @@ export const CITY_WET_SAND = 0xd5b484;
 
 const at = (c: number, r: number): string => tileAt(CITY_MAP, c, r);
 
-/** The beaches on the Shallows islets and the open ground behind the south boardwalk. */
+/** The dry beaches on the Shallows islets. The Saltmarket promenade blends sand into its surrounding ground. */
 export function citySandAt(c: number, r: number, tile = at(c, r)): boolean {
-  if (tile !== '.' && tile !== ',' && tile !== 'T') return false;
-  if (c < 40) return isShallowsBeach(c, r);
-  if (r < 89) return false;
-  const reach = 4 + Math.round(Math.cos(c * 0.21));
-  for (let offset = 3; offset <= reach; offset++) {
-    if (at(c, r + offset) === '~' && at(c, r + offset - 1) === '=' && at(c, r + offset - 2) === '=') return true;
-  }
-  return false;
+  return (tile === '.' || tile === ',' || tile === 'T') && isShallowsBeach(c, r);
 }
 
 export function isShallowsBeach(c: number, r: number): boolean {
@@ -34,7 +27,7 @@ function shorePoints({ c0, r0, c1, r1 }: Box, index: number): readonly Vec2[] {
     }
     return false;
   };
-  const radii = corners.map(({ x, y }, i) => nearPlanks(x, y) ? 0 : 0.96 + ((i + index * 2) % 4) * 0.075);
+  const radii = corners.map(({ x, y }, i) => nearPlanks(x, y) ? 0.54 : 0.99 + ((i + index * 2) % 4) * 0.07);
   const sides = corners.map((from, i) => {
     const next = (i + 1) % corners.length;
     const to = corners[next] ?? from;
@@ -59,7 +52,7 @@ function shorePoints({ c0, r0, c1, r1 }: Box, index: number): readonly Vec2[] {
     const next = (i + 1) % sides.length;
     const corner = corners[next];
     const after = sides[next]?.start;
-    if (corner === undefined || after === undefined || radii[next] === 0) continue;
+    if (corner === undefined || after === undefined) continue;
     for (let s = 0; s < 8; s++) {
       const t = s / 8;
       const u = 1 - t;

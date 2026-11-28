@@ -2,7 +2,7 @@
 // Everything is drawn from the shared map, so the city looks the same on every screen.
 import Phaser from 'phaser';
 import { CHUNK, CITY_BUILDINGS, CITY_MAP, ROAD_COLS, ROAD_ROWS, districtAt, doorBySeed, shopTradeOf, type CityBuilding, type DistrictId, type ShopTrade } from '@byzantine-council/shared/city';
-import { tileAt, type Box } from '@byzantine-council/shared';
+import { tileAt, type Box, type Vec2 } from '@byzantine-council/shared';
 import { P, fan, prism } from '../beach/beachArt.js';
 import { hex, jitter, paintPlanks, rng, type Ctx } from '../game/groundPaint.js';
 import { ART_SCALE, TILE_H, TILE_W, mapScreenBounds } from '../game/iso.js';
@@ -10,10 +10,13 @@ import { lit, mix, shade } from '../game/palette.js';
 import { quality } from '../game/quality.js';
 import { drawHospital, drawOffice, drawResidence, drawStorefront } from './streetArchitecture.js';
 import { CITY_SAND, CITY_WET_SAND, SHALLOWS_BEACHES, citySandAt, isShallowsBeach } from './cityBeach.js';
+import { coastEdge, coastTileCorners, coastTileOutline, coastWater as isWater, type CoastCorner } from './cityCoast.js';
+import { FERRY_LANDING, inlandSandAt, inlandSandOpacity, isSeafrontDeck, seafrontBank, seafrontBetween, seafrontColumn, seafrontSandWidth, wetSandAt } from './citySeafront.js';
 
 type G = Phaser.GameObjects.Graphics;
 
 const at = (c: number, r: number): string => tileAt(CITY_MAP, c, r);
+const surfaceAt = (c: number, r: number): string => seafrontBank(c, r) ?? at(c, r);
 const isRoadRow = (r: number): boolean => ROAD_ROWS.some((r0) => r === r0 || r === r0 + 1);
 const isRoadCol = (c: number): boolean => ROAD_COLS.some((c0) => c === c0 || c === c0 + 1);
 
@@ -28,6 +31,22 @@ const PAVEMENT: Readonly<Record<DistrictId, number>> = {
   lowtide: 0xcfc2ae,
   shallows: 0xead8a8,
 };
+const ASPHALT = 0x524d5a;
+const DIRT = 0x9a8060;
+const PLANKS = 0xc08a58;
+const grassColor = (c: number, r: number): number => (c + r) % 2 === 0 ? 0x8cb868 : 0x86b062;
+const parkGround = (t: string, c: number, r: number): boolean =>
+  t === ',' || (t === 'T' && [at(c - 1, r), at(c + 1, r), at(c, r - 1), at(c, r + 1)].includes(','));
+const pavementColor = (c: number, r: number): number =>
+  PAVEMENT[districtAt({ x: c + 0.5, y: r + 0.5 })?.id ?? 'saltmarket'];
+
+export function cityGroundColor(t: string, c: number, r: number): number {
+  if (citySandAt(c, r, t)) return CITY_SAND;
+  if (t === '=') return PLANKS;
+  if (t === ':') return ASPHALT;
+  if (t === 'd' || t === 'M') return DIRT;
+  return parkGround(t, c, r) ? grassColor(c, r) : pavementColor(c, r);
+}
 
 // Screen rectangle of a chunk's ground, in world pixels.
 export function chunkBounds(cx: number, cy: number): { x: number; y: number; w: number; h: number } {
@@ -54,7 +73,7 @@ export function paintChunk(scene: Phaser.Scene, cx: number, cy: number): { key: 
   ctx.setTransform((TILE_W / 2) * scale, (TILE_H / 2) * scale, (-TILE_W / 2) * scale, (TILE_H / 2) * scale, -b.x * scale, -b.y * scale);
   const c0 = cx * CHUNK;
   const r0 = cy * CHUNK;
-  const sea = seaLayer(c0, r0);
+  const sea = seaLayer();
   // Neighbouring chunks' textures overlap at the corners: each also paints a ring of the next one's tiles, exactly as
   // that one paints them, so their shared edge is solid wherever the two meet.
   seaUnderWater(ctx, sea, c0, r0);
@@ -62,9 +81,16 @@ export function paintChunk(scene: Phaser.Scene, cx: number, cy: number): { key: 
     for (let c = c0 - 1; c <= c0 + CHUNK; c++) paintTile(ctx, c, r);
   }
   for (let r = r0 - 1; r <= r0 + CHUNK; r++) {
-    for (let c = c0 - 1; c <= c0 + CHUNK; c++) smoothCoast(ctx, sea, c0, r0, c, r);
+    for (let c = c0 - 1; c <= c0 + CHUNK; c++) {
+      for (const corner of coastTileCorners(c, r)) paintCoastCorner(ctx, sea, corner);
+    }
+  }
+  for (let r = r0 - 1; r <= r0 + CHUNK; r++) {
+    for (let c = c0 - 1; c <= c0 + CHUNK; c++) if (isWater(at(c, r))) paintCoastEdges(ctx, c, r);
   }
   paintShallowsShore(ctx, sea, c0, r0);
+  paintWaterfrontSand(ctx, c0 - 1, r0 - 1, CHUNK + 2);
+  paintHarborTimber(ctx, c0 - 1, r0 - 1, CHUNK + 2);
   if (quality.current !== 'low') {
     ctx.save();
     ctx.beginPath();
@@ -77,7 +103,6 @@ export function paintChunk(scene: Phaser.Scene, cx: number, cy: number): { key: 
   return { key, x: b.x, y: b.y, scale };
 }
 
-const isWater = (t: string): boolean => t === '~' || t === '#';
 // Shadows stop inside the ring of neighbouring tiles a chunk paints, where its ground is solid, so a shadow's cut
 // edge never lies over another chunk's ground.
 const SHADOW_RING = 0.5;
@@ -96,52 +121,84 @@ export function cityOverview(scene: Phaser.Scene): Phaser.GameObjects.Image {
     const ctx = canvas.getContext('2d');
     if (ctx === null) throw new Error('no 2d canvas');
     ctx.setTransform(TILE_W * scale / 2, TILE_H * scale / 2, -TILE_W * scale / 2, TILE_H * scale / 2, -bounds.x * scale, 0);
-    const colors: Record<string, number> = { ':': 0x595360, ',': 0x8ead6c, '=': 0xb18760, d: 0xaa9779 };
     ctx.fillStyle = hex(CITY_SAND);
-    for (const beach of SHALLOWS_BEACHES) ctx.fill(shorePath(beach));
+    for (const beach of SHALLOWS_BEACHES) ctx.fill(outlinePath(beach.shore));
     for (let r = 0; r < CITY_MAP.height; r++) {
       for (let c = 0; c < CITY_MAP.width; c++) {
-        const tile = at(c, r);
-        if (isWater(tile) || isShallowsBeach(c, r)) continue;
-        ctx.fillStyle = hex(citySandAt(c, r, tile) ? CITY_SAND : (colors[tile] ?? 0xd2c6b2));
-        ctx.fillRect(c - 0.025, r - 0.025, 1.05, 1.05);
+        const tile = surfaceAt(c, r);
+        if (isShallowsBeach(c, r) || seafrontColumn(c)?.deck === r) continue;
+        if (isWater(tile)) {
+          for (const corner of coastTileCorners(c, r)) {
+            const { dry, vertex } = corner;
+            ctx.fillStyle = hex(cityGroundColor(dry.tile, dry.c, dry.r));
+            const path = cornerPath(corner);
+            path.lineTo(vertex.x, vertex.y);
+            ctx.fill(path);
+          }
+        } else {
+          ctx.fillStyle = hex(cityGroundColor(tile, c, r));
+          if (coastTileCorners(c, r).length === 0) ctx.fillRect(c - 0.025, r - 0.025, 1.05, 1.05);
+          else ctx.fill(outlinePath(coastTileOutline(c, r)));
+        }
       }
     }
+    paintWaterfrontSand(ctx, 0, 0, CITY_MAP.width, false);
+    paintHarborTimber(ctx, 0, 0, CITY_MAP.width, false);
     scene.textures.addCanvas(key, canvas);
   }
   return scene.add.image(bounds.x, 0, key).setOrigin(0).setScale(1 / scale).setDepth(-1);
 }
 // How far from land, in tiles, the sea reaches its deepest blue.
 const SEA_DEPTH_TILES = 4;
+let seaColors: HTMLCanvasElement | null = null;
 
-// One pixel per tile of sea colour around a chunk, deeper away from land; drawn scaled up, the browser blends it.
-function seaLayer(c0: number, r0: number): HTMLCanvasElement {
-  const n = CHUNK + 2;
+// One sample per tile for the whole harbour. Every chunk interpolates the same water colours.
+function seaLayer(): HTMLCanvasElement {
+  if (seaColors !== null) return seaColors;
   const canvas = document.createElement('canvas');
-  canvas.width = n;
-  canvas.height = n;
+  canvas.width = CITY_MAP.width + 2;
+  canvas.height = CITY_MAP.height + 2;
   const ctx = canvas.getContext('2d');
   if (ctx === null) throw new Error('no 2d canvas');
   const reach = SEA_DEPTH_TILES;
-  for (let j = 0; j < n; j++) {
-    for (let i = 0; i < n; i++) {
-      const c = c0 - 1 + i;
-      const r = r0 - 1 + j;
-      let near = reach;
-      for (let dr = -reach; dr <= reach; dr++) {
-        for (let dc = -reach; dc <= reach; dc++) if (!isWater(at(c + dc, r + dr))) near = Math.min(near, Math.hypot(dc, dr) - 0.5);
+  for (let j = 0; j < canvas.height; j++) {
+    for (let i = 0; i < canvas.width; i++) {
+      const c = i - 1;
+      const r = j - 1;
+      const front = seafrontColumn(c)?.edge[2];
+      if (front !== undefined && r + 0.5 >= front.y - 0.8) {
+        const depth = Math.max(0, r + 0.5 - front.y);
+        const reach = seafrontSandWidth(front.x);
+        const influence = Math.max(0, 1 - depth / (reach + 0.7));
+        const water = waterColor(Math.min(1, depth / SEA_DEPTH_TILES));
+        const sand = Math.min(0.54, reach * 0.43) * influence * influence;
+        ctx.fillStyle = hex(mix(water, 0xb6c9a4, sand));
+        ctx.fillRect(i, j, 1, 1);
+        continue;
       }
-      const d = Math.max(0, near) / reach;
-      const sea = d < 0.5 ? mix(SEA.shallow, SEA.mid, d * 2) : mix(SEA.mid, SEA.deep, (d - 0.5) * 2);
-      const beach = d < 0.5 && (
-        citySandAt(c - 1, r) || citySandAt(c + 1, r) || citySandAt(c, r + 1) || citySandAt(c, r - 1) ||
-        (at(c, r - 1) === '=' && at(c, r - 2) === '=' && citySandAt(c, r - 3))
-      );
-      ctx.fillStyle = hex(beach ? mix(0x87c3b6, sea, 0.2 + d * 1.6) : sea);
+      let near = reach;
+      let sandDistance = reach;
+      for (let dr = -reach; dr <= reach; dr++) {
+        for (let dc = -reach; dc <= reach; dc++) {
+          const t = at(c + dc, r + dr);
+          if (isWater(t)) continue;
+          const distance = Math.max(0, Math.hypot(dc, dr) - 0.5);
+          near = Math.min(near, distance);
+          if (citySandAt(c + dc, r + dr, t)) sandDistance = Math.min(sandDistance, distance);
+        }
+      }
+      const sea = waterColor(near / reach);
+      const sand = Math.max(0, 1 - sandDistance / 2.9);
+      ctx.fillStyle = hex(mix(sea, 0xa4c9b3, 0.53 * sand * sand));
       ctx.fillRect(i, j, 1, 1);
     }
   }
+  seaColors = canvas;
   return canvas;
+}
+
+function waterColor(depth: number): number {
+  return depth < 0.5 ? mix(SEA.shallow, SEA.mid, depth * 2) : mix(SEA.mid, SEA.deep, (depth - 0.5) * 2);
 }
 
 // The sea under the chunk's water tiles and its ring's, and nowhere else, so it never shows past a land tile's edge.
@@ -149,34 +206,182 @@ function seaUnderWater(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number)
   ctx.save();
   ctx.beginPath();
   for (let r = r0 - 1; r <= r0 + CHUNK; r++) {
-    for (let c = c0 - 1; c <= c0 + CHUNK; c++) if (isWater(at(c, r))) ctx.rect(c - 0.01, r - 0.01, 1.02, 1.02);
+    for (let c = c0 - 1; c <= c0 + CHUNK; c++) {
+      if (isWater(surfaceAt(c, r)) || seafrontColumn(c)?.deck === r) ctx.rect(c - 0.01, r - 0.01, 1.02, 1.02);
+    }
   }
   ctx.clip();
-  drawSea(ctx, sea, c0, r0);
+  drawSea(ctx, sea);
   ctx.restore();
 }
 
-function drawSea(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number): void {
+function drawSea(ctx: Ctx, sea: HTMLCanvasElement): void {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(sea, c0 - 1, r0 - 1, CHUNK + 2, CHUNK + 2);
+  ctx.drawImage(sea, -1, -1, sea.width, sea.height);
 }
 
-function shorePath(beach: (typeof SHALLOWS_BEACHES)[number]): Path2D {
+function linePath(points: readonly { x: number; y: number }[]): Path2D {
   const path = new Path2D();
-  beach.shore.forEach(({ x, y }, i) => {
+  points.forEach(({ x, y }, i) => {
     if (i === 0) path.moveTo(x, y);
     else path.lineTo(x, y);
   });
+  return path;
+}
+
+function outlinePath(points: readonly { x: number; y: number }[]): Path2D {
+  const path = linePath(points);
   path.closePath();
   return path;
+}
+
+function paintHarborTimber(ctx: Ctx, c0: number, r0: number, size: number, detail = true): void {
+  const path = new Path2D();
+  const { left, top, width, height } = FERRY_LANDING;
+  const includesLanding = left < c0 + size && left + width > c0 && top < r0 + size && top + height > r0;
+  const bridges = seafrontBetween(c0, c0 + size - 1).filter(({ bridge, deck }) => bridge && deck - 2 < r0 + size && deck + 2 > r0);
+  if (!includesLanding && bridges.length === 0) return;
+  if (includesLanding) path.roundRect(left, top, width, height, 0.16);
+  if (bridges.length > 0) {
+    const edge = bridges.flatMap(({ edge }, i) => i === 0 ? edge : edge.slice(1));
+    const inside = bridges.flatMap(({ inner }, i) => i === 0 ? inner : inner.slice(1));
+    path.addPath(outlinePath([...edge, ...inside.reverse()]));
+  }
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(c0, r0, size, size);
+  ctx.clip();
+  ctx.fillStyle = hex(0xa68d73);
+  ctx.fill(path);
+  if (detail) {
+    ctx.save();
+    ctx.clip(path);
+    for (const { c, deck } of seafrontBetween(c0, c0 + size - 1)) {
+      if (!bridges.some((b) => b.c === c) && (!includesLanding || c + 1 <= left || c >= left + width)) continue;
+      for (let rr = Math.max(r0, Math.min(deck - 2, Math.floor(top))); rr <= Math.max(deck + 1, Math.ceil(top + height)) && rr < r0 + size; rr++) {
+        paintSurface(ctx, '=', c, rr, false);
+      }
+    }
+    ctx.fillStyle = hex(0xa68d73, 0.48);
+    ctx.fillRect(c0, r0, size, size);
+    ctx.restore();
+    ctx.strokeStyle = hex(0x766048, 0.78);
+    ctx.lineWidth = 0.055;
+    ctx.stroke(path);
+  }
+  ctx.restore();
+}
+
+function paintWaterfrontSand(ctx: Ctx, c0: number, r0: number, size: number, detail = true): void {
+  const spots: { c: number; r: number; alpha: number }[] = [];
+  const mask = new Path2D();
+  const columns = seafrontBetween(c0, c0 + size - 1);
+  for (const { c, deck, edge, inner, bridge } of columns) {
+    if (!bridge && deck - 2 < r0 + size && deck + 2 > r0) {
+      mask.addPath(outlinePath([...inner.map(({ x, y }) => ({ x, y: y - 0.19 })), ...[...edge].reverse()]));
+    }
+    for (let r = Math.max(r0, deck - 5); r <= deck + 1 && r < r0 + size; r++) {
+      const inland = inlandSandAt(c, r, surfaceAt(c, r));
+      if (inland) mask.addPath(outlinePath(coastTileOutline(c, r)));
+      if (!inland && (bridge || r < deck - 2)) continue;
+      spots.push({ c, r, alpha: inlandSandOpacity(c + 0.5, r + 0.5) });
+    }
+  }
+  if (spots.length === 0) return;
+  const left = Math.min(...spots.map(({ c }) => c));
+  const right = 1 + Math.max(...spots.map(({ c }) => c));
+  const top = Math.min(...spots.map(({ r }) => r));
+  const bottom = 1 + Math.max(...spots.map(({ r }) => r));
+  // Extra samples around the clipped region keep the gradient identical where chunks meet.
+  const samples = 6;
+  const pad = 1;
+  const blend = document.createElement('canvas');
+  blend.width = (right - left + pad * 2) * samples;
+  blend.height = (bottom - top + pad * 2) * samples;
+  const pixels = blend.getContext('2d');
+  if (pixels === null) throw new Error('no 2d canvas');
+  const data = pixels.createImageData(blend.width, blend.height);
+  for (let j = 0; j < blend.height; j++) {
+    const y = top - pad + (j + 0.5) / samples;
+    for (let i = 0; i < blend.width; i++) {
+      const x = left - pad + (i + 0.5) / samples;
+      const offset = (j * blend.width + i) * 4;
+      const grain = Math.sin(x * 4.1 + y * 5.3) * Math.sin(y * 2.2 - x * 3.4);
+      const tone = mix(CITY_SAND, CITY_WET_SAND, wetSandAt(x, y));
+      data.data[offset] = (tone >> 16) + grain * 3;
+      data.data[offset + 1] = ((tone >> 8) & 255) + grain * 4;
+      data.data[offset + 2] = (tone & 255) + grain * 3;
+      data.data[offset + 3] = Math.round(255 * inlandSandOpacity(x, y));
+    }
+  }
+  pixels.putImageData(data, 0, 0);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(c0, r0, size, size);
+  ctx.clip();
+  ctx.save();
+  ctx.clip(mask);
+  ctx.drawImage(blend, left - pad, top - pad, blend.width / samples, blend.height / samples);
+  if (detail) for (const { c, r, alpha } of spots) {
+    if (alpha < 0.12) continue;
+    ctx.globalAlpha = alpha * (1 - 0.55 * wetSandAt(c + 0.5, r + 0.5));
+    paintSandGrain(ctx, c, r, rng(c * 7919 + r * 104729));
+  }
+  ctx.restore();
+  if (detail) {
+    for (const [distance, opacity] of [[0.075, 0.52], [0.24, 0.21]] as const) {
+      const foam = new Path2D();
+      let drawing = false;
+      for (const { edge, bridge } of columns) for (const { x, y } of edge) {
+        const open = !bridge && Math.cos(x * 0.97 + distance * 13) + 0.25 * Math.sin(x * 2.57) > -0.34;
+        const wash = y + distance + 0.035 * Math.sin(x * 2.2 + distance * 11);
+        if (open && drawing) foam.lineTo(x, wash);
+        else if (open) foam.moveTo(x, wash);
+        drawing = open;
+      }
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 0.029;
+      ctx.strokeStyle = hex(0xe8f8e6, opacity);
+      ctx.stroke(foam);
+    }
+  }
+  ctx.restore();
+}
+
+/** The street and ferry share the textured sand and the small timber landings. */
+export function cityFerrySand(scene: Phaser.Scene, origin: Vec2): Phaser.GameObjects.Image {
+  const columns = seafrontBetween(0, CITY_MAP.width);
+  const c0 = columns[0]?.c ?? 0;
+  const c1 = (columns.at(-1)?.c ?? CITY_MAP.width - 1) + 1;
+  const rows = columns.map(({ deck }) => deck);
+  const r0 = Math.min(...rows) - 6;
+  const r1 = Math.max(...rows) + 3;
+  const left = P(c0, r1).x;
+  const top = P(c0, r0).y;
+  const width = P(c1, r0).x - left;
+  const height = P(c1, r1).y - top;
+  const scale = 0.46;
+  const key = 'city-ferry-sand';
+  if (!scene.textures.exists(key)) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(width * scale);
+    canvas.height = Math.ceil(height * scale);
+    const ctx = canvas.getContext('2d');
+    if (ctx === null) throw new Error('no 2d canvas');
+    ctx.setTransform(TILE_W * scale / 2, TILE_H * scale / 2, -TILE_W * scale / 2, TILE_H * scale / 2, -left * scale, -top * scale);
+    paintWaterfrontSand(ctx, c0, r0, c1 - c0);
+    paintHarborTimber(ctx, c0, r0, c1 - c0);
+    scene.textures.addCanvas(key, canvas);
+  }
+  return scene.add.image(left - origin.x, top - origin.y, key).setOrigin(0).setScale(1 / scale);
 }
 
 function paintShallowsShore(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number): void {
   for (const beach of SHALLOWS_BEACHES) {
     const b = beach.box;
     if (b.c1 < c0 - 2 || b.r1 < r0 - 2 || b.c0 > c0 + CHUNK + 1 || b.r0 > r0 + CHUNK + 1) continue;
-    const shore = shorePath(beach);
+    const shore = outlinePath(beach.shore);
     const rim = new Path2D();
     rim.rect(b.c0 - 0.06, b.r0 - 0.06, b.c1 - b.c0 + 1.12, b.r1 - b.r0 + 1.12);
     rim.addPath(shore);
@@ -201,7 +406,7 @@ function paintShallowsShore(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: nu
     }
     ctx.clip();
     ctx.clip(rim, 'evenodd');
-    drawSea(ctx, sea, c0, r0);
+    drawSea(ctx, sea);
     ctx.restore();
     ctx.lineJoin = 'round';
     ctx.save();
@@ -220,14 +425,14 @@ function paintShallowsShore(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: nu
 }
 
 function paintTile(ctx: Ctx, c: number, r: number): void {
-  const tile = at(c, r);
+  if (seafrontColumn(c)?.deck === r) return;
+  const tile = surfaceAt(c, r);
   paintSurface(ctx, tile, c, r, citySandAt(c, r, tile));
 }
 
 // Paints one kind of ground over a tile; the coast pass also uses it to fill half a tile with its neighbour's ground.
 function paintSurface(ctx: Ctx, t: string, c: number, r: number, sand: boolean): void {
   const rand = rng(c * 7919 + r * 104729);
-  const district = districtAt({ x: c + 0.5, y: r + 0.5 })?.id ?? 'saltmarket';
   const tile = (color: number): void => {
     ctx.fillStyle = hex(color);
     ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
@@ -244,24 +449,18 @@ function paintSurface(ctx: Ctx, t: string, c: number, r: number, sand: boolean):
     const water = [at(c - 1, r), at(c + 1, r), at(c, r - 1), at(c, r + 1)].includes('~');
     tile(0x5a3c30);
     paintPlanks(ctx, c, r, rand, water);
-    // A dark edge beam wherever the deck ends over water.
-    ctx.fillStyle = hex(0x4a3026);
-    if (isWater(at(c + 1, r))) ctx.fillRect(c + 0.94, r, 0.06, 1);
-    if (isWater(at(c - 1, r))) ctx.fillRect(c, r, 0.06, 1);
-    if (isWater(at(c, r + 1))) ctx.fillRect(c, r + 0.94, 1, 0.06);
-    if (isWater(at(c, r - 1))) ctx.fillRect(c, r, 1, 0.06);
     return;
   }
   if (t === ':') {
     paintRoad(ctx, c, r, rand);
     return;
   }
-  if (t === ',' || (t === 'T' && [at(c - 1, r), at(c + 1, r), at(c, r - 1), at(c, r + 1)].includes(','))) {
+  if (parkGround(t, c, r)) {
     paintGrass(ctx, c, r, rand);
     return;
   }
   if (t === 'd' || t === 'M') {
-    tile(jitter(0x9a8060, rand, 0.07));
+    tile(jitter(DIRT, rand, 0.07));
     for (let i = 0; i < 18; i++) {
       ctx.fillStyle = rand() > 0.5 ? 'rgba(70,50,35,0.35)' : 'rgba(230,210,170,0.25)';
       ctx.fillRect(c + rand(), r + rand(), 0.04, 0.03);
@@ -274,26 +473,16 @@ function paintSurface(ctx: Ctx, t: string, c: number, r: number, sand: boolean):
     }
     return;
   }
-  paintPavement(ctx, c, r, rand, PAVEMENT[district]);
+  paintPavement(ctx, c, r, rand, pavementColor(c, r));
 }
 
 function paintCitySand(ctx: Ctx, c: number, r: number, rand: () => number): void {
   ctx.fillStyle = hex(jitter(CITY_SAND, rand, 0.035));
   ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
-  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-    const other = at(c + dx, r + dy);
-    const water = isWater(other);
-    if (water ? isShallowsBeach(c, r) : other !== ',' || citySandAt(c + dx, r + dy, other)) continue;
-    const color = water ? CITY_WET_SAND : 0x92b96f;
-    const x = c + 0.5 + dx * 0.5;
-    const y = r + 0.5 + dy * 0.5;
-    const reach = water ? 0.38 : 0.64;
-    const damp = ctx.createLinearGradient(x, y, x - dx * reach, y - dy * reach);
-    damp.addColorStop(0, hex(color, water ? 1 : 0.85));
-    damp.addColorStop(1, hex(color, 0));
-    ctx.fillStyle = damp;
-    ctx.fillRect(c, r, 1, 1);
-  }
+  paintSandGrain(ctx, c, r, rand);
+}
+
+function paintSandGrain(ctx: Ctx, c: number, r: number, rand: () => number): void {
   for (let i = 0; i < 45; i++) {
     ctx.fillStyle = rand() > 0.5 ? 'rgba(255,250,230,0.48)' : 'rgba(157,106,57,0.24)';
     ctx.fillRect(c + rand(), r + rand(), 0.022, 0.016);
@@ -366,7 +555,7 @@ function paintPavement(ctx: Ctx, c: number, r: number, rand: () => number, base:
 
 // A lawn mown in stripes, with clumps, blades and the odd flower.
 function paintGrass(ctx: Ctx, c: number, r: number, rand: () => number): void {
-  const base = (c + r) % 2 === 0 ? 0x8cb868 : 0x86b062;
+  const base = grassColor(c, r);
   ctx.fillStyle = hex(jitter(base, rand, 0.04));
   ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
   for (let i = 0; i < 5; i++) {
@@ -405,115 +594,78 @@ function paintWaves(ctx: Ctx, c: number, r: number, rand: () => number): void {
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
     ctx.fillRect(c + rand(), r + rand(), 0.03, 0.015);
   }
-  const shore = (dc: number, dr: number): boolean => !isWater(at(c + dc, r + dr));
+}
+
+function paintCoastEdges(ctx: Ctx, c: number, r: number): void {
   for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-    if (!shore(dc, dr)) continue;
-    if (at(c + dc, r + dr) === '=') deckShadow(ctx, c, r, dc, dr);
-    else if (!isShallowsBeach(c + dc, r + dr)) foamAlong(ctx, c, r, dc, dr, rand, 1);
+    const edge = at(c + dc, r + dr);
+    if (isWater(edge) || isShallowsBeach(c + dc, r + dr) || isSeafrontDeck(c + dc, r + dr)) continue;
+    const [a, b] = coastEdge(c + Math.max(0, dc), r + Math.max(0, dr), dc !== 0);
+    if (edge === '=') {
+      const shade = ctx.createLinearGradient(a.x, a.y, a.x - dc * 0.3, a.y - dr * 0.3);
+      shade.addColorStop(0, 'rgba(8,28,48,0.45)');
+      shade.addColorStop(1, 'rgba(8,28,48,0)');
+      ctx.fillStyle = shade;
+      if (dc !== 0) ctx.fillRect(a.x - Math.max(0, dc) * 0.3, a.y, 0.3, b.y - a.y);
+      else ctx.fillRect(a.x, a.y - Math.max(0, dr) * 0.3, b.x - a.x, 0.3);
+      ctx.strokeStyle = '#4a3026';
+      ctx.lineWidth = 0.065;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      continue;
+    }
+    for (const [off, alpha, width] of [[0.02, 0.45, 0.035], [0.16, 0.18, 0.02]] as const) {
+      const ax = a.x - dc * off;
+      const ay = a.y - dr * off;
+      const bx = b.x - dc * off;
+      const by = b.y - dr * off;
+      ctx.strokeStyle = hex(0xf0fcff, alpha);
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo((ax + bx) * 0.5 - dc * 0.038, (ay + by) * 0.5 - dr * 0.038, bx, by);
+      ctx.stroke();
+    }
   }
 }
 
-// The shade a deck throws on the water beside it, fading out from under its edge.
-function deckShadow(ctx: Ctx, c: number, r: number, dc: number, dr: number): void {
-  const w = 0.3;
-  const x0 = dc > 0 ? c + 1 : c;
-  const y0 = dr > 0 ? r + 1 : r;
-  const g = dc !== 0 ? ctx.createLinearGradient(x0, r, x0 - dc * w, r) : ctx.createLinearGradient(c, y0, c, y0 - dr * w);
-  g.addColorStop(0, 'rgba(8,28,48,0.42)');
-  g.addColorStop(1, 'rgba(8,28,48,0)');
-  ctx.fillStyle = g;
-  if (dc !== 0) ctx.fillRect(dc > 0 ? x0 - w : x0, r, w, 1);
-  else ctx.fillRect(c, dr > 0 ? y0 - w : y0, 1, w);
+function cornerPath({ from, vertex, to }: CoastCorner): Path2D {
+  const path = new Path2D();
+  path.moveTo(from.x, from.y);
+  path.quadraticCurveTo(vertex.x, vertex.y, to.x, to.y);
+  return path;
 }
 
-// Two soft lines of foam just off one edge of a water tile, where it laps against the land.
-function foamAlong(ctx: Ctx, c: number, r: number, dc: number, dr: number, rand: () => number, strength: number): void {
-  for (const [off, alpha, width] of [[0.07, 0.55, 0.05], [0.2, 0.22, 0.03]] as const) {
-    ctx.strokeStyle = `rgba(240,252,255,${String(alpha * strength)})`;
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    const wob = (): number => (rand() - 0.5) * 0.06;
-    if (dc !== 0) {
-      const x = dc > 0 ? c + 1 - off : c + off;
-      ctx.moveTo(x + wob(), r);
-      ctx.bezierCurveTo(x + wob(), r + 0.33, x + wob(), r + 0.66, x + wob(), r + 1);
-    } else {
-      const y = dr > 0 ? r + 1 - off : r + off;
-      ctx.moveTo(c, y + wob());
-      ctx.bezierCurveTo(c + 0.33, y + wob(), c + 0.66, y + wob(), c + 1, y + wob());
-    }
-    ctx.stroke();
+function paintCoastCorner(ctx: Ctx, sea: HTMLCanvasElement, corner: CoastCorner): void {
+  const { dry, from, to, vertex } = corner;
+  const curve = cornerPath(corner);
+  const patch = new Path2D(curve);
+  if (corner.water) patch.lineTo(vertex.x, vertex.y);
+  else {
+    // The base tile bleeds a little to cover texture seams. Clear that bleed at the rounded tip.
+    const x = vertex.x - Math.sign(from.x - vertex.x) * 0.035;
+    const y = vertex.y - Math.sign(to.y - vertex.y) * 0.035;
+    patch.lineTo(x, to.y);
+    patch.lineTo(x, y);
+    patch.lineTo(from.x, y);
   }
+  patch.closePath();
+  ctx.save();
+  ctx.clip(patch);
+  if (corner.water) paintSurface(ctx, dry.tile, corner.c, corner.r, citySandAt(dry.c, dry.r, dry.tile));
+  else drawSea(ctx, sea);
+  ctx.restore();
+  const dock = dry.tile === '=';
+  ctx.strokeStyle = dock ? '#4a3026' : hex(0xf0fcff, 0.45);
+  ctx.lineWidth = dock ? 0.065 : 0.035;
+  ctx.stroke(curve);
 }
-
-// The four corners of a tile a coast can be cut across: the two sides it faces, and the triangle on that side.
-const CORNERS = [
-  { sides: [[1, 0], [0, 1]], tri: [[1, 0], [1, 1], [0, 1]] },
-  { sides: [[-1, 0], [0, 1]], tri: [[0, 0], [0, 1], [1, 1]] },
-  { sides: [[1, 0], [0, -1]], tri: [[0, 0], [1, 0], [1, 1]] },
-  { sides: [[-1, 0], [0, -1]], tri: [[1, 0], [0, 0], [0, 1]] },
-] as const;
-
-// Cuts the coastline's tile steps into diagonals: a land corner sticking into the sea is cut back to water, and a
-// water corner tucked into the land is filled with the land beside it, so the shore runs smooth.
-function smoothCoast(ctx: Ctx, sea: HTMLCanvasElement, c0: number, r0: number, c: number, r: number): void {
-  const t = at(c, r);
-  const wet = isWater(t);
-  if (!wet && (!COAST_LAND.has(t) || isShallowsBeach(c, r))) return;
-  const other = (dc: number, dr: number): boolean => isWater(at(c + dc, r + dr)) !== wet;
-  for (const corner of CORNERS) {
-    const [a, b] = corner.sides;
-    if (!other(a[0], a[1]) || !other(b[0], b[1])) continue;
-    if (other(-a[0], -a[1]) || other(-b[0], -b[1])) continue;
-    // Only a step in a sloping shore, not the square end of a pier or a lone rock.
-    if (other(a[0] - b[0], a[1] - b[1]) && other(b[0] - a[0], b[1] - a[1])) continue;
-    if (wet && !other(a[0] + b[0], a[1] + b[1])) continue;
-    // A boardwalk is built square: its steps stay, so a deck is never cut or grown.
-    if (wet && [at(c + a[0], r + a[1]), at(c + b[0], r + b[1])].includes('=')) continue;
-    if (wet && (isShallowsBeach(c + a[0], r + a[1]) || isShallowsBeach(c + b[0], r + b[1]))) continue;
-    const pts = corner.tri.map(([x, y]) => [c + x, r + y] as const);
-    ctx.save();
-    ctx.beginPath();
-    for (const [i, [x, y]] of pts.entries()) {
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.clip();
-    const shoreTile = wet ? at(c + a[0], r + a[1]) : t;
-    const sand = wet ? citySandAt(c + a[0], r + a[1], shoreTile) : citySandAt(c, r, t);
-    if (wet) {
-      paintSurface(ctx, shoreTile, c, r, sand);
-    } else {
-      drawSea(ctx, sea, c0, r0);
-      paintWaves(ctx, c, r, rng(c * 31 + r * 17));
-    }
-    ctx.restore();
-    const [p, , q] = pts;
-    if (p === undefined || q === undefined) continue;
-    ctx.strokeStyle = sand ? hex(CITY_WET_SAND) : hex(0x7a7080);
-    ctx.lineWidth = sand ? 0.075 : 0.12;
-    ctx.beginPath();
-    ctx.moveTo(p[0], p[1]);
-    ctx.lineTo(q[0], q[1]);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(240,252,255,0.45)';
-    ctx.lineWidth = 0.05;
-    const nx = (a[0] + b[0]) * (wet ? -0.09 : 0.09);
-    const ny = (a[1] + b[1]) * (wet ? -0.09 : 0.09);
-    ctx.beginPath();
-    ctx.moveTo(p[0] + nx, p[1] + ny);
-    ctx.lineTo(q[0] + nx, q[1] + ny);
-    ctx.stroke();
-  }
-}
-
-// Open ground a coast corner may be cut out of: pavement, lawns, roads, boardwalks and the tip.
-const COAST_LAND: ReadonlySet<string> = new Set(['.', 'T', 'L', ',', ':', 'd']);
 
 // Asphalt with grain, darker tyre lanes, white edge lines, the odd crack, drain and manhole, and zebra crossings.
 function paintRoad(ctx: Ctx, c: number, r: number, rand: () => number): void {
-  ctx.fillStyle = hex(jitter(0x524d5a, rand, 0.025));
+  ctx.fillStyle = hex(jitter(ASPHALT, rand, 0.025));
   ctx.fillRect(c - 0.01, r - 0.01, 1.02, 1.02);
   for (let i = 0; i < 40; i++) {
     ctx.fillStyle = rand() > 0.5 ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.07)';

@@ -6,8 +6,10 @@ import { CITY_BUILDINGS, CITY_MAP, FERRY_TUNING, type FerryIsland } from '@byzan
 import { colorNumber, getShop } from '@byzantine-council/shared/economy';
 import { BEACH_LANDMARKS, BEACH_MAP, HOME_HUT, SHOP_BOOTHS } from '@byzantine-council/shared/hub';
 import { P, drawBeachLandmark, drawHut, drawPalm, fan, prism } from '../beach/beachArt.js';
-import { buildingFront, drawBuilding } from '../city/cityArt.js';
+import { buildingFront, cityFerrySand, cityGroundColor, drawBuilding } from '../city/cityArt.js';
 import { CITY_SAND, SHALLOWS_BEACHES, citySandAt, isShallowsBeach } from '../city/cityBeach.js';
+import { coastCurve, coastEdge, coastTileCorners, coastTileOutline } from '../city/cityCoast.js';
+import { seafrontBank, seafrontBetween, seafrontColumn, seafrontSandWidth } from '../city/citySeafront.js';
 import { ART_SCALE, TILE_H, worldToScreen } from '../game/iso.js';
 import { shade } from '../game/palette.js';
 
@@ -22,9 +24,6 @@ interface Window {
   readonly anchor: Vec2;
 }
 
-const CITY_GROUND: Readonly<Record<string, number>> = {
-  '.': 0xd9ccb4, ':': 0x5f5866, ',': 0x8fb86a, d: 0x9a8060, '=': 0xb8845a, B: 0xd9ccb4, T: 0x86b062, L: 0xd9ccb4, C: 0xd9ccb4, M: 0x9a8060,
-};
 const BEACH_GROUND: Readonly<Record<string, number>> = {
   '.': 0xf1d9a6, ',': 0xaac47d, d: 0xdcc6ac, '=': 0xb8845a, T: 0xf1d9a6, H: 0xf1d9a6, R: 0xf1d9a6, U: 0xf1d9a6, L: 0xf1d9a6,
 };
@@ -38,6 +37,35 @@ function windowFor(island: FerryIsland): Window {
 }
 
 const land = (t: string): boolean => t !== '~' && t !== '#' && t !== '';
+const projection = ({ x, y }: Vec2): Phaser.Math.Vector2 => {
+  const p = P(x, y);
+  return new Phaser.Math.Vector2(p.x, p.y);
+};
+
+function coastFace(g: G, a: Vec2, b: Vec2, depth: number, color: number): void {
+  fan(g, color, [P(a.x, a.y), P(b.x, b.y), P(b.x, b.y, -depth), P(a.x, a.y, -depth)]);
+}
+
+function curvedCoastFace(g: G, curve: readonly Vec2[], depth: number, color: number): void {
+  for (const [i, a] of curve.entries()) {
+    const b = curve[i + 1];
+    if (b !== undefined) coastFace(g, a, b, depth, color);
+  }
+}
+
+function drawShoreWater(g: G, c0: number, c1: number): void {
+  for (const { edge, bridge } of seafrontBetween(c0, c1)) {
+    if (bridge) continue;
+    for (const [i, a] of edge.entries()) {
+      const b = edge[i + 1];
+      if (b === undefined) continue;
+      const wa = seafrontSandWidth(a.x);
+      const wb = seafrontSandWidth(b.x);
+      fan(g, 0x9bccba, [P(a.x, a.y), P(b.x, b.y), P(b.x, b.y + wb), P(a.x, a.y + wa)], 0.15);
+      fan(g, 0xc6d3a7, [P(a.x, a.y), P(b.x, b.y), P(b.x, b.y + wb * 0.48), P(a.x, a.y + wa * 0.48)], 0.21);
+    }
+  }
+}
 
 /** Draws an island's coast into a new container whose origin is the point nearest the ferry. */
 export function buildCoast(scene: Phaser.Scene, island: FerryIsland): Phaser.GameObjects.Container {
@@ -47,28 +75,54 @@ export function buildCoast(scene: Phaser.Scene, island: FerryIsland): Phaser.Gam
   const ground = scene.add.graphics().setPosition(-origin.x, -origin.y);
   root.add(ground);
   const at = (c: number, r: number): string => tileAt(win.map, c, r);
-  const colors = island === 'city' ? CITY_GROUND : BEACH_GROUND;
-  if (island === 'city') {
+  const city = island === 'city';
+  if (city) {
     for (const beach of SHALLOWS_BEACHES) {
-      const points = beach.shore.map(({ x, y }) => {
-        const p = P(x, y);
-        return new Phaser.Math.Vector2(p.x, p.y);
-      });
+      const points = beach.shore.map(projection);
       ground.fillStyle(CITY_SAND, 1).fillPoints(points, true);
       ground.lineStyle(1.8 * ART_SCALE, 0xffeed2, 0.75).strokePoints(points, true);
     }
   }
   for (let r = win.r0; r <= win.r1; r++) {
     for (let c = win.c0; c <= win.c1; c++) {
-      const t = at(c, r);
-      if (!land(t) || (island === 'city' && isShallowsBeach(c, r))) continue;
-      const sand = island === 'city' && citySandAt(c, r, t);
-      const color = sand ? CITY_SAND : (colors[t] ?? 0xd9ccb4);
-      fan(ground, color, [P(c, r), P(c + 1, r), P(c + 1, r + 1), P(c, r + 1)]);
+      const t = (city ? seafrontBank(c, r) : undefined) ?? at(c, r);
+      if (city && (isShallowsBeach(c, r) || seafrontColumn(c)?.deck === r)) continue;
+      if (!land(t)) {
+        if (city) for (const corner of coastTileCorners(c, r)) {
+          const { dry } = corner;
+          const sand = citySandAt(dry.c, dry.r, dry.tile);
+          const color = cityGroundColor(dry.tile, dry.c, dry.r);
+          const curve = coastCurve(corner);
+          fan(ground, color, [projection(corner.vertex), ...curve.map(projection)]);
+          if (corner.from.x > corner.vertex.x || corner.to.y > corner.vertex.y) {
+            curvedCoastFace(ground, curve, dry.tile === '=' || sand ? CLIFF / 3 : CLIFF, shade(color, 0.4));
+          }
+        }
+        continue;
+      }
+      const sand = city && citySandAt(c, r, t);
+      const color = city ? cityGroundColor(t, c, r) : (BEACH_GROUND[t] ?? 0xd9ccb4);
+      const outline = city ? coastTileOutline(c, r).map(projection) : [P(c, r), P(c + 1, r), P(c + 1, r + 1), P(c, r + 1)];
+      fan(ground, color, outline);
       const depth = t === '=' || sand ? CLIFF / 3 : CLIFF;
-      if (!land(at(c, r + 1))) fan(ground, shade(color, 0.35), [P(c, r + 1), P(c + 1, r + 1), P(c + 1, r + 1, -depth), P(c, r + 1, -depth)]);
-      if (!land(at(c + 1, r))) fan(ground, shade(color, 0.5), [P(c + 1, r), P(c + 1, r + 1), P(c + 1, r + 1, -depth), P(c + 1, r, -depth)]);
+      if (!land(at(c, r + 1))) {
+        const [a, b] = city ? coastEdge(c, r + 1, false) : [{ x: c, y: r + 1 }, { x: c + 1, y: r + 1 }];
+        coastFace(ground, a, b, depth, shade(color, 0.35));
+      }
+      if (!land(at(c + 1, r))) {
+        const [a, b] = city ? coastEdge(c + 1, r, true) : [{ x: c + 1, y: r }, { x: c + 1, y: r + 1 }];
+        coastFace(ground, a, b, depth, shade(color, 0.5));
+      }
+      if (city) for (const corner of coastTileCorners(c, r)) {
+        if (corner.vertex.x === c + 1 || corner.vertex.y === r + 1) {
+          curvedCoastFace(ground, coastCurve(corner), depth, shade(color, 0.4));
+        }
+      }
     }
+  }
+  if (city) {
+    drawShoreWater(ground, win.c0, win.c1);
+    root.add(cityFerrySand(scene, origin));
   }
   const props: { depth: number; draw: (g: G) => void; at?: Vec2 }[] = [];
   if (island === 'city') {
