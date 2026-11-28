@@ -1,17 +1,24 @@
 import type { ColyseusTestServer } from '@colyseus/testing';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { BEACH_MESSAGES, BEACH_ROOM, CourierRefusedSchema, EmoteLineSchema, HubState } from '@byzantine-council/shared/hub';
-import { MemoryProfileStore } from '../src/profile/store.js';
+import { CLOSE_CODES } from '@byzantine-council/shared';
+import { MemoryProfileStore, type Change, type ChangeOutcome, type ProfileData } from '../src/profile/store.js';
 import { COOKIE_NAME, type SessionKeys } from '../src/profile/session.js';
 import { ORIGIN, freshIp, sdk, startServer, waitFor } from './helpers.js';
 
 const PORT = 3893;
 const BASE = `http://127.0.0.1:${String(PORT)}`;
 const keys: SessionKeys = { current: Buffer.from('b'.repeat(32)), previous: null, secure: false };
+class OpenedStore extends MemoryProfileStore {
+  override change<R>(id: string, key: string | null, nowMs: number, fn: (data: ProfileData) => Change<R>): Promise<ChangeOutcome<R>> {
+    return super.change(id, key, nowMs, (data) => fn({ ...data, progress: { ...data.progress, academy: data.progress.academy.map((_, i) => (i < 2 ? 2 : 0)) } }));
+  }
+}
+
 let colyseus: ColyseusTestServer;
 
 beforeAll(async () => {
-  ({ colyseus } = await startServer(PORT, { maxSeatsPerIp: 64, profiles: { store: new MemoryProfileStore(), keys } }));
+  ({ colyseus } = await startServer(PORT, { maxSeatsPerIp: 64, profiles: { store: new OpenedStore(), keys } }));
 });
 afterEach(async () => {
   await colyseus.cleanup();
@@ -30,10 +37,17 @@ function post(path: string, body: unknown, cookie: string): Promise<Response> {
   return fetch(`${BASE}${path}`, { method: 'POST', headers: { origin: ORIGIN, 'content-type': 'application/json', 'x-real-ip': freshIp(), cookie }, body: JSON.stringify(body) });
 }
 
+const visit = (nickname: string, cookie: string) => sdk(PORT, { cookie }).joinOrCreate<HubState>(BEACH_ROOM, { nickname }, HubState);
+
 describe('Beach Town', () => {
+  it('turns away anyone without a profile, whatever the way in', async () => {
+    await expect(sdk(PORT).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Sneak' }, HubState)).rejects.toMatchObject({ code: CLOSE_CODES.ISLAND_LOCKED });
+    await expect(sdk(PORT, { cookie: `${COOKIE_NAME}=forged` }).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Forger' }, HubState)).rejects.toMatchObject({ code: CLOSE_CODES.ISLAND_LOCKED });
+  });
+
   it('lets guests in, together, and keeps them on the island', async () => {
-    const a = await sdk(PORT).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Surfer' }, HubState);
-    const b = await sdk(PORT).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Cook' }, HubState);
+    const a = await visit('Surfer', await guest());
+    const b = await visit('Cook', await guest());
     expect(b.roomId).toBe(a.roomId);
     await waitFor(() => a.state.players.size === 2, 'both in town');
     // Walk south into the lagoon for two seconds: the shore stops the guardian.
@@ -43,7 +57,7 @@ describe('Beach Town', () => {
   });
 
   it('only gives courier jobs at a shop counter and refuses deliveries without one', async () => {
-    const room = await sdk(PORT).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Runner' }, HubState);
+    const room = await visit('Runner', await guest());
     const refusals: string[] = [];
     room.onMessage(BEACH_MESSAGES.REFUSED, (p: unknown) => refusals.push(CourierRefusedSchema.parse(p).reason));
     room.send('takeJob', { shop: 'cafe' });
@@ -53,8 +67,8 @@ describe('Beach Town', () => {
   });
 
   it('shares emotes with the town, paced per guardian', async () => {
-    const a = await sdk(PORT).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Waver' }, HubState);
-    const b = await sdk(PORT).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Watcher' }, HubState);
+    const a = await visit('Waver', await guest());
+    const b = await visit('Watcher', await guest());
     const seen: string[] = [];
     b.onMessage(BEACH_MESSAGES.EMOTE, (p: unknown) => seen.push(EmoteLineSchema.parse(p).emote));
     a.send('emote', { emote: 'wave' });

@@ -66,7 +66,8 @@ describe('the ferry', () => {
     const room = await sdk(PORT, { cookie }).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Ready', arrive: 'ferry' }, HubState);
     await waitFor(() => room.state.players.has(room.sessionId), 'in town');
     expect(near(room.state.players.get(room.sessionId), FERRY_TUNING.stops.beach.arrive)).toBe(true);
-    const walkIn = await sdk(PORT).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Stroller' }, HubState);
+    await expect(sdk(PORT).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Stroller' }, HubState)).rejects.toMatchObject({ code: CLOSE_CODES.ISLAND_LOCKED });
+    const walkIn = await sdk(PORT, { cookie }).joinOrCreate<HubState>(BEACH_ROOM, { nickname: 'Stroller' }, HubState);
     await waitFor(() => walkIn.state.players.has(walkIn.sessionId), 'stroller in town');
     expect(BEACH_SPAWNS.some((s) => near(walkIn.state.players.get(walkIn.sessionId), s))).toBe(true);
   });

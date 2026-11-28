@@ -147,12 +147,11 @@ export class BeachRoom extends Room<{ state: HubState; client: BeachClient }> {
     if (!parsed.success) throw new ServerError(ErrorCode.AUTH_FAILED, 'Invalid nickname.');
     const profiles = roomPolicy().profiles;
     const profileId = profiles === null ? null : profileIdFromCookieHeader(profiles.keys, context.headers.get('cookie'), Date.now());
-    const byFerry = parsed.data.arrive === 'ferry';
-    if (byFerry && !(await this.#openedBeach(profileId))) throw new ServerError(CLOSE_CODES.ISLAND_LOCKED, 'Beach Town is not open for this guardian yet.');
+    if (!(await this.#openedBeach(profileId))) throw new ServerError(CLOSE_CODES.ISLAND_LOCKED, 'Beach Town is not open for this guardian yet.');
     if (!(await holdSeat(roomPolicy().ipSlots, ipKey(context.ip), client.ref))) {
       throw new ServerError(CLOSE_CODES.TOO_MANY_CONNECTIONS, 'Too many players from your network.');
     }
-    return { nickname: parsed.data.nickname, profileId, byFerry };
+    return { nickname: parsed.data.nickname, profileId, byFerry: parsed.data.arrive === 'ferry' };
   }
 
   override onJoin(client: BeachClient): void {

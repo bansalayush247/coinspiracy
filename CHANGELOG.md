@@ -29,6 +29,8 @@
 - You step off at the other island's pier, and the ferry back leaves from the same spot.
 - Beach Town still opens at Rank 3 or with four Academy stars. Until then the button says it is locked and tells you
   what opens it.
+- The server now checks that lock on every way into Beach Town, by ferry or from the island map, so it can't be
+  skipped by joining directly.
 
 ### Step inside: shops, the Mint Hall, the hospital and your own flat
 - Walk up to a shop, the Mint Hall, the hospital or any house and press E (or tap the door button) to go in.
